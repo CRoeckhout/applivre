@@ -1,98 +1,180 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { HomeCogMenu } from '@/components/home-cog-menu';
+import { HomeFab } from '@/components/home-fab';
+import { ReadingStatsCard } from '@/components/reading-stats-card';
+import { ShortcutCard } from '@/components/shortcut-card';
+import { StreakCard } from '@/components/streak-card';
+import { UserProfileCard } from '@/components/user-profile-card';
+import { dayOffset, todayIso } from '@/lib/date';
+import { useBookshelf } from '@/store/bookshelf';
+import {
+  AVAILABLE_HOME_CARDS,
+  usePreferences,
+  type HomeCardId,
+} from '@/store/preferences';
+import { useReadingSheets } from '@/store/reading-sheets';
+import { useReadingStreak } from '@/store/reading-streak';
+import { useTimer } from '@/store/timer';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useMemo } from 'react';
+import { Text, View } from 'react-native';
+import DraggableFlatList, {
+  ScaleDecorator,
+  type RenderItemParams,
+} from 'react-native-draggable-flatlist';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+function resolveOrder(saved: HomeCardId[]): HomeCardId[] {
+  const known = saved.filter((id) => AVAILABLE_HOME_CARDS.includes(id));
+  const missing = AVAILABLE_HOME_CARDS.filter((id) => !known.includes(id));
+  return [...known, ...missing];
+}
+
+type CardDef = {
+  id: HomeCardId;
+  title: string;
+  subtitle: string;
+  icon: React.ComponentProps<typeof MaterialIcons>['name'];
+  onPress: () => void;
+};
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const router = useRouter();
+  const books = useBookshelf((s) => s.books);
+  const sheets = useReadingSheets((s) => s.sheets);
+  const manualStreakDays = useReadingStreak((s) => s.manualDays);
+  const sessions = useTimer((s) => s.sessions);
+  const goalMinutes = usePreferences((s) => s.dailyReadingGoalMinutes);
+  const homeCardOrder = usePreferences((s) => s.homeCardOrder);
+  const setHomeCardOrder = usePreferences((s) => s.setHomeCardOrder);
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const orderedIds = useMemo(() => resolveOrder(homeCardOrder), [homeCardOrder]);
+
+  // Sous-titre défi : série en cours calculée live
+  const streakSubtitle = useMemo(() => {
+    const thresholdSec = goalMinutes * 60;
+    const byDay = new Map<string, number>();
+    for (const s of sessions) {
+      const d = s.startedAt.slice(0, 10);
+      byDay.set(d, (byDay.get(d) ?? 0) + s.durationSec);
+    }
+    const completed = new Set(manualStreakDays);
+    for (const [d, total] of byDay) {
+      if (total >= thresholdSec) completed.add(d);
+    }
+    const today = todayIso();
+    const yesterday = dayOffset(today, -1);
+    let cursor = completed.has(today) ? today : completed.has(yesterday) ? yesterday : null;
+    let n = 0;
+    while (cursor && completed.has(cursor)) {
+      n++;
+      cursor = dayOffset(cursor, -1);
+    }
+    if (n === 0) return "Commence ta série aujourd'hui";
+    return `Série de ${n} jour${n > 1 ? 's' : ''} en cours`;
+  }, [manualStreakDays, sessions, goalMinutes]);
+
+  const sheetsCount = Object.keys(sheets).length;
+
+  const cardDefs: Record<HomeCardId, CardDef> = {
+    library: {
+      id: 'library',
+      title: 'Ma bibliothèque',
+      subtitle:
+        books.length === 0
+          ? 'Commence ta collection'
+          : `${books.length} livre${books.length > 1 ? 's' : ''} dans ta collection`,
+      icon: 'menu-book',
+      onPress: () => router.push('/library'),
+    },
+    sheets: {
+      id: 'sheets',
+      title: 'Mes fiches de lecture',
+      subtitle:
+        sheetsCount === 0
+          ? 'Note tes avis sur tes lectures'
+          : `${sheetsCount} fiche${sheetsCount > 1 ? 's' : ''} en cours`,
+      icon: 'edit-note',
+      onPress: () => router.push('/sheets'),
+    },
+    defi: {
+      id: 'defi',
+      title: 'Mes défis',
+      subtitle: streakSubtitle,
+      icon: 'local-fire-department',
+      onPress: () => router.push('/defi'),
+    },
+  };
+
+  const data = useMemo(() => orderedIds.map((id) => cardDefs[id]), [orderedIds, cardDefs]);
+
+  const onDragEnd = ({ data: next }: { data: CardDef[] }) => {
+    const ids = next.map((c) => c.id);
+    // Évite la sync inutile si l'ordre n'a pas changé
+    if (ids.join(',') === orderedIds.join(',')) return;
+    setHomeCardOrder(ids);
+  };
+
+  const renderItem = ({ item, drag, isActive }: RenderItemParams<CardDef>) => {
+    if (item.id === 'defi') {
+      return (
+        <ScaleDecorator>
+          <View style={{ marginBottom: 12 }}>
+            <StreakCard onLongPress={drag} isDragging={isActive} />
+          </View>
+        </ScaleDecorator>
+      );
+    }
+    return (
+      <ScaleDecorator>
+        <View style={{ marginBottom: 12 }}>
+          <ShortcutCard
+            title={item.title}
+            subtitle={item.subtitle}
+            icon={item.icon}
+            onPress={item.onPress}
+            onLongPress={drag}
+            isDragging={isActive}
+          />
+        </View>
+      </ScaleDecorator>
+    );
+  };
+
+  return (
+    <SafeAreaView className="flex-1 bg-paper" edges={['top']}>
+      <DraggableFlatList
+        data={data}
+        keyExtractor={(item) => item.id}
+        onDragEnd={onDragEnd}
+        renderItem={renderItem}
+        contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 120 }}
+        ListHeaderComponent={<HomeHeader />}
+        activationDistance={10}
+      />
+      <HomeFab />
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
+function HomeHeader() {
+  return (
+    <>
+      <Animated.View
+        entering={FadeInDown.duration(500)}
+        className="flex-row items-center justify-between">
+        <View className="flex-1 pr-3">
+          <Text className="font-display text-4xl text-ink">Accueil</Text>
+          <Text className="mt-1 text-base text-ink-muted">Ton tableau de bord lecture.</Text>
+        </View>
+        <HomeCogMenu />
+      </Animated.View>
+
+      <UserProfileCard />
+      <ReadingStatsCard />
+
+      <View className="mt-6" />
+    </>
+  );
+}
