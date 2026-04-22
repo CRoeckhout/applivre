@@ -1,50 +1,77 @@
-# Welcome to your Expo app 👋
+# Applivre
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Un bullet journal pour livres — suivi de lecture, scan ISBN, prêts nommés, bingo perso, défis.
 
-## Get started
+## Stack
 
-1. Install dependencies
+- **Expo SDK 54** + **Expo Router** (iOS, Android, web — un seul codebase)
+- **NativeWind v4** (Tailwind pour React Native)
+- **react-native-reanimated v4** (animations)
+- **Supabase** (auth + Postgres + storage)
+- **TanStack Query** + **Zustand**
+- **Open Library API** (métadonnées livres, gratuit)
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Démarrer
 
 ```bash
-npm run reset-project
+pnpm install
+cp .env.example .env         # remplir URL + clé Supabase
+pnpm start                   # menu interactif Expo
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Tester en web
 
-## Learn more
+```bash
+pnpm web
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+### Tester en iOS
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+**Sans Xcode** : installer *Expo Go* sur ton iPhone, lancer `pnpm start`, scanner le QR code.
 
-## Join the community
+**Avec Xcode** (simulateur) : installer Xcode depuis l'App Store, puis :
 
-Join our community of developers creating universal apps.
+```bash
+pnpm ios
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### Tester en Android
+
+**Sans Android Studio** : installer *Expo Go* sur Android, scanner le QR code.
+
+**Avec émulateur** : installer Android Studio + un device virtuel, puis `pnpm android`.
+
+## Backend Supabase
+
+1. Créer un projet gratuit sur https://supabase.com
+2. Copier l'URL et la clé anon dans `.env`
+3. Appliquer le schéma : ouvrir l'éditeur SQL Supabase et coller le contenu de `supabase/migrations/0001_initial.sql`
+
+## Structure
+
+```
+app/                        routes Expo Router
+  (tabs)/
+    index.tsx               Ma bibliothèque
+    scanner.tsx             Scanner ISBN
+    profile.tsx             Profil / stats / défis
+lib/
+  supabase.ts               client Supabase
+  openlibrary.ts            wrapper API livres
+store/                      slices Zustand
+types/                      types partagés
+supabase/migrations/        schéma SQL versionné
+```
+
+## Roadmap MVP
+
+- [x] Scaffold Expo + NativeWind + Supabase
+- [ ] Auth (email magique)
+- [ ] Scan ISBN → récupération métadonnées Open Library
+- [ ] Ajout livre dans la biblio avec statut
+- [ ] Timer de lecture + historique sessions
+- [ ] Prêts nommés
+- [ ] Fiche de lecture perso
+- [ ] Bingo personnalisable
+- [ ] Défi annuel
+- [ ] V2 : communauté, amis, reviews publiques

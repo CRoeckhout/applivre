@@ -38,6 +38,19 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Applivre a besoin de la caméra pour scanner les codes-barres des livres."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Applivre a besoin d'accéder à tes photos pour choisir ton avatar."
+        }
       ]
     ],
     "experiments": {
