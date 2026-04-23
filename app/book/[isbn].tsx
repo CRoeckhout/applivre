@@ -18,7 +18,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -35,6 +35,7 @@ export default function BookDetailScreen() {
   const { books, addBook, updateStatus, removeBook } = useBookshelf();
   const setGenres = useBookshelf((s) => s.setGenres);
   const [genreModalOpen, setGenreModalOpen] = useState(false);
+  const [congratsOpen, setCongratsOpen] = useState(false);
   const debugOpen = useDebug((s) => s.panelsEnabled);
   const setDebugOpen = useDebug((s) => s.setPanelsEnabled);
 
@@ -94,16 +95,20 @@ export default function BookDetailScreen() {
     });
   };
 
-  const sheetOnTop = existing?.status === 'read';
+  const onStatusPress = (status: ReadingStatus) => {
+    const wasRead = existing?.status === 'read';
+    if (existing) {
+      updateStatus(existing.id, status);
+    } else {
+      onAdd(status);
+    }
+    if (status === 'read' && !wasRead) {
+      setCongratsOpen(true);
+    }
+  };
 
   return (
     <ScrollView className="flex-1 bg-paper" contentContainerClassName="px-6 pt-6 pb-24">
-      {existing && sheetOnTop ? (
-        <Animated.View entering={FadeIn.duration(400)}>
-          <SheetPreview userBook={existing} compact />
-        </Animated.View>
-      ) : null}
-
       <Animated.View entering={FadeIn.duration(400)} className="items-center">
         <BookCover
           isbn={data.isbn}
@@ -144,7 +149,7 @@ export default function BookDetailScreen() {
             return (
               <Pressable
                 key={s.value}
-                onPress={() => (existing ? updateStatus(existing.id, s.value) : onAdd(s.value))}
+                onPress={() => onStatusPress(s.value)}
                 className={`rounded-full px-4 py-2 ${active ? 'bg-accent' : 'bg-paper-warm active:bg-paper-shade'}`}>
                 <Text className={active ? 'font-sans-med text-paper' : 'text-ink'}>{s.label}</Text>
               </Pressable>
@@ -159,7 +164,7 @@ export default function BookDetailScreen() {
         {existing && <ReadingTimer userBookId={existing.id} />}
         {existing && <ReadingStats userBookId={existing.id} totalPages={data.pages} />}
         {existing && <LoanTracker userBookId={existing.id} />}
-        {existing && !sheetOnTop && <SheetPreview userBook={existing} />}
+        {existing && <SheetPreview userBook={existing} />}
 
         {existing && (
           <GenreEditorModal
@@ -182,7 +187,61 @@ export default function BookDetailScreen() {
           </Pressable>
         )}
       </Animated.View>
+
+      <CongratsReadModal
+        open={congratsOpen}
+        onClose={() => setCongratsOpen(false)}
+        onCreate={() => {
+          setCongratsOpen(false);
+          router.push(`/sheet/${isbn}`);
+        }}
+      />
     </ScrollView>
+  );
+}
+
+function CongratsReadModal({
+  open,
+  onClose,
+  onCreate,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreate: () => void;
+}) {
+  return (
+    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
+      <View className="flex-1 items-center justify-center bg-black/40 px-8">
+        <Animated.View
+          entering={FadeIn.duration(220)}
+          className="w-full max-w-sm rounded-3xl bg-paper p-6">
+          <View className="items-center">
+            <View className="h-14 w-14 items-center justify-center rounded-full bg-accent-pale">
+              <MaterialIcons name="celebration" size={30} color="#c27b52" />
+            </View>
+            <Text className="mt-4 text-center font-display text-2xl text-ink">
+              Félicitations !
+            </Text>
+            <Text className="mt-2 text-center text-base text-ink-soft">
+              Ajoute une fiche de lecture pour dire ce que tu en as pensé.
+            </Text>
+          </View>
+
+          <View className="mt-6 gap-2">
+            <Pressable
+              onPress={onCreate}
+              className="items-center rounded-full bg-accent px-5 py-3 active:opacity-80">
+              <Text className="font-sans-med text-paper">Créer ma fiche</Text>
+            </Pressable>
+            <Pressable
+              onPress={onClose}
+              className="items-center rounded-full px-5 py-3 active:bg-paper-warm">
+              <Text className="text-ink-muted">Plus tard</Text>
+            </Pressable>
+          </View>
+        </Animated.View>
+      </View>
+    </Modal>
   );
 }
 

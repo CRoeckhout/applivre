@@ -31,6 +31,8 @@ type SheetsState = {
     rating: SectionRating | null,
   ) => void;
   removeSection: (userBookId: string, sectionId: string) => void;
+  // Remplace entièrement les sections (draft commit). Tableau vide = supprime la fiche.
+  setSections: (userBookId: string, sections: SheetSection[]) => void;
   removeSheet: (userBookId: string) => void;
   // Remplace l'appearance complète. `undefined` = re-snapshot du template global courant.
   setAppearance: (
@@ -157,6 +159,26 @@ export const useReadingSheets = create<SheetsState>()(
             return {
               sheets: { ...state.sheets, [userBookId]: touch(sheet, next) },
             };
+          });
+          afterMutation(userBookId);
+        },
+
+        setSections: (userBookId, sections) => {
+          set((state) => {
+            const existing = state.sheets[userBookId];
+            if (sections.length === 0) {
+              if (!existing) return state;
+              const { [userBookId]: _removed, ...rest } = state.sheets;
+              return { sheets: rest };
+            }
+            const appearance = existing?.appearance ?? useSheetTemplates.getState().global;
+            const updated: ReadingSheet = {
+              userBookId,
+              sections,
+              updatedAt: new Date().toISOString(),
+              appearance,
+            };
+            return { sheets: { ...state.sheets, [userBookId]: updated } };
           });
           afterMutation(userBookId);
         },

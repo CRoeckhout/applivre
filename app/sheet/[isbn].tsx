@@ -1,6 +1,7 @@
 import { BookCover } from '@/components/book-cover';
 import { RatingIcon } from '@/components/rating-row';
 import { SheetCustomizer } from '@/components/sheet-customizer';
+import { newId } from '@/lib/id';
 import {
   hexWithAlpha,
   isCustomAppearance,
@@ -14,6 +15,7 @@ import { useReadingSheets } from '@/store/reading-sheets';
 import { useSheetTemplates } from '@/store/sheet-templates';
 import type {
   RatingIconKind,
+  SectionRating,
   SheetAppearance,
   SheetDefaultCategory,
   SheetRatingIconConfig,
@@ -44,16 +46,26 @@ export default function SheetScreen() {
   const userBook = books.find((b) => b.book.isbn === isbn);
 
   const sheets = useReadingSheets((s) => s.sheets);
-  const addSection = useReadingSheets((s) => s.addSection);
+  const setSections = useReadingSheets((s) => s.setSections);
   const removeSheet = useReadingSheets((s) => s.removeSheet);
   const setSheetAppearance = useReadingSheets((s) => s.setAppearance);
 
   const globalTemplate = useSheetTemplates((s) => s.global);
   const themeInk = usePreferences((s) => s.colorSecondary);
   const themePaper = usePreferences((s) => s.colorBg);
+  const themePrimary = usePreferences((s) => s.colorPrimary);
 
   const sheet = userBook ? sheets[userBook.id] : undefined;
-  const sections = sheet?.sections ?? [];
+  const storedSections = sheet?.sections ?? EMPTY_SECTIONS;
+
+  // Draft local. Toute édition (titre, body, note, add/remove section) n'affecte
+  // que ce draft — rien n'est persisté avant tap sur le bouton Enregistrer.
+  const [draft, setDraft] = useState<SheetSection[]>(() => storedSections);
+
+  const dirty = useMemo(
+    () => !sectionsEqual(draft, storedSections),
+    [draft, storedSections],
+  );
 
   const appearance = useMemo<SheetAppearance>(
     () => mergeAppearance(globalTemplate, sheet?.appearance),
@@ -64,14 +76,64 @@ export default function SheetScreen() {
   const enabledRatingIcons = appearance.ratingIcons.filter((r) => r.enabled);
 
   const unusedDefaults = useMemo(() => {
-    const used = new Set(sections.map((s) => s.title.toLowerCase()));
+    const used = new Set(draft.map((s) => s.title.toLowerCase()));
     return appearance.defaultCategories.filter(
       (s) => !used.has(s.title.toLowerCase()),
     );
-  }, [sections, appearance.defaultCategories]);
+  }, [draft, appearance.defaultCategories]);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [customizerOpen, setCustomizerOpen] = useState(false);
+
+  const addSectionDraft = (title: string, icon?: RatingIconKind) => {
+    setDraft((d) => [
+      ...d,
+      {
+        id: newId(),
+        title: title.trim() || 'Sans titre',
+        body: '',
+        rating: icon ? { value: 0, icon } : undefined,
+      },
+    ]);
+  };
+  const updateTitleDraft = (sectionId: string, title: string) => {
+    setDraft((d) => d.map((s) => (s.id === sectionId ? { ...s, title } : s)));
+  };
+  const updateBodyDraft = (sectionId: string, body: string) => {
+    setDraft((d) => d.map((s) => (s.id === sectionId ? { ...s, body } : s)));
+  };
+  const setRatingDraft = (sectionId: string, rating: SectionRating | null) => {
+    setDraft((d) =>
+      d.map((s) => (s.id === sectionId ? { ...s, rating: rating ?? undefined } : s)),
+    );
+  };
+  const removeSectionDraft = (sectionId: string) => {
+    setDraft((d) => d.filter((s) => s.id !== sectionId));
+  };
+
+  const handleSaveDraft = () => {
+    if (!userBook) return;
+    setSections(userBook.id, draft);
+  };
+
+  const handleBack = () => {
+    if (!dirty) {
+      router.back();
+      return;
+    }
+    Alert.alert(
+      'Modifications non enregistrées',
+      'Tu as des changements non sauvegardés. Les perdre ?',
+      [
+        { text: 'Continuer l’édition', style: 'cancel' },
+        {
+          text: 'Quitter sans sauver',
+          style: 'destructive',
+          onPress: () => router.back(),
+        },
+      ],
+    );
+  };
 
   if (!userBook) {
     return (
@@ -113,7 +175,7 @@ export default function SheetScreen() {
     const lines: string[] = [`Fiche : ${userBook.book.title}`];
     if (userBook.book.authors[0]) lines.push(`par ${userBook.book.authors[0]}`);
     lines.push('');
-    for (const s of sections) {
+    for (const s of draft) {
       if (!s.body.trim() && !s.rating) continue;
       lines.push(`— ${s.title || 'Sans titre'}`);
       if (s.rating) lines.push(`  ${'★'.repeat(s.rating.value)}${'☆'.repeat(5 - s.rating.value)}`);
@@ -151,7 +213,7 @@ export default function SheetScreen() {
         style={{ flex: 1 }}>
         <View className="flex-row items-center justify-between px-4 pt-2 pb-2">
           <Pressable
-            onPress={() => router.back()}
+            onPress={handleBack}
             hitSlop={8}
             className="h-10 w-10 items-center justify-center rounded-full active:opacity-60">
             <MaterialIcons name="arrow-back" size={22} color={themeInk} />
@@ -210,17 +272,17 @@ export default function SheetScreen() {
               </View>
             </View>
 
-            {sections.length === 0 ? (
+            {draft.length === 0 ? (
               <EmptyState
                 appearance={appearance}
                 fontFamily={fontFamily}
-                onAdd={(c) => addSection(userBook.id, c.title, c.icon)}
-                onAddCustom={() => addSection(userBook.id, '')}
+                onAdd={(c) => addSectionDraft(c.title, c.icon)}
+                onAddCustom={() => addSectionDraft('')}
                 suggestions={unusedDefaults}
               />
             ) : (
               <View className="mt-6">
-                {sections.map((section, i) => (
+                {draft.map((section, i) => (
                   <Animated.View
                     key={section.id}
                     entering={FadeIn.duration(300).delay(i * 40)}
@@ -230,18 +292,21 @@ export default function SheetScreen() {
                       borderTopColor: hexWithAlpha(appearance.mutedColor, 0.22),
                     }}>
                     <SectionEditor
-                      userBookId={userBook.id}
                       section={section}
                       appearance={appearance}
                       fontFamily={fontFamily}
                       ratingIcons={enabledRatingIcons}
+                      onUpdateTitle={(title) => updateTitleDraft(section.id, title)}
+                      onUpdateBody={(body) => updateBodyDraft(section.id, body)}
+                      onSetRating={(r) => setRatingDraft(section.id, r)}
+                      onRemove={() => removeSectionDraft(section.id)}
                     />
                   </Animated.View>
                 ))}
               </View>
             )}
 
-            {sections.length > 0 && unusedDefaults.length > 0 && (
+            {draft.length > 0 && unusedDefaults.length > 0 && (
               <View
                 className="mt-4 pt-4"
                 style={{
@@ -259,16 +324,16 @@ export default function SheetScreen() {
                       key={c.title}
                       category={c}
                       appearance={appearance}
-                      onPress={() => addSection(userBook.id, c.title, c.icon)}
+                      onPress={() => addSectionDraft(c.title, c.icon)}
                     />
                   ))}
                 </View>
               </View>
             )}
 
-            {sections.length > 0 && (
+            {draft.length > 0 && (
               <Pressable
-                onPress={() => addSection(userBook.id, '')}
+                onPress={() => addSectionDraft('')}
                 style={{ borderColor: appearance.mutedColor, borderWidth: 1 }}
                 className="mt-4 rounded-full py-3 active:opacity-70">
                 <Text
@@ -280,6 +345,14 @@ export default function SheetScreen() {
             )}
           </Animated.View>
         </ScrollView>
+
+        {dirty && (
+          <SaveFab
+            onPress={handleSaveDraft}
+            accentColor={themePrimary}
+            isEmpty={draft.length === 0}
+          />
+        )}
       </KeyboardAvoidingView>
 
       <ActionMenu
@@ -464,28 +537,28 @@ function SuggestionPill({
 }
 
 function SectionEditor({
-  userBookId,
   section,
   appearance,
   fontFamily,
   ratingIcons,
+  onUpdateTitle,
+  onUpdateBody,
+  onSetRating,
+  onRemove,
 }: {
-  userBookId: string;
   section: SheetSection;
   appearance: SheetAppearance;
   fontFamily: string;
   ratingIcons: SheetRatingIconConfig[];
+  onUpdateTitle: (title: string) => void;
+  onUpdateBody: (body: string) => void;
+  onSetRating: (rating: SectionRating | null) => void;
+  onRemove: () => void;
 }) {
-  const updateTitle = useReadingSheets((s) => s.updateSectionTitle);
-  const updateBody = useReadingSheets((s) => s.updateSectionBody);
-  const setRating = useReadingSheets((s) => s.setSectionRating);
-  const removeSection = useReadingSheets((s) => s.removeSection);
-
-  const handleAddRating = (icon: RatingIconKind) =>
-    setRating(userBookId, section.id, { value: 0, icon });
+  const handleAddRating = (icon: RatingIconKind) => onSetRating({ value: 0, icon });
   const handleChangeRating = (value: number) => {
     if (!section.rating) return;
-    setRating(userBookId, section.id, { ...section.rating, value });
+    onSetRating({ ...section.rating, value });
   };
 
   return (
@@ -493,14 +566,14 @@ function SectionEditor({
       <View className="flex-row items-start gap-2">
         <TextInput
           value={section.title}
-          onChangeText={(v) => updateTitle(userBookId, section.id, v)}
+          onChangeText={onUpdateTitle}
           placeholder="Titre de la catégorie"
           placeholderTextColor={appearance.mutedColor}
           style={{ color: appearance.textColor, fontFamily, fontSize: 18 }}
           className="flex-1"
         />
         <Pressable
-          onPress={() => removeSection(userBookId, section.id)}
+          onPress={onRemove}
           hitSlop={8}
           className="h-8 w-8 items-center justify-center rounded-full active:opacity-60">
           <Text style={{ color: appearance.mutedColor }} className="text-xl">
@@ -515,7 +588,7 @@ function SectionEditor({
             kind={section.rating.icon}
             value={section.rating.value}
             onChange={handleChangeRating}
-            onRemove={() => setRating(userBookId, section.id, null)}
+            onRemove={() => onSetRating(null)}
             mutedColor={appearance.mutedColor}
           />
         </View>
@@ -531,7 +604,7 @@ function SectionEditor({
 
       <TextInput
         value={section.body}
-        onChangeText={(v) => updateBody(userBookId, section.id, v)}
+        onChangeText={onUpdateBody}
         placeholder="Écris ici ton avis, tes pensées…"
         placeholderTextColor={appearance.mutedColor}
         multiline
@@ -541,6 +614,63 @@ function SectionEditor({
       />
     </View>
   );
+}
+
+function SaveFab({
+  onPress,
+  accentColor,
+  isEmpty,
+}: {
+  onPress: () => void;
+  accentColor: string;
+  isEmpty: boolean;
+}) {
+  return (
+    <View
+      pointerEvents="box-none"
+      className="absolute inset-x-0 bottom-6 items-center">
+      <Animated.View entering={FadeInDown.duration(220)}>
+        <Pressable
+          onPress={onPress}
+          accessibilityLabel="Enregistrer la fiche"
+          style={{
+            backgroundColor: accentColor,
+            shadowColor: '#000',
+            shadowOpacity: 0.25,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: 8,
+          }}
+          className="flex-row items-center gap-2 rounded-full px-6 py-3 active:opacity-85">
+          <MaterialIcons name={isEmpty ? 'delete-outline' : 'check'} size={20} color="#fff" />
+          <Text className="font-sans-med text-paper">
+            {isEmpty ? 'Supprimer la fiche' : 'Enregistrer'}
+          </Text>
+        </Pressable>
+      </Animated.View>
+    </View>
+  );
+}
+
+const EMPTY_SECTIONS: SheetSection[] = [];
+
+function sectionsEqual(a: SheetSection[], b: SheetSection[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    const x = a[i];
+    const y = b[i];
+    if (
+      x.id !== y.id ||
+      x.title !== y.title ||
+      x.body !== y.body ||
+      x.rating?.value !== y.rating?.value ||
+      x.rating?.icon !== y.rating?.icon
+    ) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function InlineRatingRow({
