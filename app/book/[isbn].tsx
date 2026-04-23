@@ -1,18 +1,23 @@
 import { BookCover } from '@/components/book-cover';
+import { GenreEditorModal } from '@/components/genre-editor-modal';
 import { LoanTracker } from '@/components/loan-tracker';
-import { RatingIcon } from '@/components/rating-row';
 import { ReadingTimer } from '@/components/reading-timer';
+import { SheetCard } from '@/components/sheet-card';
 import { formatDurationHuman } from '@/hooks/use-elapsed-time';
 import { fetchBook } from '@/lib/books';
+import { categorySuggestions, displayGenres } from '@/lib/genre';
 import { newId } from '@/lib/id';
+import { isCustomAppearance, mergeAppearance } from '@/lib/sheet-appearance';
 import { useBookshelf } from '@/store/bookshelf';
+import { useDebug } from '@/store/debug';
 import { useReadingSheets } from '@/store/reading-sheets';
+import { useSheetTemplates } from '@/store/sheet-templates';
 import { useTimer } from '@/store/timer';
-import type { ReadingStatus, ReadingSession } from '@/types/book';
+import type { Book, ReadingStatus, ReadingSession, UserBook } from '@/types/book';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,6 +33,10 @@ export default function BookDetailScreen() {
   const { isbn } = useLocalSearchParams<{ isbn: string }>();
   const router = useRouter();
   const { books, addBook, updateStatus, removeBook } = useBookshelf();
+  const setGenres = useBookshelf((s) => s.setGenres);
+  const [genreModalOpen, setGenreModalOpen] = useState(false);
+  const debugOpen = useDebug((s) => s.panelsEnabled);
+  const setDebugOpen = useDebug((s) => s.setPanelsEnabled);
 
   const existing = books.find((b) => b.book.isbn === isbn);
   const isSyntheticManualIsbn = !!isbn?.startsWith('manual-');
@@ -85,8 +94,16 @@ export default function BookDetailScreen() {
     });
   };
 
+  const sheetOnTop = existing?.status === 'read';
+
   return (
     <ScrollView className="flex-1 bg-paper" contentContainerClassName="px-6 pt-6 pb-24">
+      {existing && sheetOnTop ? (
+        <Animated.View entering={FadeIn.duration(400)}>
+          <SheetPreview userBook={existing} compact />
+        </Animated.View>
+      ) : null}
+
       <Animated.View entering={FadeIn.duration(400)} className="items-center">
         <BookCover
           isbn={data.isbn}
@@ -108,6 +125,13 @@ export default function BookDetailScreen() {
           {!isSyntheticManualIsbn && data.isbn ? <Tag>ISBN {data.isbn}</Tag> : null}
           {data.source === 'manual' ? <Tag>Saisi manuellement</Tag> : null}
         </View>
+        {__DEV__ && debugOpen && (
+          <DebugBookPanel
+            book={data}
+            existing={existing}
+            onClose={() => setDebugOpen(false)}
+          />
+        )}
       </Animated.View>
 
       <Animated.View entering={FadeInDown.duration(400).delay(200)} className="mt-10">
@@ -128,10 +152,24 @@ export default function BookDetailScreen() {
           })}
         </View>
 
+        {existing && (
+          <GenreRow ub={existing} onEdit={() => setGenreModalOpen(true)} />
+        )}
+
         {existing && <ReadingTimer userBookId={existing.id} />}
         {existing && <ReadingStats userBookId={existing.id} totalPages={data.pages} />}
         {existing && <LoanTracker userBookId={existing.id} />}
-        {existing && <SheetPreview userBookId={existing.id} isbn={data.isbn} />}
+        {existing && !sheetOnTop && <SheetPreview userBook={existing} />}
+
+        {existing && (
+          <GenreEditorModal
+            open={genreModalOpen}
+            initial={displayGenres(existing)}
+            suggestions={categorySuggestions(existing)}
+            onClose={() => setGenreModalOpen(false)}
+            onSave={(values) => setGenres(existing.id, values)}
+          />
+        )}
 
         {existing && (
           <Pressable
@@ -234,15 +272,20 @@ function SessionRow({ session, delta }: { session: ReadingSession; delta: number
   );
 }
 
-function SheetPreview({ userBookId, isbn }: { userBookId: string; isbn: string }) {
+function SheetPreview({ userBook, compact }: { userBook: UserBook; compact?: boolean }) {
   const router = useRouter();
-  const sheet = useReadingSheets((s) => s.sheets[userBookId]);
-  const sections = sheet?.sections ?? [];
+  const sheet = useReadingSheets((s) => s.sheets[userBook.id]);
+  const globalTemplate = useSheetTemplates((s) => s.global);
 
-  return (
-    <View className="mt-8">
-      <Text className="mb-3 font-display text-xl text-ink">Fiche de lecture</Text>
-      {sections.length === 0 ? (
+  const isbn = userBook.book.isbn;
+  const hasContent = !!sheet && sheet.sections.length > 0;
+
+  if (!hasContent) {
+    return (
+      <View className={compact ? 'mb-6' : 'mt-8'}>
+        {!compact && (
+          <Text className="mb-3 font-display text-xl text-ink">Fiche de lecture</Text>
+        )}
         <Pressable
           onPress={() => router.push(`/sheet/${isbn}`)}
           className="overflow-hidden rounded-3xl bg-accent-pale p-5 active:opacity-80">
@@ -259,46 +302,26 @@ function SheetPreview({ userBookId, isbn }: { userBookId: string; isbn: string }
             <Text className="text-2xl text-accent-deep">›</Text>
           </View>
         </Pressable>
-      ) : (
-        <Pressable
-          onPress={() => router.push(`/sheet/${isbn}`)}
-          className="rounded-2xl bg-paper-warm p-5 active:bg-paper-shade">
-          <Text className="text-xs uppercase tracking-wider text-ink-muted">
-            {sections.length} section{sections.length > 1 ? 's' : ''}
-          </Text>
-          {sections.slice(0, 2).map((s, i) => (
-            <View key={s.id} className={i === 0 ? 'mt-3' : 'mt-4'}>
-              <View className="flex-row items-center gap-2">
-                <Text className="font-display text-base text-ink">{s.title || 'Sans titre'}</Text>
-                {s.rating && (
-                  <View className="flex-row">
-                    {[1, 2, 3, 4, 5].map((i2) => (
-                      <RatingIcon
-                        key={i2}
-                        kind={s.rating!.icon}
-                        filled={s.rating!.value >= i2}
-                        size={14}
-                      />
-                    ))}
-                  </View>
-                )}
-              </View>
-              {s.body ? (
-                <Text numberOfLines={2} className="mt-1 text-sm text-ink-soft">
-                  {s.body}
-                </Text>
-              ) : !s.rating ? (
-                <Text className="mt-1 text-sm italic text-ink-muted">(vide)</Text>
-              ) : null}
-            </View>
-          ))}
-          {sections.length > 2 && (
-            <Text className="mt-3 text-xs text-ink-muted">
-              +{sections.length - 2} autre{sections.length - 2 > 1 ? 's' : ''}
-            </Text>
-          )}
-        </Pressable>
+      </View>
+    );
+  }
+
+  const effective = mergeAppearance(globalTemplate, sheet.appearance);
+  const isCustom = isCustomAppearance(sheet.appearance, globalTemplate);
+
+  return (
+    <View className={compact ? 'mb-6' : 'mt-8'}>
+      {!compact && (
+        <Text className="mb-3 font-display text-xl text-ink">Fiche de lecture</Text>
       )}
+      <SheetCard
+        userBook={userBook}
+        sheet={sheet}
+        appearance={effective}
+        isCustom={isCustom}
+        hideBookHeader={compact}
+        onPress={() => router.push(`/sheet/${isbn}`)}
+      />
     </View>
   );
 }
@@ -307,6 +330,85 @@ function Tag({ children }: { children: React.ReactNode }) {
   return (
     <View className="rounded-full bg-paper-warm px-3 py-1">
       <Text className="text-xs text-ink-soft">{children}</Text>
+    </View>
+  );
+}
+
+function DebugBookPanel({
+  book,
+  existing,
+  onClose,
+}: {
+  book: Book;
+  existing: UserBook | undefined;
+  onClose: () => void;
+}) {
+  const payload = {
+    isbn: book.isbn,
+    title: book.title,
+    authors: book.authors,
+    pages: book.pages,
+    publishedAt: book.publishedAt,
+    source: book.source,
+    categories: book.categories,
+    hasCover: !!book.coverUrl,
+    existing: existing
+      ? {
+          id: existing.id,
+          status: existing.status,
+          genres: existing.genres,
+          addedAt: existing.addedAt,
+        }
+      : null,
+  };
+  return (
+    <View className="mt-4 self-stretch rounded-xl bg-ink/90 p-3">
+      <View className="mb-1 flex-row items-center justify-between">
+        <Text className="text-[10px] uppercase tracking-wider text-paper/60">debug</Text>
+        <Pressable onPress={onClose} hitSlop={10}>
+          <MaterialIcons name="close" size={16} color="#ede4d3" />
+        </Pressable>
+      </View>
+      <Text selectable className="text-[10px] leading-4 text-paper" style={{ fontFamily: 'SpaceMono_400Regular' }}>
+        {JSON.stringify(payload, null, 2)}
+      </Text>
+    </View>
+  );
+}
+
+function GenreRow({ ub, onEdit }: { ub: UserBook; onEdit: () => void }) {
+  const genres = displayGenres(ub);
+  const fromUser = !!(ub.genres && ub.genres.length > 0);
+  return (
+    <View className="mt-6">
+      <View className="mb-2 flex-row items-baseline gap-2">
+        <Text className="font-display text-lg text-ink">Genres</Text>
+        {genres.length > 0 && !fromUser ? (
+          <Text className="text-xs text-ink-muted">depuis catalogue</Text>
+        ) : null}
+      </View>
+      <Pressable
+        onPress={onEdit}
+        className="rounded-2xl bg-paper-warm p-4 active:bg-paper-shade">
+        {genres.length === 0 ? (
+          <View className="flex-row items-center gap-3">
+            <MaterialIcons name="local-offer" size={18} color="#6b6259" />
+            <Text className="flex-1 text-base italic text-ink-muted">Aucun genre défini</Text>
+            <MaterialIcons name="edit" size={18} color="#6b6259" />
+          </View>
+        ) : (
+          <View className="flex-row items-center gap-3">
+            <View className="flex-1 flex-row flex-wrap gap-2">
+              {genres.map((g) => (
+                <View key={g} className="rounded-full bg-paper px-3 py-1">
+                  <Text className="text-sm text-ink">{g}</Text>
+                </View>
+              ))}
+            </View>
+            <MaterialIcons name="edit" size={18} color="#6b6259" />
+          </View>
+        )}
+      </Pressable>
     </View>
   );
 }

@@ -1,27 +1,24 @@
 import { newId } from '@/lib/id';
 import { getSyncUserId } from '@/lib/sync/session';
 import { syncDeleteSheet, syncUpsertSheetDebounced } from '@/lib/sync/writers';
-import type { RatingIconKind, ReadingSheet, SectionRating, SheetSection } from '@/types/book';
+import { useSheetTemplates } from '@/store/sheet-templates';
+import type {
+  RatingIconKind,
+  ReadingSheet,
+  SectionRating,
+  SheetAppearance,
+  SheetSection,
+} from '@/types/book';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+// SuggestedCategory est remplacée par SheetDefaultCategory côté types.
+// On garde l'alias pour éviter de casser les anciens imports.
 export type SuggestedCategory = {
   title: string;
   icon?: RatingIconKind;
 };
-
-export const SUGGESTED_CATEGORIES: SuggestedCategory[] = [
-  { title: 'Histoire', icon: 'star' },
-  { title: 'Fin', icon: 'star' },
-  { title: 'Personnages', icon: 'star' },
-  { title: 'Romance', icon: 'heart' },
-  { title: 'Spicy', icon: 'chili' },
-  { title: 'Ambiance', icon: 'star' },
-  { title: 'Ce que j\'ai aimé' },
-  { title: 'Ce qui m\'a dérangé·e' },
-  { title: 'Citations favorites' },
-];
 
 type SheetsState = {
   sheets: Record<string, ReadingSheet>;
@@ -35,19 +32,27 @@ type SheetsState = {
   ) => void;
   removeSection: (userBookId: string, sectionId: string) => void;
   removeSheet: (userBookId: string) => void;
+  // Remplace l'appearance complète. `undefined` = re-snapshot du template global courant.
+  setAppearance: (
+    userBookId: string,
+    next: SheetAppearance | undefined,
+  ) => void;
 };
 
+// Lors de la création d'une fiche, on snapshot le template global courant
+// dans `appearance`. Ainsi modifier le global après coup n'affecte plus cette fiche.
 function ensureSheet(
   sheets: Record<string, ReadingSheet>,
   userBookId: string,
 ): ReadingSheet {
-  return (
-    sheets[userBookId] ?? {
-      userBookId,
-      sections: [],
-      updatedAt: new Date().toISOString(),
-    }
-  );
+  const existing = sheets[userBookId];
+  if (existing) return existing;
+  return {
+    userBookId,
+    sections: [],
+    updatedAt: new Date().toISOString(),
+    appearance: useSheetTemplates.getState().global,
+  };
 }
 
 function touch(sheet: ReadingSheet, sections: SheetSection[]): ReadingSheet {
@@ -162,6 +167,24 @@ export const useReadingSheets = create<SheetsState>()(
             return { sheets: rest };
           });
           if (getSyncUserId()) void syncDeleteSheet(userBookId);
+        },
+
+        setAppearance: (userBookId, next) => {
+          set((state) => {
+            // Reset = re-snapshot du global courant (à la demande de l'user).
+            const snapshot = next ?? useSheetTemplates.getState().global;
+            const existing = state.sheets[userBookId];
+            const updated: ReadingSheet = existing
+              ? { ...existing, appearance: snapshot, updatedAt: new Date().toISOString() }
+              : {
+                  userBookId,
+                  sections: [],
+                  updatedAt: new Date().toISOString(),
+                  appearance: snapshot,
+                };
+            return { sheets: { ...state.sheets, [userBookId]: updated } };
+          });
+          afterMutation(userBookId);
         },
       };
     },
