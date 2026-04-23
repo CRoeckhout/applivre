@@ -1,12 +1,12 @@
-import { useAuth } from '@/hooks/use-auth';
-import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { useAuth } from "@/hooks/use-auth";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import {
   internalCheckUsernameAvailable,
   internalUpsertUsername,
-} from '@/lib/sync/internals';
-import { useProfile, validateUsernameLocal } from '@/store/profile';
-import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+} from "@/lib/sync/internals";
+import { useProfile, validateUsernameLocal } from "@/store/profile";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -14,7 +14,7 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
+} from "react-native";
 
 type Props = {
   open: boolean;
@@ -26,24 +26,24 @@ export function UsernameEditorModal({ open, onClose }: Props) {
   const current = useProfile((s) => s.username);
   const setUsername = useProfile((s) => s.setUsername);
 
-  const [value, setValue] = useState(current ?? '');
+  const [value, setValue] = useState(current ?? "");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Reset du champ quand on rouvre le modal
   useEffect(() => {
     if (open) {
-      setValue(current ?? '');
+      setValue(current ?? "");
       setSaveError(null);
     }
   }, [open, current]);
 
   const localError = value.length > 0 ? validateUsernameLocal(value) : null;
   const debounced = useDebouncedValue(value, 350);
-  const unchanged = debounced === (current ?? '');
+  const unchanged = debounced === (current ?? "");
 
   const { data: available, isFetching } = useQuery({
-    queryKey: ['username-available', debounced],
+    queryKey: ["username-available", debounced],
     queryFn: () => internalCheckUsernameAvailable(debounced),
     enabled: !!debounced && !validateUsernameLocal(debounced) && !unchanged,
     staleTime: 30_000,
@@ -51,7 +51,7 @@ export function UsernameEditorModal({ open, onClose }: Props) {
 
   const remoteError =
     !unchanged && available === false
-      ? 'Ce nom d\u2019utilisateur est déjà pris'
+      ? "Ce nom d\u2019utilisateur est déjà pris"
       : null;
   const error = localError ?? remoteError ?? saveError;
   const canSave =
@@ -72,11 +72,11 @@ export function UsernameEditorModal({ open, onClose }: Props) {
       setUsername(trimmed);
       onClose();
     } catch (e) {
-      const msg = (e as Error).message ?? '';
-      if (msg.includes('duplicate') || msg.includes('23505')) {
-        setSaveError('Ce nom d\u2019utilisateur vient d\u2019être pris');
+      const msg = (e as Error).message ?? "";
+      if (msg.includes("duplicate") || msg.includes("23505")) {
+        setSaveError("Ce nom d\u2019utilisateur vient d\u2019être pris");
       } else {
-        setSaveError(msg || 'Impossible d\u2019enregistrer');
+        setSaveError(msg || "Impossible d\u2019enregistrer");
       }
     } finally {
       setSaving(false);
@@ -84,12 +84,21 @@ export function UsernameEditorModal({ open, onClose }: Props) {
   };
 
   return (
-    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={open}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
       <Pressable
         onPress={onClose}
         className="flex-1 bg-ink/60 px-6"
-        style={{ justifyContent: 'center' }}>
-        <Pressable className="rounded-3xl bg-paper p-6" onPress={(e) => e.stopPropagation()}>
+        style={{ justifyContent: "center" }}
+      >
+        <Pressable
+          className="rounded-3xl bg-paper p-6"
+          onPress={(e) => e.stopPropagation()}
+        >
           <Text className="font-display text-2xl text-ink">
             Modifier le nom d&apos;utilisateur
           </Text>
@@ -102,7 +111,7 @@ export function UsernameEditorModal({ open, onClose }: Props) {
             <TextInput
               value={value}
               onChangeText={(v) => {
-                setValue(v.replace(/\s/g, ''));
+                setValue(v.replace(/\s/g, ""));
                 setSaveError(null);
               }}
               placeholder="toi"
@@ -112,24 +121,26 @@ export function UsernameEditorModal({ open, onClose }: Props) {
               autoFocus
               className="flex-1 text-base text-ink"
             />
-            {isFetching && !unchanged && <ActivityIndicator size="small" color="#c27b52" />}
+            {isFetching && !unchanged && (
+              <ActivityIndicator size="small" color="#c27b52" />
+            )}
             {!isFetching &&
               !error &&
               value.length >= 3 &&
               !unchanged &&
-              available === true && <Text className="text-sm text-accent-deep">✓</Text>}
+              available === true && (
+                <Text className="text-sm text-accent-deep">✓</Text>
+              )}
           </View>
 
           <View className="mt-3 min-h-5">
             {error ? (
               <Text className="text-sm text-accent-deep">{error}</Text>
             ) : unchanged ? (
-              <Text className="text-xs text-ink-muted">Identique au nom actuel.</Text>
-            ) : (
               <Text className="text-xs text-ink-muted">
-                Lettres, chiffres, _ et . — 3 à 30 caractères.
+                Identique au nom actuel.
               </Text>
-            )}
+            ) : null}
           </View>
 
           <View className="mt-6 gap-2">
@@ -137,22 +148,25 @@ export function UsernameEditorModal({ open, onClose }: Props) {
               disabled={!canSave}
               onPress={onSave}
               className={`rounded-full py-3 ${
-                canSave ? 'bg-accent active:opacity-80' : 'bg-paper-shade'
-              }`}>
+                canSave ? "bg-accent active:opacity-80" : "bg-paper-shade"
+              }`}
+            >
               {saving ? (
                 <ActivityIndicator color="#fbf8f4" />
               ) : (
                 <Text
                   className={`text-center font-sans-med ${
-                    canSave ? 'text-paper' : 'text-ink-muted'
-                  }`}>
+                    canSave ? "text-paper" : "text-ink-muted"
+                  }`}
+                >
                   Enregistrer
                 </Text>
               )}
             </Pressable>
             <Pressable
               onPress={onClose}
-              className="rounded-full border border-ink-muted/30 py-3 active:opacity-70">
+              className="rounded-full border border-ink-muted/30 py-3 active:opacity-70"
+            >
               <Text className="text-center text-ink-muted">Annuler</Text>
             </Pressable>
           </View>

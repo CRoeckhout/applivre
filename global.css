@@ -1,3 +1,23 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --color-ink: 26 20 16;
+    --color-ink-soft: 58 50 43;
+    --color-ink-muted: 107 98 89;
+    --color-paper: 251 248 244;
+    --color-paper-warm: 243 236 223;
+    --color-paper-shade: 232 223 206;
+    --color-accent: 194 123 82;
+    --color-accent-deep: 155 90 56;
+    --color-accent-pale: 242 217 198;
+
+    --font-sans: DMSans_400Regular;
+    --font-sans-med: DMSans_500Medium;
+    --font-sans-semi: DMSans_600SemiBold;
+    --font-sans-bold: DMSans_700Bold;
+    --font-display: DMSans_600SemiBold;
+  }
+}

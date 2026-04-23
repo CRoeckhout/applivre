@@ -1,5 +1,6 @@
 import { BookCover } from '@/components/book-cover';
 import { ChallengeCard } from '@/components/challenge-card';
+import { HomeCogMenu } from '@/components/home-cog-menu';
 import { UsernameEditorModal } from '@/components/username-editor-modal';
 import { signOut, useAuth } from '@/hooks/use-auth';
 import { pullUserData } from '@/lib/sync/pull';
@@ -39,11 +40,16 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView className="flex-1 bg-paper" edges={['top']}>
       <ScrollView contentContainerClassName="px-6 pt-4 pb-24">
-        <Animated.View entering={FadeInDown.duration(500)}>
-          <Text className="font-display text-4xl text-ink">Profil</Text>
-          {session?.user.email && (
-            <Text className="mt-1 text-base text-ink-muted">{session.user.email}</Text>
-          )}
+        <Animated.View
+          entering={FadeInDown.duration(500)}
+          className="flex-row items-start gap-3">
+          <View className="flex-1">
+            <Text className="font-display text-4xl text-ink">Profil</Text>
+            {session?.user.email && (
+              <Text className="mt-1 text-base text-ink-muted">{session.user.email}</Text>
+            )}
+          </View>
+          <HomeCogMenu />
         </Animated.View>
 
         <ChallengeCard />

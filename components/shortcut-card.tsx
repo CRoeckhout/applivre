@@ -1,3 +1,4 @@
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
@@ -18,6 +19,7 @@ export function ShortcutCard({
   onLongPress,
   isDragging = false,
 }: Props) {
+  const theme = useThemeColors();
   return (
     <Pressable
       onPress={onPress}
@@ -32,7 +34,7 @@ export function ShortcutCard({
           : undefined
       }>
       <View className="h-12 w-12 items-center justify-center rounded-full bg-accent-pale">
-        <MaterialIcons name={icon} size={24} color="#9b5a38" />
+        <MaterialIcons name={icon} size={24} color={theme.accentDeep} />
       </View>
       <View className="flex-1">
         <Text className="font-display text-lg text-ink">{title}</Text>
@@ -41,7 +43,7 @@ export function ShortcutCard({
       <MaterialIcons
         name={isDragging ? 'drag-handle' : 'chevron-right'}
         size={24}
-        color="#6b6259"
+        color={theme.inkMuted}
       />
     </Pressable>
   );

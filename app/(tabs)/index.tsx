@@ -1,5 +1,6 @@
 import { HomeCogMenu } from '@/components/home-cog-menu';
 import { HomeFab } from '@/components/home-fab';
+import { LibraryRowCard } from '@/components/library-row-card';
 import { ReadingStatsCard } from '@/components/reading-stats-card';
 import { ShortcutCard } from '@/components/shortcut-card';
 import { StreakCard } from '@/components/streak-card';
@@ -122,6 +123,20 @@ export default function HomeScreen() {
         <ScaleDecorator>
           <View style={{ marginBottom: 12 }}>
             <StreakCard onLongPress={drag} isDragging={isActive} />
+          </View>
+        </ScaleDecorator>
+      );
+    }
+    if (item.id === 'library') {
+      return (
+        <ScaleDecorator>
+          <View style={{ marginBottom: 12 }}>
+            <LibraryRowCard
+              books={books}
+              onPress={item.onPress}
+              onLongPress={drag}
+              isDragging={isActive}
+            />
           </View>
         </ScaleDecorator>
       );
