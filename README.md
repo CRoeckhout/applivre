@@ -66,12 +66,12 @@ supabase/migrations/        schéma SQL versionné
 ## Roadmap MVP
 
 - [x] Scaffold Expo + NativeWind + Supabase
-- [ ] Auth (email magique)
-- [ ] Scan ISBN → récupération métadonnées Open Library
-- [ ] Ajout livre dans la biblio avec statut
-- [ ] Timer de lecture + historique sessions
-- [ ] Prêts nommés
-- [ ] Fiche de lecture perso
+- [x] Auth (email magique)
+- [x] Scan ISBN → récupération métadonnées Open Library
+- [x] Ajout livre dans la biblio avec statut
+- [x] Timer de lecture + historique sessions
+- [x] Prêts nommés
+- [x] Fiche de lecture perso
+- [x] Défi annuel
 - [ ] Bingo personnalisable
-- [ ] Défi annuel
 - [ ] V2 : communauté, amis, reviews publiques

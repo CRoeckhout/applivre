@@ -1,5 +1,7 @@
 import '@/global.css';
 
+import { DebugToggle } from '@/components/debug-toggle';
+import { ThemeProvider as AppThemeProvider } from '@/components/theme-provider';
 import { useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { initNetworkWatcher } from '@/lib/sync/network';
@@ -7,7 +9,11 @@ import { pullUserData } from '@/lib/sync/pull';
 import { flushQueue } from '@/lib/sync/queue';
 import { resetAllStores } from '@/lib/sync/reset';
 import { setSyncUserId } from '@/lib/sync/session';
+import { hexToRgb, relativeLuminance } from '@/lib/theme/colors';
+import { useDebug } from '@/store/debug';
+import { usePreferences } from '@/store/preferences';
 import { useProfile } from '@/store/profile';
+import { Caveat_400Regular, Caveat_500Medium, Caveat_600SemiBold, Caveat_700Bold } from '@expo-google-fonts/caveat';
 import {
   DMSans_400Regular,
   DMSans_500Medium,
@@ -15,12 +21,21 @@ import {
   DMSans_700Bold,
   useFonts,
 } from '@expo-google-fonts/dm-sans';
+import { Lora_400Regular, Lora_500Medium, Lora_600SemiBold, Lora_700Bold } from '@expo-google-fonts/lora';
+import {
+  Orbitron_400Regular,
+  Orbitron_500Medium,
+  Orbitron_600SemiBold,
+  Orbitron_700Bold,
+} from '@expo-google-fonts/orbitron';
+import { SpaceMono_400Regular, SpaceMono_700Bold } from '@expo-google-fonts/space-mono';
+import { UnifrakturMaguntia_400Regular } from '@expo-google-fonts/unifrakturmaguntia';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, DevSettings, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
@@ -43,6 +58,21 @@ export default function RootLayout() {
     DMSans_500Medium,
     DMSans_600SemiBold,
     DMSans_700Bold,
+    Lora_400Regular,
+    Lora_500Medium,
+    Lora_600SemiBold,
+    Lora_700Bold,
+    Caveat_400Regular,
+    Caveat_500Medium,
+    Caveat_600SemiBold,
+    Caveat_700Bold,
+    UnifrakturMaguntia_400Regular,
+    Orbitron_400Regular,
+    Orbitron_500Medium,
+    Orbitron_600SemiBold,
+    Orbitron_700Bold,
+    SpaceMono_400Regular,
+    SpaceMono_700Bold,
   });
 
   if (!fontsLoaded) {
@@ -63,12 +93,25 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <AuthGate />
-          <StatusBar style="auto" />
+          <AppThemeProvider>
+            <AuthGate />
+            <ThemedStatusBar />
+            <DebugToggle />
+          </AppThemeProvider>
         </ThemeProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>
   );
+}
+
+// Choisit le style de la status bar (icônes claires vs sombres) selon la
+// luminance du fond actif. Évite les icônes invisibles sur thème sombre.
+function ThemedStatusBar() {
+  const bg = usePreferences((s) => s.colorBg);
+  const rgb = hexToRgb(bg);
+  const lum = rgb ? relativeLuminance(rgb) : 1;
+  const style = lum < 0.5 ? 'light' : 'dark';
+  return <StatusBar style={style} />;
 }
 
 function AuthGate() {
@@ -81,6 +124,14 @@ function AuthGate() {
 
   // Surveillance online/offline (une fois, au mount)
   useEffect(() => initNetworkWatcher(), []);
+
+  // Commande dans le menu dev RN (Cmd+D / shake) pour toggler les panneaux debug.
+  useEffect(() => {
+    if (!__DEV__) return;
+    DevSettings.addMenuItem('Toggle debug panels', () => {
+      useDebug.getState().togglePanels();
+    });
+  }, []);
 
   useEffect(() => {
     if (loading) return;
@@ -132,12 +183,16 @@ function AuthGate() {
     }
   }, [session, loading]);
 
+  const bg = usePreferences((s) => s.colorBg);
+  const ink = usePreferences((s) => s.colorSecondary);
+
   return (
     <View style={{ flex: 1 }}>
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: '#fbf8f4' },
-          headerTintColor: '#1a1410',
+          headerStyle: { backgroundColor: bg },
+          headerTintColor: ink,
+          contentStyle: { backgroundColor: bg },
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />
@@ -156,10 +211,7 @@ function AuthGate() {
           name="sheet/new"
           options={{ title: 'Nouvelle fiche', headerBackTitle: 'Retour' }}
         />
-        <Stack.Screen
-          name="sheet/[isbn]"
-          options={{ title: 'Fiche de lecture', headerBackTitle: 'Retour' }}
-        />
+        <Stack.Screen name="sheet/[isbn]" options={{ headerShown: false }} />
       </Stack>
 
       {(loading || syncing) && (
