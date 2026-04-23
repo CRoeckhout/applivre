@@ -3,6 +3,7 @@ import type {
   BookLoan,
   ReadingSession,
   ReadingSheet,
+  SheetAppearanceOverride,
   SheetSection,
   UserBook,
 } from '@/types/book';
@@ -18,6 +19,7 @@ export type DbBook = {
   published_at: string | null;
   cover_url: string | null;
   source: string | null;
+  categories: string[] | null;
 };
 
 export function bookFromDb(row: DbBook): Book {
@@ -29,6 +31,7 @@ export function bookFromDb(row: DbBook): Book {
     publishedAt: row.published_at ?? undefined,
     coverUrl: row.cover_url ?? undefined,
     source: (row.source as Book['source']) ?? undefined,
+    categories: row.categories && row.categories.length > 0 ? row.categories : undefined,
   };
 }
 
@@ -41,6 +44,7 @@ export function bookToDb(book: Book): DbBook {
     published_at: book.publishedAt ?? null,
     cover_url: book.coverUrl ?? null,
     source: book.source ?? null,
+    categories: book.categories ?? null,
   };
 }
 
@@ -55,9 +59,12 @@ export type DbUserBook = {
   favorite: boolean;
   started_at: string | null;
   finished_at: string | null;
+  genres: string[];
+  created_at?: string | null;
 };
 
 export function userBookFromDb(row: DbUserBook, book: Book): UserBook {
+  const genres = row.genres && row.genres.length > 0 ? row.genres : undefined;
   return {
     id: row.id,
     userId: row.user_id,
@@ -67,6 +74,8 @@ export function userBookFromDb(row: DbUserBook, book: Book): UserBook {
     favorite: row.favorite,
     startedAt: row.started_at ?? undefined,
     finishedAt: row.finished_at ?? undefined,
+    genres,
+    addedAt: row.created_at ?? undefined,
   };
 }
 
@@ -80,6 +89,7 @@ export function userBookToDb(ub: UserBook, userId: string): DbUserBook {
     favorite: ub.favorite,
     started_at: ub.startedAt ?? null,
     finished_at: ub.finishedAt ?? null,
+    genres: ub.genres ?? [],
   };
 }
 
@@ -151,28 +161,41 @@ export function loanToDb(l: BookLoan): DbBookLoan {
 
 // ═══════════════ ReadingSheet (JSONB) ═══════════════
 
+export type DbSheetContent = {
+  sections: SheetSection[];
+  appearance?: SheetAppearanceOverride;
+};
+
 export type DbReadingSheet = {
   id: string;
   user_book_id: string;
-  content: { sections: SheetSection[] };
+  content: DbSheetContent;
   is_public: boolean;
   updated_at: string;
 };
 
 export function sheetFromDb(row: DbReadingSheet): ReadingSheet {
+  const appearance = row.content?.appearance;
+  const hasAppearance =
+    appearance && typeof appearance === 'object' && Object.keys(appearance).length > 0;
   return {
     userBookId: row.user_book_id,
     sections: row.content?.sections ?? [],
     updatedAt: row.updated_at,
+    appearance: hasAppearance ? appearance : undefined,
   };
 }
 
 export function sheetToDb(
   sheet: ReadingSheet,
 ): Omit<DbReadingSheet, 'id' | 'is_public'> {
+  const content: DbSheetContent = { sections: sheet.sections };
+  if (sheet.appearance && Object.keys(sheet.appearance).length > 0) {
+    content.appearance = sheet.appearance;
+  }
   return {
     user_book_id: sheet.userBookId,
-    content: { sections: sheet.sections },
+    content,
     updated_at: sheet.updatedAt,
   };
 }

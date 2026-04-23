@@ -18,6 +18,7 @@ export type { SearchResult };
  */
 export async function fetchBook(isbn: string): Promise<Book | null> {
   const clean = isbn.replace(/[^0-9X]/gi, '');
+  if (__DEV__) console.log('[fetchBook] start', clean);
   const [g, o, b] = await Promise.allSettled([
     fetchBookByIsbnGoogle(clean),
     fetchBookByIsbnOL(clean),
@@ -26,6 +27,12 @@ export async function fetchBook(isbn: string): Promise<Book | null> {
   const google = g.status === 'fulfilled' ? g.value : null;
   const openlib = o.status === 'fulfilled' ? o.value : null;
   const bnf = b.status === 'fulfilled' ? b.value : null;
+
+  if (__DEV__) {
+    console.log('[fetchBook] google:', g.status === 'fulfilled' ? google : g.reason);
+    console.log('[fetchBook] openlib:', o.status === 'fulfilled' ? openlib : o.reason);
+    console.log('[fetchBook] bnf:', b.status === 'fulfilled' ? bnf : b.reason);
+  }
 
   if (!google && !openlib && !bnf) return null;
 
@@ -43,7 +50,7 @@ export async function fetchBook(isbn: string): Promise<Book | null> {
     return undefined;
   };
 
-  return {
+  const merged: Book = {
     isbn: primary.isbn || clean,
     title: pick('title') ?? 'Titre inconnu',
     authors: (pick('authors') as string[] | undefined) ?? [],
@@ -51,7 +58,10 @@ export async function fetchBook(isbn: string): Promise<Book | null> {
     publishedAt: pick('publishedAt') as string | undefined,
     coverUrl: pick('coverUrl') as string | undefined,
     source,
+    categories: pick('categories') as string[] | undefined,
   };
+  if (__DEV__) console.log('[fetchBook] merged:', merged);
+  return merged;
 }
 
 /**

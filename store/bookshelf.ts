@@ -15,6 +15,7 @@ type BookshelfState = {
   removeBook: (id: string) => void;
   updateStatus: (id: string, status: ReadingStatus) => void;
   toggleFavorite: (id: string) => void;
+  setGenres: (id: string, genres: string[]) => void;
   hasBook: (isbn: string) => boolean;
   reset: () => void;
 };
@@ -26,11 +27,13 @@ export const useBookshelf = create<BookshelfState>()(
       addBook: (book) => {
         const exists = get().books.some((b) => b.book.isbn === book.book.isbn);
         if (exists) return;
-        set((state) => ({ books: [book, ...state.books] }));
+        // Stamp local addedAt si pas déjà fourni — pull DB ré-hydratera avec created_at.
+        const stamped: UserBook = book.addedAt ? book : { ...book, addedAt: new Date().toISOString() };
+        set((state) => ({ books: [stamped, ...state.books] }));
         const userId = getSyncUserId();
         if (userId) {
-          void syncUpsertBook(book.book);
-          void syncUpsertUserBook(book, userId);
+          void syncUpsertBook(stamped.book);
+          void syncUpsertUserBook(stamped, userId);
         }
       },
       removeBook: (id) => {
@@ -59,6 +62,22 @@ export const useBookshelf = create<BookshelfState>()(
           books: state.books.map((b) => {
             if (b.id !== id) return b;
             const next = { ...b, favorite: !b.favorite };
+            updated = next;
+            return next;
+          }),
+        }));
+        const userId = getSyncUserId();
+        if (userId && updated) void syncUpsertUserBook(updated, userId);
+      },
+      setGenres: (id, genres) => {
+        let updated: UserBook | undefined;
+        set((state) => ({
+          books: state.books.map((b) => {
+            if (b.id !== id) return b;
+            const next: UserBook = {
+              ...b,
+              genres: genres.length > 0 ? genres : undefined,
+            };
             updated = next;
             return next;
           }),

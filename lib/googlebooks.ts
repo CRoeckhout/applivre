@@ -3,6 +3,17 @@ import type { Book } from '@/types/book';
 
 const BASE = 'https://www.googleapis.com/books/v1';
 
+// Clé API Books (EXPO_PUBLIC_* → injectée côté client par Expo).
+// Sans clé → fallback sur le pool anonyme partagé (quota global très volatil).
+// Avec clé → projet Google Cloud dédié, 1k req/jour gratuites, quota prévisible.
+const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_BOOKS_KEY;
+
+function withKey(url: string): string {
+  if (!API_KEY) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}key=${encodeURIComponent(API_KEY)}`;
+}
+
 type IndustryId = { type: string; identifier: string };
 
 type GBVolumeInfo = {
@@ -13,6 +24,7 @@ type GBVolumeInfo = {
   industryIdentifiers?: IndustryId[];
   imageLinks?: { thumbnail?: string; smallThumbnail?: string };
   language?: string;
+  categories?: string[];
 };
 
 type GBVolume = { id: string; volumeInfo: GBVolumeInfo };
@@ -32,8 +44,11 @@ function extractIsbn(ids?: IndustryId[]): string | undefined {
 
 export async function fetchBookByIsbnGoogle(isbn: string): Promise<Book | null> {
   const clean = isbn.replace(/[^0-9X]/gi, '');
-  const res = await fetch(`${BASE}/volumes?q=isbn:${clean}&maxResults=1`);
-  if (!res.ok) return null;
+  const res = await fetch(withKey(`${BASE}/volumes?q=isbn:${clean}&maxResults=1`));
+  if (!res.ok) {
+    if (__DEV__) console.warn('[googlebooks] fetchByIsbn HTTP', res.status, isbn);
+    return null;
+  }
   const data = (await res.json()) as { items?: GBVolume[] };
   const item = data.items?.[0];
   if (!item) return null;
@@ -45,6 +60,7 @@ export async function fetchBookByIsbnGoogle(isbn: string): Promise<Book | null> 
     pages: v.pageCount,
     publishedAt: v.publishedDate,
     coverUrl: cleanCover(v.imageLinks?.thumbnail ?? v.imageLinks?.smallThumbnail),
+    categories: v.categories && v.categories.length > 0 ? v.categories : undefined,
   };
 }
 
@@ -56,8 +72,11 @@ export async function searchBooksGoogle(query: string, limit = 20): Promise<Sear
     maxResults: String(Math.min(limit, 40)),
     printType: 'books',
   });
-  const res = await fetch(`${BASE}/volumes?${params}`);
-  if (!res.ok) return [];
+  const res = await fetch(withKey(`${BASE}/volumes?${params}`));
+  if (!res.ok) {
+    if (__DEV__) console.warn('[googlebooks] search HTTP', res.status, q);
+    return [];
+  }
   const data = (await res.json()) as { items?: GBVolume[] };
   return (data.items ?? [])
     .map((item): SearchResult | null => {
