@@ -68,6 +68,9 @@ function NativeScanner() {
       }
       lastScanRef.current = { data, at: now };
       const isbn = data.replace(/[^0-9X]/gi, '');
+      if (__DEV__) {
+        console.log('[scanner] barcode raw:', data, '→ isbn:', isbn, 'len:', isbn.length);
+      }
       if (isbn.length === 10 || isbn.length === 13) {
         router.push(`/book/${isbn}`);
       }
