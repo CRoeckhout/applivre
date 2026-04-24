@@ -8,6 +8,7 @@ import {
   internalInsertSession,
   internalUpsertBook,
   internalUpsertChallenge,
+  internalUpsertCycle,
   internalUpsertLoan,
   internalUpsertPreferences,
   internalUpsertSheet,
@@ -33,6 +34,8 @@ export async function executeEntry(entry: QueueEntry): Promise<void> {
       return internalDeleteUserBook(entry.payload.id);
     case 'insertSession':
       return internalInsertSession(entry.payload.session);
+    case 'upsertCycle':
+      return internalUpsertCycle(entry.payload.cycle);
     case 'upsertLoan':
       return internalUpsertLoan(entry.payload.loan);
     case 'deleteLoan':

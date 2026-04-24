@@ -27,9 +27,25 @@ export type UserBook = {
   addedAt?: string;
 };
 
+export type ReadCycleOutcome = 'read' | 'abandoned';
+
+// Une "lecture" (première lecture ou relecture). Les sessions sont
+// rattachées à un cycle — fermer le cycle isole les stats de la lecture
+// suivante sans perdre l'historique.
+export type ReadCycle = {
+  id: string;
+  userBookId: string;
+  index: number; // 1-based
+  startedAt: string;
+  finishedAt?: string;
+  finalPage?: number;
+  outcome?: ReadCycleOutcome;
+};
+
 export type ReadingSession = {
   id: string;
   userBookId: string;
+  cycleId: string;
   durationSec: number;
   stoppedAtPage: number;
   startedAt: string;

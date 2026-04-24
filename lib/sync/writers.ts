@@ -4,9 +4,12 @@ import {
   internalDeleteSheet,
   internalDeleteStreakDay,
   internalDeleteUserBook,
+  internalFinishReadingCycle,
   internalInsertSession,
+  internalStartReadingSession,
   internalUpsertBook,
   internalUpsertChallenge,
+  internalUpsertCycle,
   internalUpsertLoan,
   internalUpsertPreferences,
   internalUpsertSheet,
@@ -18,7 +21,14 @@ import type { Preferences } from '@/store/preferences';
 import { flushQueue } from '@/lib/sync/queue';
 import { useSyncQueue, type QueuedOp } from '@/store/sync-queue';
 import type { Challenge } from '@/store/challenges';
-import type { Book, BookLoan, ReadingSession, ReadingSheet, UserBook } from '@/types/book';
+import type {
+  Book,
+  BookLoan,
+  ReadCycle,
+  ReadingSession,
+  ReadingSheet,
+  UserBook,
+} from '@/types/book';
 
 // Toutes les writers appelées depuis les stores : fire-and-forget.
 // - Succès → tente de drainer la queue (catch up du backlog)
@@ -73,6 +83,31 @@ export function syncInsertSession(s: ReadingSession): Promise<void> {
     () => internalInsertSession(s),
     () => ({ kind: 'insertSession', payload: { session: s } }),
   );
+}
+
+// ═══════════════ Read cycles ═══════════════
+
+export function syncUpsertCycle(c: ReadCycle): Promise<void> {
+  return runOrQueue(
+    () => internalUpsertCycle(c),
+    () => ({ kind: 'upsertCycle', payload: { cycle: c } }),
+  );
+}
+
+// RPC atomique (start). Online uniquement — en cas d'échec on retombe
+// sur un upsert de fallback côté caller (cycle déjà créé en local).
+export function rpcStartReadingSession(userBookId: string) {
+  return internalStartReadingSession(userBookId);
+}
+
+// RPC atomique (finish). Préférer à l'upsert direct : la transition
+// cycle + user_book.status est cohérente côté DB.
+export function rpcFinishReadingCycle(
+  userBookId: string,
+  outcome: 'read' | 'abandoned',
+  finalPage: number | null,
+) {
+  return internalFinishReadingCycle(userBookId, outcome, finalPage);
 }
 
 // ═══════════════ Loans ═══════════════

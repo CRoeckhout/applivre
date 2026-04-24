@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import {
   bookFromDb,
   challengeFromDb,
+  cycleFromDb,
   loanFromDb,
   preferencesFromDb,
   sessionFromDb,
@@ -12,6 +13,7 @@ import {
   type DbBookLoan,
   type DbChallenge,
   type DbProfile,
+  type DbReadCycle,
   type DbReadingSession,
   type DbReadingSheet,
   type DbStreakDay,
@@ -28,23 +30,32 @@ import { useTimer } from '@/store/timer';
 import type { ReadingSheet, UserBook } from '@/types/book';
 
 export async function pullUserData(userId: string): Promise<void> {
-  const [ubRes, sessRes, loanRes, sheetRes, chalRes, streakRes, profileRes] =
-    await Promise.all([
-      supabase
-        .from('user_books')
-        .select('*, book:books(*)')
-        .eq('user_id', userId),
-      supabase.from('reading_sessions').select('*'),
-      supabase.from('book_loans').select('*'),
-      supabase.from('reading_sheets').select('*'),
-      supabase.from('reading_challenges').select('*'),
-      supabase.from('reading_streak_days').select('*'),
-      supabase
-        .from('profiles')
-        .select('id, username, preferences')
-        .eq('id', userId)
-        .maybeSingle(),
-    ]);
+  const [
+    ubRes,
+    sessRes,
+    loanRes,
+    sheetRes,
+    chalRes,
+    streakRes,
+    profileRes,
+    cycleRes,
+  ] = await Promise.all([
+    supabase
+      .from('user_books')
+      .select('*, book:books(*)')
+      .eq('user_id', userId),
+    supabase.from('reading_sessions').select('*'),
+    supabase.from('book_loans').select('*'),
+    supabase.from('reading_sheets').select('*'),
+    supabase.from('reading_challenges').select('*'),
+    supabase.from('reading_streak_days').select('*'),
+    supabase
+      .from('profiles')
+      .select('id, username, preferences')
+      .eq('id', userId)
+      .maybeSingle(),
+    supabase.from('read_cycles').select('*'),
+  ]);
 
   if (ubRes.error) throw new Error(`Pull user_books: ${ubRes.error.message}`);
   if (sessRes.error) throw new Error(`Pull sessions: ${sessRes.error.message}`);
@@ -53,6 +64,7 @@ export async function pullUserData(userId: string): Promise<void> {
   if (chalRes.error) throw new Error(`Pull challenges: ${chalRes.error.message}`);
   if (streakRes.error) throw new Error(`Pull streak: ${streakRes.error.message}`);
   if (profileRes.error) throw new Error(`Pull profile: ${profileRes.error.message}`);
+  if (cycleRes.error) throw new Error(`Pull cycles: ${cycleRes.error.message}`);
 
   type UbRow = DbUserBook & { book: DbBook };
   const books: UserBook[] = ((ubRes.data as UbRow[]) ?? []).map((row) =>
@@ -60,6 +72,7 @@ export async function pullUserData(userId: string): Promise<void> {
   );
 
   const sessions = ((sessRes.data as DbReadingSession[]) ?? []).map(sessionFromDb);
+  const cycles = ((cycleRes.data as DbReadCycle[]) ?? []).map(cycleFromDb);
   const loans = ((loanRes.data as DbBookLoan[]) ?? []).map(loanFromDb);
 
   const sheets: Record<string, ReadingSheet> = {};
@@ -81,7 +94,7 @@ export async function pullUserData(userId: string): Promise<void> {
   const username = profileRow?.username ?? null;
 
   useBookshelf.setState({ books });
-  useTimer.setState({ sessions });
+  useTimer.setState({ sessions, cycles });
   useLoans.setState({ loans });
   useReadingSheets.setState({ sheets });
   useChallenges.setState({ challenges });

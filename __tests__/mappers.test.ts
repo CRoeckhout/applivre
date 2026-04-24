@@ -67,6 +67,7 @@ describe('Session mapper', () => {
   const SESSION: ReadingSession = {
     id: '33333333-3333-3333-3333-333333333333',
     userBookId: '22222222-2222-2222-2222-222222222222',
+    cycleId: '44444444-4444-4444-4444-444444444444',
     durationSec: 1800,
     stoppedAtPage: 47,
     startedAt: '2026-04-15T20:30:00.000Z',

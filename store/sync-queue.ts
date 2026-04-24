@@ -1,7 +1,14 @@
 import { newId } from '@/lib/id';
 import type { Challenge } from '@/store/challenges';
 import type { Preferences } from '@/store/preferences';
-import type { Book, BookLoan, ReadingSession, ReadingSheet, UserBook } from '@/types/book';
+import type {
+  Book,
+  BookLoan,
+  ReadCycle,
+  ReadingSession,
+  ReadingSheet,
+  UserBook,
+} from '@/types/book';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
@@ -11,6 +18,7 @@ export type QueuedOp =
   | { kind: 'upsertUserBook'; payload: { ub: UserBook; userId: string } }
   | { kind: 'deleteUserBook'; payload: { id: string } }
   | { kind: 'insertSession'; payload: { session: ReadingSession } }
+  | { kind: 'upsertCycle'; payload: { cycle: ReadCycle } }
   | { kind: 'upsertLoan'; payload: { loan: BookLoan } }
   | { kind: 'deleteLoan'; payload: { id: string } }
   | { kind: 'upsertSheet'; payload: { sheet: ReadingSheet } }

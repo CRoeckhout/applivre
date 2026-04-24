@@ -2,20 +2,89 @@ import { supabase } from '@/lib/supabase';
 import {
   bookToDb,
   challengeToDb,
+  cycleToDb,
   loanToDb,
   sessionToDb,
   sheetToDb,
   userBookToDb,
 } from '@/lib/sync/mappers';
 import type { Challenge } from '@/store/challenges';
-import type { Book, BookLoan, ReadingSession, ReadingSheet, UserBook } from '@/types/book';
+import type {
+  Book,
+  BookLoan,
+  ReadCycle,
+  ReadingSession,
+  ReadingSheet,
+  UserBook,
+} from '@/types/book';
 
 // Opérations DB brutes : throw en cas d'erreur.
 // Les writers publics (writers.ts) et la queue (queue.ts) s'appuient dessus.
 
-async function throwIfError(p: PromiseLike<{ error: { message: string } | null }>) {
+export class DbError extends Error {
+  // Code Postgres (ex: '23514' check_violation, '23503' FK, '23505' unique).
+  // https://www.postgresql.org/docs/current/errcodes-appendix.html
+  code?: string;
+  // Message bref et friendly, prêt pour affichage UI (toast / alert).
+  userMessage: string;
+  // Message technique brut (logging, debug).
+  raw: string;
+
+  constructor(raw: string, code: string | undefined, userMessage: string) {
+    super(userMessage);
+    this.name = 'DbError';
+    this.code = code;
+    this.userMessage = userMessage;
+    this.raw = raw;
+  }
+}
+
+// Map codes Postgres + pattern texte → message FR friendly.
+// Lu par l'UI pour afficher un toast intelligible.
+function friendlyMessage(code: string | undefined, raw: string): string {
+  const low = raw.toLowerCase();
+  if (code === '23514') {
+    // check_violation — contraintes CHECK / triggers custom
+    if (low.includes('stopped_at_page')) {
+      return 'Page renseignée au-delà du nombre total de pages du livre.';
+    }
+    if (low.includes('dates_ok')) {
+      return 'Date de fin antérieure à la date de début.';
+    }
+    if (low.includes('outcome_when_finished')) {
+      return 'Statut de cycle incohérent (fini / outcome manquant).';
+    }
+    return 'Donnée invalide (contrainte serveur).';
+  }
+  if (code === '23505') {
+    // unique_violation
+    if (low.includes('one_open_cycle')) {
+      return 'Une lecture est déjà en cours sur ce livre.';
+    }
+    if (low.includes('user_books')) {
+      return 'Ce livre est déjà dans ta bibliothèque.';
+    }
+    return 'Doublon refusé.';
+  }
+  if (code === '23503') {
+    return 'Référence incohérente (cycle / livre non trouvé).';
+  }
+  if (code === '42501' || low.includes('row-level security')) {
+    return "Action non autorisée pour ton compte.";
+  }
+  return 'Erreur serveur : ' + raw;
+}
+
+type PgError = { message: string; code?: string } | null;
+
+async function throwIfError(
+  p: PromiseLike<{ error: PgError }>,
+): Promise<void> {
   const { error } = await p;
-  if (error) throw new Error(error.message);
+  if (!error) return;
+  const code = error.code;
+  const msg = friendlyMessage(code, error.message);
+  throw new DbError(error.message, code, msg);
 }
 
 // Books
@@ -37,6 +106,77 @@ export async function internalDeleteUserBook(id: string): Promise<void> {
 // Sessions
 export async function internalInsertSession(s: ReadingSession): Promise<void> {
   await throwIfError(supabase.from('reading_sessions').insert(sessionToDb(s)));
+}
+
+// Read cycles
+export async function internalUpsertCycle(c: ReadCycle): Promise<void> {
+  await throwIfError(
+    supabase.from('read_cycles').upsert(cycleToDb(c), { onConflict: 'id' }),
+  );
+}
+
+// RPC atomique : crée ou retourne le cycle ouvert + passe user_book
+// en 'reading'. Retourne le cycle serveur (id, index) à utiliser comme
+// référence locale — évite les divergences d'index au sync.
+export async function internalStartReadingSession(
+  userBookId: string,
+): Promise<ReadCycle> {
+  const { data, error } = await supabase.rpc('start_reading_session', {
+    p_user_book_id: userBookId,
+  });
+  if (error) {
+    throw new DbError(
+      error.message,
+      (error as { code?: string }).code,
+      friendlyMessageFromErr(error),
+    );
+  }
+  // data = 1 ligne read_cycles
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    id: row.id,
+    userBookId: row.user_book_id,
+    index: row.index,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at ?? undefined,
+    finalPage: row.final_page ?? undefined,
+    outcome: row.outcome ?? undefined,
+  };
+}
+
+// RPC atomique : ferme le cycle + bascule user_books.status +
+// stamp finished_at. Idempotent (rejoue sans effet si déjà clos).
+export async function internalFinishReadingCycle(
+  userBookId: string,
+  outcome: 'read' | 'abandoned',
+  finalPage: number | null,
+): Promise<ReadCycle> {
+  const { data, error } = await supabase.rpc('finish_reading_cycle', {
+    p_user_book_id: userBookId,
+    p_outcome: outcome,
+    p_final_page: finalPage,
+  });
+  if (error) {
+    throw new DbError(
+      error.message,
+      (error as { code?: string }).code,
+      friendlyMessageFromErr(error),
+    );
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    id: row.id,
+    userBookId: row.user_book_id,
+    index: row.index,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at ?? undefined,
+    finalPage: row.final_page ?? undefined,
+    outcome: row.outcome ?? undefined,
+  };
+}
+
+function friendlyMessageFromErr(err: { message: string; code?: string }): string {
+  return friendlyMessage(err.code, err.message);
 }
 
 // Loans

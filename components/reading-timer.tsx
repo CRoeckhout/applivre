@@ -11,8 +11,9 @@ type Props = {
   onFinishAutoOpenConsumed?: () => void;
   // Déclenché quand l'user termine le livre (bouton "Fini" ou enregistre
   // au nombre total de pages). Le parent passe le livre en "read" + ouvre
-  // la modale félicitations.
-  onBookFinished?: () => void;
+  // la modale félicitations. `finalPage` permet de clôturer le cycle avec
+  // la bonne page même si la session vient d'être jetée (<5s).
+  onBookFinished?: (finalPage?: number) => void;
 };
 
 export function ReadingTimer({
@@ -27,17 +28,24 @@ export function ReadingTimer({
   const resume = useTimer((s) => s.resume);
   const cancel = useTimer((s) => s.cancel);
 
+  const bookStatus = useBookshelf(
+    (s) => s.books.find((b) => b.id === userBookId)?.status,
+  );
+
   const isActiveHere = active?.userBookId === userBookId;
   const isActiveElsewhere = !!active && !isActiveHere;
 
   if (!active) {
+    const isReread = bookStatus === 'read';
     return (
       <Pressable
         onPress={() => start(userBookId)}
         className="mt-6 flex-row items-center justify-center gap-2 rounded-full bg-ink px-6 py-4 active:opacity-80"
       >
-        <Text className="text-xl text-paper">▶</Text>
-        <Text className="font-sans-med text-paper">Commencer à lire</Text>
+        <Text className="text-xl text-paper">{isReread ? '💖' : '▶'}</Text>
+        <Text className="font-sans-med text-paper">
+          {isReread ? 'Relire mon livre' : 'Commencer à lire'}
+        </Text>
       </Pressable>
     );
   }
@@ -85,7 +93,7 @@ function ActiveTimerPanel({
   onResume: () => void;
   autoOpenFinish?: boolean;
   onFinishAutoOpenConsumed?: () => void;
-  onBookFinished?: () => void;
+  onBookFinished?: (finalPage?: number) => void;
 }) {
   const elapsed = useElapsedTime();
   const [finishOpen, setFinishOpen] = useState(false);
@@ -154,7 +162,7 @@ function FinishSessionModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onBookFinished?: () => void;
+  onBookFinished?: (finalPage?: number) => void;
 }) {
   const stop = useTimer((s) => s.stop);
   const cancel = useTimer((s) => s.cancel);
@@ -165,7 +173,9 @@ function FinishSessionModal({
   const totalPages = useBookshelf((s) => {
     if (!active) return undefined;
     const ub = s.books.find((b) => b.id === active.userBookId);
-    return ub?.book.pages;
+    // pages === 0 = méta absente → pas de validation/clamp.
+    const p = ub?.book.pages;
+    return p && p > 0 ? p : undefined;
   });
   const [page, setPage] = useState("");
 
@@ -173,30 +183,30 @@ function FinishSessionModal({
   const overLimit =
     totalPages != null && Number.isFinite(parsed) && parsed > totalPages;
 
-  const commit = (pageNum: number) => {
-    const reached = totalPages != null && pageNum >= totalPages;
-    stop(Math.max(0, pageNum));
+  const commit = (pageNum: number, markFinished: boolean) => {
+    const safe = Math.max(0, pageNum);
+    stop(safe);
     setPage("");
     onClose();
-    if (reached) onBookFinished?.();
+    if (markFinished) onBookFinished?.(safe);
   };
 
   const onSave = () => {
     const n = parseInt(page, 10);
     if (!Number.isFinite(n)) {
-      stop(0);
-      setPage("");
-      onClose();
+      commit(0, false);
       return;
     }
     const clamped = totalPages != null ? Math.min(n, totalPages) : n;
-    commit(clamped);
+    const reachedTotal = totalPages != null && clamped >= totalPages;
+    commit(clamped, reachedTotal);
   };
 
+  // "Fini" marque toujours le livre terminé, avec ou sans pages connues.
   const onFini = () => {
     const n = parseInt(page, 10);
-    const fallback = totalPages ?? (Number.isFinite(n) ? n : 0);
-    commit(fallback);
+    const final = totalPages ?? (Number.isFinite(n) ? n : 0);
+    commit(final, true);
   };
 
   const onDiscard = () => {
@@ -266,16 +276,14 @@ function FinishSessionModal({
                 Enregistrer
               </Text>
             </Pressable>
-            {totalPages != null && (
-              <Pressable
-                onPress={onFini}
-                className="rounded-full bg-ink py-3 active:opacity-80"
-              >
-                <Text className="text-center font-sans-med text-paper">
-                  J&apos;ai fini le livre
-                </Text>
-              </Pressable>
-            )}
+            <Pressable
+              onPress={onFini}
+              className="rounded-full bg-ink py-3 active:opacity-80"
+            >
+              <Text className="text-center font-sans-med text-paper">
+                J&apos;ai fini le livre
+              </Text>
+            </Pressable>
             <Pressable
               onPress={onDiscard}
               className="mt-6 rounded-full border border-ink-muted/30 py-3 active:opacity-70"

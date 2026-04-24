@@ -1,6 +1,8 @@
 import type {
   Book,
   BookLoan,
+  ReadCycle,
+  ReadCycleOutcome,
   ReadingSession,
   ReadingSheet,
   SheetAppearanceOverride,
@@ -98,6 +100,9 @@ export function userBookToDb(ub: UserBook, userId: string): DbUserBook {
 export type DbReadingSession = {
   id: string;
   user_book_id: string;
+  // Rempli en phase 4 (migration 0010_read_cycles.sql). Tant que la
+  // colonne n'existe pas, nullable côté DB — côté store on expose ''.
+  cycle_id: string | null;
   duration_sec: number;
   stopped_at_page: number;
   started_at: string;
@@ -107,6 +112,7 @@ export function sessionFromDb(row: DbReadingSession): ReadingSession {
   return {
     id: row.id,
     userBookId: row.user_book_id,
+    cycleId: row.cycle_id ?? '',
     durationSec: row.duration_sec,
     stoppedAtPage: row.stopped_at_page,
     startedAt: row.started_at,
@@ -117,9 +123,46 @@ export function sessionToDb(s: ReadingSession): DbReadingSession {
   return {
     id: s.id,
     user_book_id: s.userBookId,
+    cycle_id: s.cycleId || null,
     duration_sec: s.durationSec,
     stopped_at_page: s.stoppedAtPage,
     started_at: s.startedAt,
+  };
+}
+
+// ═══════════════ ReadCycle ═══════════════
+
+export type DbReadCycle = {
+  id: string;
+  user_book_id: string;
+  index: number;
+  started_at: string;
+  finished_at: string | null;
+  final_page: number | null;
+  outcome: ReadCycleOutcome | null;
+};
+
+export function cycleFromDb(row: DbReadCycle): ReadCycle {
+  return {
+    id: row.id,
+    userBookId: row.user_book_id,
+    index: row.index,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at ?? undefined,
+    finalPage: row.final_page ?? undefined,
+    outcome: row.outcome ?? undefined,
+  };
+}
+
+export function cycleToDb(c: ReadCycle): DbReadCycle {
+  return {
+    id: c.id,
+    user_book_id: c.userBookId,
+    index: c.index,
+    started_at: c.startedAt,
+    finished_at: c.finishedAt ?? null,
+    final_page: c.finalPage ?? null,
+    outcome: c.outcome ?? null,
   };
 }
 

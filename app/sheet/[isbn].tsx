@@ -13,6 +13,7 @@ import { useBookshelf } from '@/store/bookshelf';
 import { usePreferences } from '@/store/preferences';
 import { useReadingSheets } from '@/store/reading-sheets';
 import { useSheetTemplates } from '@/store/sheet-templates';
+import { useTimer } from '@/store/timer';
 import type {
   RatingIconKind,
   SectionRating,
@@ -243,7 +244,7 @@ export default function SheetScreen() {
                 elevation: 6,
               },
             ]}>
-            <View className="flex-row items-center gap-3">
+            <View className="flex-row items-start gap-3">
               <BookCover
                 isbn={userBook.book.isbn}
                 coverUrl={userBook.book.coverUrl}
@@ -270,6 +271,11 @@ export default function SheetScreen() {
                   </View>
                 ) : null}
               </View>
+              <ReadCountSheetBadge
+                userBookId={userBook.id}
+                mutedColor={appearance.mutedColor}
+                accentColor={appearance.accentColor}
+              />
             </View>
 
             {draft.length === 0 ? (
@@ -390,6 +396,31 @@ export default function SheetScreen() {
         resetLabel="Utiliser le template global"
       />
     </SafeAreaView>
+  );
+}
+
+function ReadCountSheetBadge({
+  userBookId,
+  mutedColor,
+  accentColor,
+}: {
+  userBookId: string;
+  mutedColor: string;
+  accentColor: string;
+}) {
+  const max = useTimer((s) => {
+    const list = s.cycles.filter((c) => c.userBookId === userBookId);
+    return list.reduce((m, c) => (c.index > m ? c.index : m), 0);
+  });
+  if (max < 2) return null;
+  return (
+    <View
+      style={{ borderColor: mutedColor, borderWidth: 1 }}
+      className="items-center justify-center rounded-full px-2 py-0.5">
+      <Text style={{ color: accentColor }} className="text-[10px] font-sans-med">
+        {max}× lu
+      </Text>
+    </View>
   );
 }
 
