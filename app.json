@@ -10,7 +10,12 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.corentin.applivre"
+      "bundleIdentifier": "com.corentin.applivre",
+      "deploymentTarget": "16.2",
+      "infoPlist": {
+        "NSSupportsLiveActivities": true,
+        "NSSupportsLiveActivitiesFrequentUpdates": true
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -59,7 +64,8 @@
         {
           "photosPermission": "Applivre a besoin d'accéder à tes photos pour choisir ton avatar."
         }
-      ]
+      ],
+      "@bacons/apple-targets"
     ],
     "experiments": {
       "typedRoutes": true,
