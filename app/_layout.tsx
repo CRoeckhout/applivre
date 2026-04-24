@@ -13,6 +13,7 @@ import { hexToRgb, relativeLuminance } from '@/lib/theme/colors';
 import { useDebug } from '@/store/debug';
 import { usePreferences } from '@/store/preferences';
 import { useProfile } from '@/store/profile';
+import { useReadingLiveActivity } from '@/hooks/use-reading-live-activity';
 import { Caveat_400Regular, Caveat_500Medium, Caveat_600SemiBold, Caveat_700Bold } from '@expo-google-fonts/caveat';
 import {
   DMSans_400Regular,
@@ -124,6 +125,9 @@ function AuthGate() {
 
   // Surveillance online/offline (une fois, au mount)
   useEffect(() => initNetworkWatcher(), []);
+
+  // Pilote la Live Activity iOS depuis le store timer (no-op en Expo Go).
+  useReadingLiveActivity();
 
   // Commande dans le menu dev RN (Cmd+D / shake) pour toggler les panneaux debug.
   useEffect(() => {

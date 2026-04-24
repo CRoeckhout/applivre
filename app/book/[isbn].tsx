@@ -17,7 +17,7 @@ import type { Book, ReadingStatus, ReadingSession, UserBook } from '@/types/book
 import { MaterialIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -30,14 +30,30 @@ const STATUSES: { value: ReadingStatus; label: string }[] = [
 ];
 
 export default function BookDetailScreen() {
-  const { isbn } = useLocalSearchParams<{ isbn: string }>();
+  const { isbn, action } = useLocalSearchParams<{ isbn: string; action?: string }>();
   const router = useRouter();
   const { books, addBook, updateStatus, removeBook } = useBookshelf();
   const setGenres = useBookshelf((s) => s.setGenres);
   const [genreModalOpen, setGenreModalOpen] = useState(false);
   const [congratsOpen, setCongratsOpen] = useState(false);
+  const [autoOpenFinish, setAutoOpenFinish] = useState(false);
   const debugOpen = useDebug((s) => s.panelsEnabled);
   const setDebugOpen = useDebug((s) => s.setPanelsEnabled);
+
+  // Deeplinks depuis la Live Activity (applivre://book/<isbn>?action=...).
+  // Expo Router résout la route + on consomme `action` ici.
+  useEffect(() => {
+    if (!action) return;
+    if (action === 'pause') {
+      useTimer.getState().pause();
+    } else if (action === 'resume') {
+      useTimer.getState().resume();
+    } else if (action === 'stop') {
+      setAutoOpenFinish(true);
+    }
+    // Nettoie le param pour ne pas rejouer au re-render.
+    router.setParams({ action: undefined });
+  }, [action, router]);
 
   const existing = books.find((b) => b.book.isbn === isbn);
   const isSyntheticManualIsbn = !!isbn?.startsWith('manual-');
@@ -161,7 +177,19 @@ export default function BookDetailScreen() {
           <GenreRow ub={existing} onEdit={() => setGenreModalOpen(true)} />
         )}
 
-        {existing && <ReadingTimer userBookId={existing.id} />}
+        {existing && (
+          <ReadingTimer
+            userBookId={existing.id}
+            autoOpenFinish={autoOpenFinish}
+            onFinishAutoOpenConsumed={() => setAutoOpenFinish(false)}
+            onBookFinished={() => {
+              if (existing.status !== 'read') {
+                updateStatus(existing.id, 'read');
+                setCongratsOpen(true);
+              }
+            }}
+          />
+        )}
         {existing && <ReadingStats userBookId={existing.id} totalPages={data.pages} />}
         {existing && <LoanTracker userBookId={existing.id} />}
         {existing && <SheetPreview userBook={existing} />}
