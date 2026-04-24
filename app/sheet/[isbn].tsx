@@ -344,6 +344,16 @@ export default function SheetScreen() {
               </Pressable>
             )}
           </Animated.View>
+
+          <Pressable
+            onPress={handleCustomize}
+            className="mt-4 flex-row items-center justify-center gap-2 rounded-full py-3 active:opacity-70"
+            style={{ borderWidth: 1, borderColor: themeInk }}>
+            <MaterialIcons name="palette" size={16} color={themeInk} />
+            <Text style={{ color: themeInk }} className="font-sans-med">
+              Personnaliser la fiche
+            </Text>
+          </Pressable>
         </ScrollView>
 
         {dirty && (
