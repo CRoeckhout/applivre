@@ -4,6 +4,7 @@ import {
   syncUpsertBook,
   syncUpsertUserBook,
 } from '@/lib/sync/writers';
+import { useBingos } from '@/store/bingo';
 import type { ReadingStatus, UserBook } from '@/types/book';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
@@ -46,15 +47,21 @@ export const useBookshelf = create<BookshelfState>()(
           books: state.books.map((b) => {
             if (b.id !== id) return b;
             const now = new Date().toISOString();
-            const next = { ...b, status };
+            const next: UserBook = { ...b, status };
             if (status === 'reading' && !b.startedAt) next.startedAt = now;
             if (status === 'read' && !b.finishedAt) next.finishedAt = now;
+            // Règle métier : abandonné retire le J'aime.
+            if (status === 'abandoned' && b.favorite) next.favorite = false;
             updated = next;
             return next;
           }),
         }));
         const userId = getSyncUserId();
         if (userId && updated) void syncUpsertUserBook(updated, userId);
+        // Un livre passé en "abandonné" est retiré de tous les bingos.
+        if (status === 'abandoned') {
+          useBingos.getState().removeCompletionsForUserBook(id);
+        }
       },
       toggleFavorite: (id) => {
         let updated: UserBook | undefined;

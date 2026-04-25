@@ -1,4 +1,4 @@
-export type ReadingStatus = 'to_read' | 'reading' | 'read' | 'abandoned';
+export type ReadingStatus = 'wishlist' | 'to_read' | 'reading' | 'read' | 'abandoned';
 
 export type BookSource = 'openlibrary' | 'googlebooks' | 'bnf' | 'manual';
 

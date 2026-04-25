@@ -1,4 +1,5 @@
 import { BookCover } from "@/components/book-cover";
+import { BookStatusBar } from "@/components/book-status-bar";
 import { GenreEditorModal } from "@/components/genre-editor-modal";
 import { LoanTracker } from "@/components/loan-tracker";
 import { ReadingTimer } from "@/components/reading-timer";
@@ -25,6 +26,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -34,13 +36,6 @@ import {
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const STATUSES: { value: ReadingStatus; label: string }[] = [
-  { value: "to_read", label: "À lire" },
-  { value: "reading", label: "En cours" },
-  { value: "read", label: "Lu" },
-  { value: "abandoned", label: "Abandonné" },
-];
-
 export default function BookDetailScreen() {
   const { isbn, action } = useLocalSearchParams<{
     isbn: string;
@@ -49,6 +44,8 @@ export default function BookDetailScreen() {
   const router = useRouter();
   const { books, addBook, updateStatus, removeBook } = useBookshelf();
   const setGenres = useBookshelf((s) => s.setGenres);
+  const toggleFavorite = useBookshelf((s) => s.toggleFavorite);
+  const sheets = useReadingSheets((s) => s.sheets);
   const [genreModalOpen, setGenreModalOpen] = useState(false);
   const [congratsOpen, setCongratsOpen] = useState(false);
   const [autoOpenFinish, setAutoOpenFinish] = useState(false);
@@ -177,155 +174,171 @@ export default function BookDetailScreen() {
   };
 
   return (
-    <ScrollView
-      className="flex-1 bg-paper"
-      contentContainerClassName="px-6 pt-6 pb-24"
-    >
-      <Animated.View entering={FadeIn.duration(400)} className="items-center">
-        <BookCover
-          isbn={data.isbn}
-          coverUrl={data.coverUrl}
-          style={{ width: 160, height: 240, borderRadius: 12 }}
-          placeholderText="Pas de couverture"
-          transition={300}
-        />
-      </Animated.View>
-
-      <Animated.View
-        entering={FadeInDown.duration(400).delay(100)}
-        className="mt-8 items-center"
+    <View className="flex-1 bg-paper">
+      <ScrollView
+        className="flex-1 bg-paper"
+        contentContainerClassName="px-6 pt-6 pb-32"
       >
-        <Text className="text-center font-display text-3xl text-ink">
-          {data.title}
-        </Text>
-        {data.authors.length > 0 && (
-          <Text className="mt-2 text-center text-ink-soft">
-            {data.authors.join(", ")}
+        <Animated.View entering={FadeIn.duration(400)} className="items-center">
+          <BookCover
+            isbn={data.isbn}
+            coverUrl={data.coverUrl}
+            style={{ width: 160, height: 240, borderRadius: 12 }}
+            placeholderText="Pas de couverture"
+            transition={300}
+          />
+        </Animated.View>
+
+        <Animated.View
+          entering={FadeInDown.duration(400).delay(100)}
+          className="mt-8 items-center"
+        >
+          <Text className="text-center font-display text-3xl text-ink">
+            {data.title}
           </Text>
-        )}
-        {existing && <ReadCountBadge userBookId={existing.id} />}
-        <View className="mt-3 flex-row flex-wrap justify-center gap-2">
-          {data.pages ? <Tag>{data.pages} pages</Tag> : null}
-          {data.publishedAt ? <Tag>{data.publishedAt}</Tag> : null}
-          {!isSyntheticManualIsbn && data.isbn ? (
-            <Tag>ISBN {data.isbn}</Tag>
-          ) : null}
-          {data.source === "manual" ? <Tag>Saisi manuellement</Tag> : null}
-        </View>
-        {__DEV__ && debugOpen && (
-          <DebugBookPanel
-            book={data}
-            existing={existing}
-            onClose={() => setDebugOpen(false)}
-          />
-        )}
-      </Animated.View>
-
-      <Animated.View
-        entering={FadeInDown.duration(400).delay(200)}
-        className="mt-10"
-      >
-        <Text className="mb-3 font-display text-xl text-ink">
-          {existing ? "Dans ta bibliothèque" : "Ajouter à ma bibliothèque"}
-        </Text>
-        <View className="flex-row flex-wrap gap-2">
-          {STATUSES.map((s) => {
-            const active = existing?.status === s.value;
-            return (
-              <Pressable
-                key={s.value}
-                onPress={() => onStatusPress(s.value)}
-                className={`rounded-full px-4 py-2 ${active ? "bg-accent" : "bg-paper-warm active:bg-paper-shade"}`}
-              >
-                <Text
-                  className={active ? "font-sans-med text-paper" : "text-ink"}
-                >
-                  {s.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {existing && (
-          <GenreRow ub={existing} onEdit={() => setGenreModalOpen(true)} />
-        )}
-        {existing && <SheetPreview userBook={existing} />}
-
-        {existing && (
-          <ReadingTimer
-            userBookId={existing.id}
-            autoOpenFinish={autoOpenFinish}
-            onFinishAutoOpenConsumed={() => setAutoOpenFinish(false)}
-            onBookFinished={(finalPage) => {
-              if (existing.status !== "read") {
-                updateStatus(existing.id, "read");
-                setCongratsOpen(true);
-              }
-              const total =
-                data.pages && data.pages > 0 ? data.pages : undefined;
-              // Priorité : total si connu (Fini = livre entier),
-              // sinon finalPage renvoyée par la modale.
-              useTimer
-                .getState()
-                .finishCycle(existing.id, "read", total ?? finalPage);
-            }}
-          />
-        )}
-        {existing && (
-          <ReadingStats
-            userBookId={existing.id}
-            totalPages={data.pages && data.pages > 0 ? data.pages : undefined}
-          />
-        )}
-        {existing && <LoanTracker userBookId={existing.id} />}
-
-        {existing && (
-          <GenreEditorModal
-            open={genreModalOpen}
-            initial={displayGenres(existing)}
-            suggestions={categorySuggestions(existing)}
-            onClose={() => setGenreModalOpen(false)}
-            onSave={(values) => setGenres(existing.id, values)}
-          />
-        )}
-
-        {existing && (
-          <Pressable
-            onPress={() => {
-              removeBook(existing.id);
-              router.back();
-            }}
-            className="mt-8 rounded-full border border-ink-muted/30 px-6 py-3 active:opacity-70"
-          >
-            <Text className="text-center text-ink-muted">
-              Retirer de ma bibliothèque
+          {data.authors.length > 0 && (
+            <Text className="mt-2 text-center text-ink-soft">
+              {data.authors.join(", ")}
             </Text>
-          </Pressable>
-        )}
-      </Animated.View>
+          )}
+          {existing && <ReadCountBadge userBookId={existing.id} />}
+          <View className="mt-3 flex-row flex-wrap justify-center gap-2">
+            {data.pages ? <Tag>{data.pages} pages</Tag> : null}
+            {data.publishedAt ? <Tag>{data.publishedAt}</Tag> : null}
+            {!isSyntheticManualIsbn && data.isbn ? (
+              <Tag>ISBN {data.isbn}</Tag>
+            ) : null}
+            {data.source === "manual" ? <Tag>Saisi manuellement</Tag> : null}
+          </View>
+          {__DEV__ && debugOpen && (
+            <DebugBookPanel
+              book={data}
+              existing={existing}
+              onClose={() => setDebugOpen(false)}
+            />
+          )}
+        </Animated.View>
 
-      <CongratsReadModal
-        open={congratsOpen}
-        onClose={() => setCongratsOpen(false)}
-        onCreate={() => {
-          setCongratsOpen(false);
-          router.push(`/sheet/${isbn}`);
-        }}
+        <Animated.View
+          entering={FadeInDown.duration(400).delay(200)}
+          className="mt-10"
+        >
+          {existing && (
+            <GenreRow ub={existing} onEdit={() => setGenreModalOpen(true)} />
+          )}
+          {existing && <SheetPreview userBook={existing} />}
+
+          {existing && (
+            <ReadingTimer
+              userBookId={existing.id}
+              autoOpenFinish={autoOpenFinish}
+              onFinishAutoOpenConsumed={() => setAutoOpenFinish(false)}
+              onBookFinished={(finalPage) => {
+                if (existing.status !== "read") {
+                  updateStatus(existing.id, "read");
+                  setCongratsOpen(true);
+                }
+                const total =
+                  data.pages && data.pages > 0 ? data.pages : undefined;
+                // Priorité : total si connu (Fini = livre entier),
+                // sinon finalPage renvoyée par la modale.
+                useTimer
+                  .getState()
+                  .finishCycle(existing.id, "read", total ?? finalPage);
+              }}
+            />
+          )}
+          {existing && (
+            <ReadingStats
+              userBookId={existing.id}
+              totalPages={data.pages && data.pages > 0 ? data.pages : undefined}
+            />
+          )}
+          {existing && <LoanTracker userBookId={existing.id} />}
+
+          {existing && (
+            <GenreEditorModal
+              open={genreModalOpen}
+              initial={displayGenres(existing)}
+              suggestions={categorySuggestions(existing)}
+              onClose={() => setGenreModalOpen(false)}
+              onSave={(values) => setGenres(existing.id, values)}
+            />
+          )}
+
+          {existing && (
+            <Pressable
+              onPress={() => {
+                Alert.alert(
+                  "Supprimer ce livre ?",
+                  `« ${data.title} » sera retiré de ta bibliothèque.`,
+                  [
+                    { text: "Annuler", style: "cancel" },
+                    {
+                      text: "Supprimer",
+                      style: "destructive",
+                      onPress: () => {
+                        removeBook(existing.id);
+                        router.back();
+                      },
+                    },
+                  ],
+                );
+              }}
+              style={{
+                shadowColor: "#000",
+                shadowOpacity: 0.12,
+                shadowOffset: { width: 0, height: 2 },
+                shadowRadius: 6,
+                elevation: 3,
+              }}
+              className="mt-8 flex-row items-center justify-center gap-2 rounded-full bg-white px-4 py-3 active:opacity-80"
+            >
+              <MaterialIcons name="delete-outline" size={20} color="#b8503a" />
+              <Text style={{ color: "#b8503a" }} className="font-sans-med">
+                Supprimer
+              </Text>
+            </Pressable>
+          )}
+        </Animated.View>
+
+        <CongratsReadModal
+          open={congratsOpen}
+          hasSheet={!!(existing && sheets[existing.id])}
+          onClose={() => setCongratsOpen(false)}
+          onCreate={() => {
+            setCongratsOpen(false);
+            router.push(`/sheet/${isbn}`);
+          }}
+        />
+      </ScrollView>
+      <BookStatusBar
+        existing={existing}
+        onStatusPress={onStatusPress}
+        onToggleFavorite={() => existing && toggleFavorite(existing.id)}
       />
-    </ScrollView>
+    </View>
   );
 }
 
 function CongratsReadModal({
   open,
+  hasSheet,
   onClose,
   onCreate,
 }: {
   open: boolean;
+  hasSheet: boolean;
   onClose: () => void;
   onCreate: () => void;
 }) {
+  const iconName = hasSheet ? "edit-note" : "celebration";
+  const title = hasSheet ? "Mets ta fiche à jour !" : "Félicitations !";
+  const body = hasSheet
+    ? "Tu as déjà une fiche pour ce livre. Complète-la avec ton avis final !"
+    : "Ajoute une fiche de lecture pour dire ce que tu en as pensé.";
+  const cta = hasSheet ? "Mettre à jour" : "Créer ma fiche";
+
   return (
     <Modal
       visible={open}
@@ -340,13 +353,13 @@ function CongratsReadModal({
         >
           <View className="items-center">
             <View className="h-14 w-14 items-center justify-center rounded-full bg-accent-pale">
-              <MaterialIcons name="celebration" size={30} color="#c27b52" />
+              <MaterialIcons name={iconName} size={30} color="#c27b52" />
             </View>
             <Text className="mt-4 text-center font-display text-2xl text-ink">
-              Félicitations !
+              {title}
             </Text>
             <Text className="mt-2 text-center text-base text-ink-soft">
-              Ajoute une fiche de lecture pour dire ce que tu en as pensé.
+              {body}
             </Text>
           </View>
 
@@ -355,7 +368,7 @@ function CongratsReadModal({
               onPress={onCreate}
               className="items-center rounded-full bg-accent px-5 py-3 active:opacity-80"
             >
-              <Text className="font-sans-med text-paper">Créer ma fiche</Text>
+              <Text className="font-sans-med text-paper">{cta}</Text>
             </Pressable>
             <Pressable
               onPress={onClose}

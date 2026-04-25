@@ -1,7 +1,6 @@
 import { HomeCogMenu } from '@/components/home-cog-menu';
 import { HomeFab } from '@/components/home-fab';
 import { LibraryRowCard } from '@/components/library-row-card';
-import { ReadingStatsCard } from '@/components/reading-stats-card';
 import { ShortcutCard } from '@/components/shortcut-card';
 import { StreakCard } from '@/components/streak-card';
 import { UserProfileCard } from '@/components/user-profile-card';
@@ -187,7 +186,6 @@ function HomeHeader() {
       </Animated.View>
 
       <UserProfileCard />
-      <ReadingStatsCard />
 
       <View className="mt-6" />
     </>

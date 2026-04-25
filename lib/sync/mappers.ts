@@ -57,7 +57,7 @@ export type DbUserBook = {
   id: string;
   user_id: string;
   book_isbn: string;
-  status: 'to_read' | 'reading' | 'read' | 'abandoned';
+  status: 'wishlist' | 'to_read' | 'reading' | 'read' | 'abandoned';
   rating: number | null;
   favorite: boolean;
   started_at: string | null;

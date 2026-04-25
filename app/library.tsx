@@ -4,9 +4,9 @@ import { displayGenres, primaryGenre } from '@/lib/genre';
 import { useBookshelf } from '@/store/bookshelf';
 import type { ReadingStatus, UserBook } from '@/types/book';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
+import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -18,6 +18,7 @@ type SectionDef = {
 };
 
 const SECTIONS: SectionDef[] = [
+  { status: 'wishlist', label: 'Wishlist' },
   { status: 'reading', label: 'En cours' },
   { status: 'to_read', label: 'À lire' },
   { status: 'read', label: 'Terminés' },
@@ -58,15 +59,127 @@ function hasGenre(ub: UserBook, genre: string): boolean {
   return displayGenres(ub).some((g) => g.toLocaleLowerCase('fr') === key);
 }
 
+const STATUS_OPTIONS: { value: ReadingStatus; label: string }[] = [
+  { value: 'wishlist', label: 'Wishlist' },
+  { value: 'to_read', label: 'À lire' },
+  { value: 'reading', label: 'En cours' },
+  { value: 'read', label: 'Lu' },
+  { value: 'abandoned', label: 'Abandonné' },
+];
+
 export default function LibraryScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ status?: string; favorite?: string }>();
   const books = useBookshelf((s) => s.books);
+  const removeBook = useBookshelf((s) => s.removeBook);
+  const updateStatus = useBookshelf((s) => s.updateStatus);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('added');
   const [authorFilter, setAuthorFilter] = useState<string>(ALL);
   const [genreFilter, setGenreFilter] = useState<string>(ALL);
+  const statusParam = (params.status as ReadingStatus | undefined) ?? null;
+  const favoriteParam = params.favorite === '1';
   const [openPicker, setOpenPicker] = useState<'author' | 'genre' | null>(null);
   const debouncedQuery = useDebouncedValue(query, 150).toLowerCase().trim();
+
+  // Sélection multiple + menu contextuel
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [contextMenuFor, setContextMenuFor] = useState<UserBook | null>(null);
+
+  const exitSelection = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const onTilePress = useCallback(
+    (ub: UserBook) => {
+      if (selectionMode) {
+        toggleSelected(ub.id);
+      } else {
+        router.push(`/book/${ub.book.isbn}`);
+      }
+    },
+    [selectionMode, toggleSelected, router],
+  );
+
+  const onTileLongPress = useCallback(
+    (ub: UserBook) => {
+      if (selectionMode) {
+        toggleSelected(ub.id);
+      } else {
+        setContextMenuFor(ub);
+      }
+    },
+    [selectionMode, toggleSelected],
+  );
+
+  const onContextDelete = (ub: UserBook) => {
+    setContextMenuFor(null);
+    Alert.alert('Supprimer ce livre ?', `« ${ub.book.title} » sera retiré de ta bibliothèque.`, [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: () => removeBook(ub.id),
+      },
+    ]);
+  };
+
+  const onContextSelect = (ub: UserBook) => {
+    setContextMenuFor(null);
+    setSelectionMode(true);
+    setSelectedIds(new Set([ub.id]));
+  };
+
+  const onBulkDelete = () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    Alert.alert(
+      'Supprimer les livres sélectionnés ?',
+      `${ids.length} livre${ids.length > 1 ? 's' : ''} retiré${ids.length > 1 ? 's' : ''} de ta bibliothèque.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: () => {
+            for (const id of ids) removeBook(id);
+            exitSelection();
+          },
+        },
+      ],
+    );
+  };
+
+  const onBulkStatus = (status: ReadingStatus) => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    const label = STATUS_OPTIONS.find((s) => s.value === status)?.label ?? status;
+    Alert.alert(
+      'Changer le statut ?',
+      `${ids.length} livre${ids.length > 1 ? 's' : ''} → ${label}.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Confirmer',
+          onPress: () => {
+            for (const id of ids) updateStatus(id, status);
+            exitSelection();
+          },
+        },
+      ],
+    );
+  };
 
   const collator = useMemo(() => new Intl.Collator('fr', { sensitivity: 'base' }), []);
 
@@ -94,12 +207,15 @@ export default function LibraryScreen() {
       if (!matchesQuery(b, debouncedQuery)) return false;
       if (authorFilter !== ALL && !b.book.authors.includes(authorFilter)) return false;
       if (genreFilter !== ALL && !hasGenre(b, genreFilter)) return false;
+      if (statusParam && b.status !== statusParam) return false;
+      if (favoriteParam && !b.favorite) return false;
       return true;
     });
-  }, [books, debouncedQuery, authorFilter, genreFilter]);
+  }, [books, debouncedQuery, authorFilter, genreFilter, statusParam, favoriteParam]);
 
   const sections = useMemo(() => {
     const byStatus: Record<ReadingStatus, UserBook[]> = {
+      wishlist: [],
       reading: [],
       to_read: [],
       read: [],
@@ -122,10 +238,32 @@ export default function LibraryScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-paper" edges={['bottom']}>
-      <ScrollView contentContainerClassName="px-6 pt-4 pb-24" keyboardShouldPersistTaps="handled">
+      {selectionMode && (
+        <SelectionBar count={selectedIds.size} onCancel={exitSelection} />
+      )}
+      <ScrollView
+        contentContainerClassName={`px-6 pt-4 ${selectionMode ? 'pb-56' : 'pb-24'}`}
+        keyboardShouldPersistTaps="handled">
         <Animated.View entering={FadeInDown.duration(400)}>
           <SearchBar value={query} onChange={setQuery} />
         </Animated.View>
+
+        {(statusParam || favoriteParam) && (
+          <View className="mt-3 flex-row flex-wrap gap-2">
+            {statusParam && (
+              <FilterChip
+                label={statusLabel(statusParam)}
+                onClear={() => router.setParams({ status: undefined })}
+              />
+            )}
+            {favoriteParam && (
+              <FilterChip
+                label="J'aime"
+                onClear={() => router.setParams({ favorite: undefined })}
+              />
+            )}
+          </View>
+        )}
 
         <View className="mt-4 flex-row gap-2">
           <FilterSelect
@@ -177,12 +315,52 @@ export default function LibraryScreen() {
                 key={sec.status}
                 label={sec.label}
                 items={items}
-                onPressItem={(ub) => router.push(`/book/${ub.book.isbn}`)}
+                onPressItem={onTilePress}
+                onLongPressItem={onTileLongPress}
+                selectionMode={selectionMode}
+                selectedIds={selectedIds}
               />
             );
           })
         )}
       </ScrollView>
+
+      {!selectionMode && (
+        <Pressable
+          onPress={() => router.push('/scanner')}
+          accessibilityLabel="Ajouter un livre"
+          style={{
+            position: 'absolute',
+            right: 24,
+            bottom: 24,
+            width: 60,
+            height: 60,
+            borderRadius: 30,
+            shadowColor: '#000',
+            shadowOpacity: 0.15,
+            shadowOffset: { width: 0, height: 4 },
+            shadowRadius: 8,
+            elevation: 4,
+          }}
+          className="items-center justify-center bg-accent active:opacity-80">
+          <MaterialIcons name="add" size={32} color="white" />
+        </Pressable>
+      )}
+
+      <BookContextMenuModal
+        ub={contextMenuFor}
+        onClose={() => setContextMenuFor(null)}
+        onDelete={onContextDelete}
+        onSelect={onContextSelect}
+      />
+
+      {selectionMode && (
+        <SelectionActionBar
+          disabled={selectedIds.size === 0}
+          onPickStatus={onBulkStatus}
+          onDelete={onBulkDelete}
+        />
+      )}
 
       <PickerModal
         open={openPicker === 'author'}
@@ -207,6 +385,32 @@ export default function LibraryScreen() {
         onClose={() => setOpenPicker(null)}
       />
     </SafeAreaView>
+  );
+}
+
+function statusLabel(s: ReadingStatus): string {
+  switch (s) {
+    case 'wishlist':
+      return 'Wishlist';
+    case 'to_read':
+      return 'À lire';
+    case 'reading':
+      return 'En cours';
+    case 'read':
+      return 'Lu';
+    case 'abandoned':
+      return 'Abandonné';
+  }
+}
+
+function FilterChip({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <View className="flex-row items-center gap-2 rounded-full bg-accent-pale px-3 py-1.5">
+      <Text className="text-sm text-accent-deep">{label}</Text>
+      <Pressable onPress={onClear} hitSlop={8}>
+        <MaterialIcons name="close" size={16} color="#9b5a38" />
+      </Pressable>
+    </View>
   );
 }
 
@@ -356,10 +560,16 @@ function StatusSection({
   label,
   items,
   onPressItem,
+  onLongPressItem,
+  selectionMode,
+  selectedIds,
 }: {
   label: string;
   items: UserBook[];
   onPressItem: (ub: UserBook) => void;
+  onLongPressItem: (ub: UserBook) => void;
+  selectionMode: boolean;
+  selectedIds: Set<string>;
 }) {
   return (
     <View className="mt-6">
@@ -371,7 +581,14 @@ function StatusSection({
       </View>
       <View className="mt-3 flex-row flex-wrap" style={{ gap: 16 }}>
         {items.map((ub) => (
-          <BookTile key={ub.id} book={ub} onPress={() => onPressItem(ub)} />
+          <BookTile
+            key={ub.id}
+            book={ub}
+            onPress={() => onPressItem(ub)}
+            onLongPress={() => onLongPressItem(ub)}
+            selected={selectedIds.has(ub.id)}
+            selectionMode={selectionMode}
+          />
         ))}
       </View>
     </View>
@@ -394,18 +611,91 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
   );
 }
 
-function BookTile({ book, onPress }: { book: UserBook; onPress: () => void }) {
+function BookTile({
+  book,
+  onPress,
+  onLongPress,
+  selected,
+  selectionMode,
+}: {
+  book: UserBook;
+  onPress: () => void;
+  onLongPress: () => void;
+  selected: boolean;
+  selectionMode: boolean;
+}) {
   const genres = displayGenres(book);
   const primary = primaryGenre(book);
   const extra = genres.length - 1;
   return (
-    <Pressable onPress={onPress} style={{ width: '47%' }} className="active:opacity-70">
-      <BookCover
-        isbn={book.book.isbn}
-        coverUrl={book.book.coverUrl}
-        style={{ width: '100%', aspectRatio: 2 / 3, borderRadius: 10 }}
-        placeholderText={book.book.title}
-      />
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={300}
+      style={{
+        width: '47%',
+        opacity: selectionMode && !selected ? 0.55 : 1,
+      }}
+      className="active:opacity-70">
+      <View className="relative" style={{ overflow: 'visible' }}>
+        <BookCover
+          isbn={book.book.isbn}
+          coverUrl={book.book.coverUrl}
+          style={{ width: '100%', aspectRatio: 2 / 3, borderRadius: 10 }}
+          placeholderText={book.book.title}
+        />
+        <View
+          style={{ position: 'absolute', top: -6, left: -6 }}
+          className="flex-row gap-1">
+          {book.status === 'wishlist' && (
+            <View
+              style={{
+                backgroundColor: '#d4a017',
+                shadowColor: '#000',
+                shadowOpacity: 0.18,
+                shadowOffset: { width: 0, height: 2 },
+                shadowRadius: 4,
+                elevation: 3,
+              }}
+              className="rounded-full p-1.5">
+              <MaterialIcons name="bookmark" size={14} color="#fbf8f4" />
+            </View>
+          )}
+          {book.favorite && (
+            <View
+              style={{
+                backgroundColor: '#d4493e',
+                shadowColor: '#000',
+                shadowOpacity: 0.18,
+                shadowOffset: { width: 0, height: 2 },
+                shadowRadius: 4,
+                elevation: 3,
+              }}
+              className="rounded-full p-1.5">
+              <MaterialIcons name="favorite" size={14} color="#fbf8f4" />
+            </View>
+          )}
+        </View>
+        {selectionMode && (
+          <View
+            style={{
+              position: 'absolute',
+              top: -6,
+              right: -6,
+              backgroundColor: selected ? '#9b5a38' : '#ffffff',
+              borderWidth: selected ? 0 : 1.5,
+              borderColor: '#9a8f82',
+              shadowColor: '#000',
+              shadowOpacity: 0.18,
+              shadowOffset: { width: 0, height: 2 },
+              shadowRadius: 4,
+              elevation: 3,
+            }}
+            className="h-6 w-6 items-center justify-center rounded-full">
+            {selected && <MaterialIcons name="check" size={16} color="#fbf8f4" />}
+          </View>
+        )}
+      </View>
       <Text numberOfLines={2} className="mt-2 font-display text-sm text-ink">
         {book.book.title}
       </Text>
@@ -423,3 +713,143 @@ function BookTile({ book, onPress }: { book: UserBook; onPress: () => void }) {
     </Pressable>
   );
 }
+
+function SelectionBar({ count, onCancel }: { count: number; onCancel: () => void }) {
+  return (
+    <View className="flex-row items-center justify-between border-b border-paper-shade bg-paper-warm px-4 py-3">
+      <Pressable onPress={onCancel} hitSlop={8} className="p-1 active:opacity-60">
+        <MaterialIcons name="close" size={22} color="#1f1a16" />
+      </Pressable>
+      <Text className="font-sans-med text-ink">
+        {count} sélectionné{count > 1 ? 's' : ''}
+      </Text>
+      <View style={{ width: 30 }} />
+    </View>
+  );
+}
+
+const SELECTION_STATUS: {
+  value: ReadingStatus;
+  label: string;
+  icon: keyof typeof MaterialIcons.glyphMap;
+  color: string;
+}[] = [
+  { value: 'wishlist', label: 'Wishlist', icon: 'bookmark-border', color: '#d4a017' },
+  { value: 'to_read', label: 'À lire', icon: 'schedule', color: '#4a90c2' },
+  { value: 'reading', label: 'En cours', icon: 'auto-stories', color: '#8e5dc8' },
+  { value: 'read', label: 'Lu', icon: 'check-circle', color: '#5fa84d' },
+  { value: 'abandoned', label: 'Abandonné', icon: 'cancel', color: '#1f1a16' },
+];
+
+function SelectionActionBar({
+  disabled,
+  onPickStatus,
+  onDelete,
+}: {
+  disabled: boolean;
+  onPickStatus: (s: ReadingStatus) => void;
+  onDelete: () => void;
+}) {
+  return (
+    <View
+      pointerEvents="box-none"
+      style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
+      className="px-3 pb-6">
+      <Pressable
+        onPress={onDelete}
+        disabled={disabled}
+        style={{
+          opacity: disabled ? 0.35 : 1,
+          shadowColor: '#000',
+          shadowOpacity: 0.12,
+          shadowOffset: { width: 0, height: 2 },
+          shadowRadius: 6,
+          elevation: 3,
+        }}
+        className="mb-3 flex-row items-center justify-center gap-2 rounded-full bg-white px-4 py-3 active:opacity-80">
+        <MaterialIcons name="delete-outline" size={20} color="#b8503a" />
+        <Text style={{ color: '#b8503a' }} className="font-sans-med">
+          Supprimer
+        </Text>
+      </Pressable>
+      <View className="flex-row items-stretch justify-between">
+        {SELECTION_STATUS.map((s) => (
+          <Pressable
+            key={s.value}
+            onPress={() => onPickStatus(s.value)}
+            disabled={disabled}
+            style={{
+              flex: 1,
+              opacity: disabled ? 0.35 : 1,
+              backgroundColor: '#ffffff',
+              shadowColor: '#000',
+              shadowOpacity: 0.12,
+              shadowOffset: { width: 0, height: 2 },
+              shadowRadius: 6,
+              elevation: 3,
+            }}
+            className="mx-1 items-center justify-center rounded-full px-2 py-4 active:opacity-80">
+            <MaterialIcons name={s.icon} size={22} color={s.color} />
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              style={{ color: s.color }}
+              className="mt-1 text-[11px]">
+              {s.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function BookContextMenuModal({
+  ub,
+  onClose,
+  onDelete,
+  onSelect,
+}: {
+  ub: UserBook | null;
+  onClose: () => void;
+  onDelete: (ub: UserBook) => void;
+  onSelect: (ub: UserBook) => void;
+}) {
+  return (
+    <Modal visible={!!ub} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable
+        onPress={onClose}
+        className="flex-1 items-center justify-end bg-ink/50 px-4 pb-8">
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          className="w-full max-w-md rounded-3xl bg-paper p-2">
+          {ub && (
+            <View className="px-4 pt-3 pb-2">
+              <Text numberOfLines={2} className="font-display text-base text-ink">
+                {ub.book.title}
+              </Text>
+            </View>
+          )}
+          <Pressable
+            onPress={() => ub && onSelect(ub)}
+            className="flex-row items-center gap-3 rounded-2xl px-4 py-3 active:bg-paper-warm">
+            <MaterialIcons name="check-box-outline-blank" size={22} color="#1f1a16" />
+            <Text className="text-ink">Sélectionner</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => ub && onDelete(ub)}
+            className="flex-row items-center gap-3 rounded-2xl px-4 py-3 active:bg-paper-warm">
+            <MaterialIcons name="delete-outline" size={22} color="#b8503a" />
+            <Text style={{ color: '#b8503a' }}>Supprimer</Text>
+          </Pressable>
+          <Pressable
+            onPress={onClose}
+            className="mt-1 rounded-2xl px-4 py-3 active:bg-paper-warm">
+            <Text className="text-center text-ink-muted">Annuler</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
