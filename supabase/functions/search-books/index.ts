@@ -34,18 +34,33 @@ Deno.serve(async (req) => {
   if (q.length < 2) return json({ results: [] });
   const limit = Math.min(Math.max(body.limit ?? 20, 1), 40);
 
-  const [g, o, b] = await Promise.allSettled([
+  // Une requête mono-token alphabétique (≥3 lettres) ressemble à un patronyme :
+  // on lance en parallèle une recherche restreinte au champ "auteur" sur Google
+  // et OpenLibrary, puis on préfixe ces résultats au merge final.
+  // Ex: "Rowling" → Google `inauthor:Rowling` + OL `author=Rowling` → toute la
+  // bibliographie de l'auteur remonte en premier au lieu de dépendre de
+  // l'ordre de pertinence des moteurs.
+  const authorMode = looksLikeAuthor(q);
+
+  const tasks = [
     searchGoogle(q, limit),
     searchOpenLibrary(q, limit),
     searchBnf(q, limit),
-  ]);
-  const google = g.status === 'fulfilled' ? g.value : [];
-  const openlib = o.status === 'fulfilled' ? o.value : [];
-  const bnf = b.status === 'fulfilled' ? b.value : [];
+  ];
+  if (authorMode) {
+    tasks.push(searchGoogle(`inauthor:"${q}"`, limit));
+    tasks.push(searchOpenLibraryByAuthor(q, limit));
+  }
 
+  const settled = await Promise.allSettled(tasks);
+  const out = settled.map((s) => (s.status === 'fulfilled' ? s.value : []));
+  const [google, openlib, bnf, googleAuthor = [], openlibAuthor = []] = out;
+
+  // Auteur d'abord (intent fort), puis sources génériques.
+  const ordered = [...googleAuthor, ...openlibAuthor, ...google, ...openlib, ...bnf];
   const seen = new Set<string>();
   const merged: SearchResult[] = [];
-  for (const r of [...google, ...openlib, ...bnf]) {
+  for (const r of ordered) {
     if (!seen.has(r.isbn)) {
       seen.add(r.isbn);
       merged.push(r);
@@ -54,6 +69,14 @@ Deno.serve(async (req) => {
 
   return json({ results: merged.slice(0, limit) });
 });
+
+// Heuristique simple : 3 à 30 lettres, sans espaces, accents/apostrophe/tiret
+// autorisés (ex: "Rowling", "Hugo", "Dostoïevski", "O'Brien", "Saint-Exupéry").
+// Multi-tokens écartés volontairement — éviter de matcher des titres comme
+// "Harry Potter" en mode auteur.
+function looksLikeAuthor(q: string): boolean {
+  return /^[\p{L}'\-]{3,30}$/u.test(q);
+}
 
 function json(obj: unknown, status = 200): Response {
   return new Response(JSON.stringify(obj), {
@@ -114,6 +137,23 @@ async function searchOpenLibrary(query: string, limit: number): Promise<SearchRe
   const url = new URL('https://openlibrary.org/search.json');
   url.searchParams.set('q', query);
   url.searchParams.set('limit', String(limit));
+  return fetchOpenLibrary(url);
+}
+
+// Mode auteur : OL accepte le paramètre `author` qui restreint au champ
+// indexé `author_name`. Bien plus précis que `q=Rowling` pour cibler la
+// bibliographie d'un patronyme courant.
+async function searchOpenLibraryByAuthor(
+  author: string,
+  limit: number,
+): Promise<SearchResult[]> {
+  const url = new URL('https://openlibrary.org/search.json');
+  url.searchParams.set('author', author);
+  url.searchParams.set('limit', String(limit));
+  return fetchOpenLibrary(url);
+}
+
+async function fetchOpenLibrary(url: URL): Promise<SearchResult[]> {
   const res = await fetch(url.toString());
   if (!res.ok) return [];
   const data = (await res.json()) as {
