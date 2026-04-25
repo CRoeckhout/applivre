@@ -63,7 +63,16 @@ Deno.serve(async (req) => {
   // Buckets : auteur d'abord (intent fort), puis générique, puis BNF.
   // Dans chaque bucket on trie par popularité décroissante (signal Google /
   // OpenLibrary). BNF ne renvoie pas de score → ordre source préservé.
-  const authorBucket = sortByPopularity(dedup([...googleAuthor, ...openlibAuthor]));
+  // Le bucket auteur est filtré strict : on garde uniquement les résultats
+  // où le patronyme apparaît dans la liste d'auteurs (Google `inauthor:"X"`
+  // matche parfois le prénom dans des titres ou éditeurs — ex. "Hugo" pollué
+  // par Mark Twain).
+  const filteredAuthor = authorMode
+    ? [...googleAuthor, ...openlibAuthor].filter((r) =>
+        r.authors.some((a) => a.toLowerCase().includes(q.toLowerCase())),
+      )
+    : [];
+  const authorBucket = sortByPopularity(dedup(filteredAuthor));
   const genericBucket = sortByPopularity(dedup([...google, ...openlib]));
 
   const seen = new Set<string>();
@@ -164,9 +173,12 @@ async function searchGoogle(query: string, limit: number): Promise<RankedResult[
 
 async function searchOpenLibrary(query: string, limit: number): Promise<RankedResult[]> {
   const url = new URL('https://openlibrary.org/search.json');
-  url.searchParams.set('q', query);
+  // `language:fre` injecté dans `q` (et non en param URL séparé) : c'est la
+  // seule forme qui propage le filtre aux éditions imbriquées renvoyées via
+  // `fields=editions`. Le param `language=fre` filtre les works mais laisse
+  // tomber `editions` du payload → impossible de récupérer le titre FR.
+  url.searchParams.set('q', `${query} language:fre`);
   url.searchParams.set('limit', String(limit));
-  url.searchParams.set('language', 'fre');
   return fetchOpenLibrary(url);
 }
 
@@ -179,17 +191,21 @@ async function searchOpenLibraryByAuthor(
 ): Promise<RankedResult[]> {
   const url = new URL('https://openlibrary.org/search.json');
   url.searchParams.set('author', author);
+  url.searchParams.set('q', 'language:fre');
   url.searchParams.set('limit', String(limit));
-  url.searchParams.set('language', 'fre');
   return fetchOpenLibrary(url);
 }
 
 async function fetchOpenLibrary(url: URL): Promise<RankedResult[]> {
   // Demander explicitement les champs popularité — OL ne les renvoie pas
-  // tous par défaut.
+  // tous par défaut. On demande aussi `editions.*` : quand la query texte
+  // matche les titres d'éditions (ex. "Harry Potter language:fre"), OL
+  // renvoie inline le titre/ISBN FR. Sinon fallback : seconde requête à
+  // `/works/<key>/editions.json` pour piocher l'édition FR.
   url.searchParams.set(
     'fields',
     [
+      'key',
       'isbn',
       'title',
       'author_name',
@@ -198,12 +214,17 @@ async function fetchOpenLibrary(url: URL): Promise<RankedResult[]> {
       'cover_i',
       'readinglog_count',
       'ratings_count',
+      'editions',
+      'editions.title',
+      'editions.isbn',
+      'editions.language',
     ].join(','),
   );
   const res = await fetch(url.toString());
   if (!res.ok) return [];
   const data = (await res.json()) as {
     docs?: {
+      key?: string;
       isbn?: string[];
       title?: string;
       author_name?: string[];
@@ -212,18 +233,41 @@ async function fetchOpenLibrary(url: URL): Promise<RankedResult[]> {
       cover_i?: number;
       readinglog_count?: number;
       ratings_count?: number;
+      editions?: {
+        docs?: {
+          title?: string;
+          isbn?: string[];
+          language?: string[];
+        }[];
+      };
     }[];
   };
-  return (data.docs ?? [])
-    .map((d): RankedResult | null => {
-      const isbn = d.isbn?.[0];
+  const docs = data.docs ?? [];
+  return await Promise.all(
+    docs.map(async (d): Promise<RankedResult | null> => {
+      // 1) Édition FR inline (cas heureux : query texte matche les titres FR).
+      let frTitle: string | undefined;
+      let frIsbn: string | undefined;
+      const inlineFr = d.editions?.docs?.find((e) => e.language?.includes('fre'));
+      if (inlineFr) {
+        frTitle = inlineFr.title;
+        frIsbn = inlineFr.isbn?.[0];
+      } else if (d.key) {
+        // 2) Fallback : pioche dans les éditions du work.
+        const fr = await pickFrenchEdition(d.key);
+        frTitle = fr?.title;
+        frIsbn = fr?.isbn;
+      }
+
+      const title = (frTitle ?? d.title ?? 'Titre inconnu').normalize('NFC');
+      const isbn = frIsbn ?? d.isbn?.[0];
       if (!isbn) return null;
       // `readinglog_count` (nb d'utilisateurs ayant le livre dans une étagère)
       // est le signal le plus stable. Fallback sur `ratings_count`.
       const pop = d.readinglog_count ?? d.ratings_count ?? 0;
       return {
         isbn,
-        title: d.title ?? 'Titre inconnu',
+        title,
         authors: d.author_name ?? [],
         coverUrl: d.cover_i
           ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg`
@@ -232,8 +276,36 @@ async function fetchOpenLibrary(url: URL): Promise<RankedResult[]> {
         pages: d.number_of_pages_median,
         _pop: pop,
       };
-    })
-    .filter((r): r is RankedResult => r !== null);
+    }),
+  ).then((results) => results.filter((r): r is RankedResult => r !== null));
+}
+
+// Pour un work donné, récupère la première édition de langue française.
+// Utilisé quand la query OL ne propage pas le filtre `language:fre` aux
+// éditions imbriquées (typiquement en mode auteur, où le surname ne matche
+// pas les titres d'édition).
+async function pickFrenchEdition(
+  workKey: string,
+): Promise<{ title?: string; isbn?: string } | null> {
+  const url = `https://openlibrary.org${workKey}/editions.json?limit=200`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const data = (await res.json()) as {
+    entries?: {
+      title?: string;
+      isbn_13?: string[];
+      isbn_10?: string[];
+      languages?: { key?: string }[];
+    }[];
+  };
+  const entry = (data.entries ?? []).find((e) =>
+    e.languages?.some((l) => l.key === '/languages/fre'),
+  );
+  if (!entry) return null;
+  return {
+    title: entry.title,
+    isbn: entry.isbn_13?.[0] ?? entry.isbn_10?.[0],
+  };
 }
 
 // ─── BNF (SRU XML, best effort) ───
