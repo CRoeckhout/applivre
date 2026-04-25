@@ -30,6 +30,8 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.corentin.applivre"
@@ -70,6 +72,30 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "bundleIdentifier": "com.corentin.applivre.widget",
+                  "targetName": "ReadingLiveActivity"
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "79d0e17a-99ab-498e-bf47-84f1d48baf90"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/79d0e17a-99ab-498e-bf47-84f1d48baf90"
     }
   }
 }

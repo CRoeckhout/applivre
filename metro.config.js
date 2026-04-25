@@ -1,4 +1,10 @@
 const path = require('path');
+
+// EAS Android build invokes Metro from android/ — force cwd back to project root
+// so internal resolvers that read process.cwd() (autolinking, expo-config) find
+// the right package.json instead of android/package.json.
+process.chdir(__dirname);
+
 const { getDefaultConfig } = require('expo/metro-config');
 const { withNativeWind } = require('nativewind/metro');
 
@@ -29,4 +35,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   return context.resolveRequest(context, moduleName, platform);
 };
 
-module.exports = withNativeWind(config, { input: './global.css' });
+module.exports = withNativeWind(config, {
+  input: path.resolve(__dirname, 'global.css'),
+  configPath: path.resolve(__dirname, 'tailwind.config.js'),
+});
