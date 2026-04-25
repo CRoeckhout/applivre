@@ -1,6 +1,7 @@
 import { HomeFab } from '@/components/home-fab';
 import { SheetCard } from '@/components/sheet-card';
 import { SheetCustomizer } from '@/components/sheet-customizer';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import { isCustomAppearance, mergeAppearance } from '@/lib/sheet-appearance';
 import { useBookshelf } from '@/store/bookshelf';
 import { useReadingSheets } from '@/store/reading-sheets';
@@ -18,6 +19,7 @@ type Entry = { sheet: ReadingSheet; userBook: UserBook };
 
 export default function SheetsScreen() {
   const router = useRouter();
+  const theme = useThemeColors();
   const sheets = useReadingSheets((s) => s.sheets);
   const removeSheet = useReadingSheets((s) => s.removeSheet);
   const books = useBookshelf((s) => s.books);
@@ -75,7 +77,7 @@ export default function SheetsScreen() {
             accessibilityLabel="Éditer le template global"
             hitSlop={8}
             className="h-11 w-11 items-center justify-center rounded-full bg-paper-warm active:bg-paper-shade">
-            <MaterialIcons name="settings" size={20} color="rgb(58 50 43)" />
+            <MaterialIcons name="settings" size={20} color={theme.ink} />
           </Pressable>
         </Animated.View>
 

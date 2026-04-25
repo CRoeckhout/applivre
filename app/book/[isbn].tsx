@@ -5,6 +5,7 @@ import { LoanTracker } from "@/components/loan-tracker";
 import { ReadingTimer } from "@/components/reading-timer";
 import { SheetCard } from "@/components/sheet-card";
 import { formatDurationHuman } from "@/hooks/use-elapsed-time";
+import { useThemeColors } from "@/hooks/use-theme-colors";
 import { fetchBook } from "@/lib/books";
 import { categorySuggestions, displayGenres } from "@/lib/genre";
 import { newId } from "@/lib/id";
@@ -51,6 +52,7 @@ export default function BookDetailScreen() {
   const [autoOpenFinish, setAutoOpenFinish] = useState(false);
   const debugOpen = useDebug((s) => s.panelsEnabled);
   const setDebugOpen = useDebug((s) => s.setPanelsEnabled);
+  const themeColors = useThemeColors();
 
   // Deeplinks depuis la Live Activity (applivre://book/<isbn>?action=...).
   // Expo Router résout la route + on consomme `action` ici.
@@ -286,16 +288,17 @@ export default function BookDetailScreen() {
                 );
               }}
               style={{
+                backgroundColor: "#b8503a",
                 shadowColor: "#000",
                 shadowOpacity: 0.12,
                 shadowOffset: { width: 0, height: 2 },
                 shadowRadius: 6,
                 elevation: 3,
               }}
-              className="mt-8 flex-row items-center justify-center gap-2 rounded-full bg-white px-4 py-3 active:opacity-80"
+              className="mt-8 flex-row items-center justify-center gap-2 rounded-full px-4 py-3 active:opacity-80"
             >
-              <MaterialIcons name="delete-outline" size={20} color="#b8503a" />
-              <Text style={{ color: "#b8503a" }} className="font-sans-med">
+              <MaterialIcons name="delete-outline" size={20} color={themeColors.paper} />
+              <Text style={{ color: themeColors.paper }} className="font-sans-med">
                 Supprimer
               </Text>
             </Pressable>
@@ -635,7 +638,7 @@ function SheetPreview({
         )}
         <Pressable
           onPress={() => router.push(`/sheet/${isbn}`)}
-          className="overflow-hidden rounded-3xl bg-accent-pale p-5 active:opacity-80"
+          className="overflow-hidden rounded-3xl bg-paper-warm p-5 active:opacity-80"
         >
           <View className="flex-row items-center gap-4">
             <View className="h-12 w-12 items-center justify-center rounded-full bg-accent">
