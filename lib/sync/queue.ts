@@ -1,11 +1,18 @@
 import { nextRetryDelayMs } from '@/lib/sync/backoff';
 import {
+  internalDeleteBingo,
+  internalDeleteBingoCompletion,
+  internalDeleteBingoPill,
   internalDeleteChallenge,
+  internalDeleteCompletionsForUserBook,
   internalDeleteLoan,
   internalDeleteSheet,
   internalDeleteStreakDay,
   internalDeleteUserBook,
   internalInsertSession,
+  internalUpsertBingo,
+  internalUpsertBingoCompletion,
+  internalUpsertBingoPill,
   internalUpsertBook,
   internalUpsertChallenge,
   internalUpsertCycle,
@@ -56,6 +63,23 @@ export async function executeEntry(entry: QueueEntry): Promise<void> {
       return internalUpsertPreferences(entry.payload.userId, entry.payload.prefs);
     case 'upsertUsername':
       return internalUpsertUsername(entry.payload.userId, entry.payload.username);
+    case 'upsertBingo':
+      return internalUpsertBingo(entry.payload.bingo);
+    case 'deleteBingo':
+      return internalDeleteBingo(entry.payload.id);
+    case 'upsertBingoCompletion':
+      return internalUpsertBingoCompletion(entry.payload.completion);
+    case 'deleteBingoCompletion':
+      return internalDeleteBingoCompletion(
+        entry.payload.bingoId,
+        entry.payload.cellIndex,
+      );
+    case 'deleteCompletionsForUserBook':
+      return internalDeleteCompletionsForUserBook(entry.payload.userBookId);
+    case 'upsertBingoPill':
+      return internalUpsertBingoPill(entry.payload.pill);
+    case 'deleteBingoPill':
+      return internalDeleteBingoPill(entry.payload.id);
   }
 }
 

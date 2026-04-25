@@ -1,13 +1,17 @@
 import { supabase } from '@/lib/supabase';
 import {
+  bingoToDb,
   bookToDb,
   challengeToDb,
+  completionToDb,
   cycleToDb,
   loanToDb,
+  pillToDb,
   sessionToDb,
   sheetToDb,
   userBookToDb,
 } from '@/lib/sync/mappers';
+import type { Bingo, BingoCompletion, BingoPill } from '@/types/bingo';
 import type { Challenge } from '@/store/challenges';
 import type {
   Book,
@@ -260,6 +264,56 @@ export async function internalUpsertPreferences(
       { onConflict: 'id' },
     ),
   );
+}
+
+// Bingos
+export async function internalUpsertBingo(b: Bingo): Promise<void> {
+  await throwIfError(
+    supabase.from('bingos').upsert(bingoToDb(b), { onConflict: 'id' }),
+  );
+}
+
+export async function internalDeleteBingo(id: string): Promise<void> {
+  await throwIfError(supabase.from('bingos').delete().eq('id', id));
+}
+
+export async function internalUpsertBingoCompletion(c: BingoCompletion): Promise<void> {
+  await throwIfError(
+    supabase
+      .from('bingo_completions')
+      .upsert(completionToDb(c), { onConflict: 'bingo_id,cell_index' }),
+  );
+}
+
+export async function internalDeleteBingoCompletion(
+  bingoId: string,
+  cellIndex: number,
+): Promise<void> {
+  await throwIfError(
+    supabase
+      .from('bingo_completions')
+      .delete()
+      .eq('bingo_id', bingoId)
+      .eq('cell_index', cellIndex),
+  );
+}
+
+export async function internalDeleteCompletionsForUserBook(
+  userBookId: string,
+): Promise<void> {
+  await throwIfError(
+    supabase.from('bingo_completions').delete().eq('user_book_id', userBookId),
+  );
+}
+
+export async function internalUpsertBingoPill(p: BingoPill): Promise<void> {
+  await throwIfError(
+    supabase.from('bingo_pills').upsert(pillToDb(p), { onConflict: 'id' }),
+  );
+}
+
+export async function internalDeleteBingoPill(id: string): Promise<void> {
+  await throwIfError(supabase.from('bingo_pills').delete().eq('id', id));
 }
 
 // Reading streak days

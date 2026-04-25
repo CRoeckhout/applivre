@@ -9,6 +9,7 @@ import type {
   ReadingSheet,
   UserBook,
 } from '@/types/book';
+import type { Bingo, BingoCompletion, BingoPill } from '@/types/bingo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
@@ -34,7 +35,23 @@ export type QueuedOp =
   | {
       kind: 'upsertUsername';
       payload: { userId: string; username: string };
-    };
+    }
+  | { kind: 'upsertBingo'; payload: { bingo: Bingo } }
+  | { kind: 'deleteBingo'; payload: { id: string } }
+  | {
+      kind: 'upsertBingoCompletion';
+      payload: { completion: BingoCompletion };
+    }
+  | {
+      kind: 'deleteBingoCompletion';
+      payload: { bingoId: string; cellIndex: number };
+    }
+  | {
+      kind: 'deleteCompletionsForUserBook';
+      payload: { userBookId: string };
+    }
+  | { kind: 'upsertBingoPill'; payload: { pill: BingoPill } }
+  | { kind: 'deleteBingoPill'; payload: { id: string } };
 
 export type QueueEntry = QueuedOp & {
   id: string;

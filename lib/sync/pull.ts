@@ -1,14 +1,20 @@
 import { supabase } from '@/lib/supabase';
 import {
+  bingoFromDb,
   bookFromDb,
   challengeFromDb,
+  completionFromDb,
   cycleFromDb,
   loanFromDb,
+  pillFromDb,
   preferencesFromDb,
   sessionFromDb,
   sheetFromDb,
   streakDayFromDb,
   userBookFromDb,
+  type DbBingo,
+  type DbBingoCompletion,
+  type DbBingoPill,
   type DbBook,
   type DbBookLoan,
   type DbChallenge,
@@ -19,6 +25,7 @@ import {
   type DbStreakDay,
   type DbUserBook,
 } from '@/lib/sync/mappers';
+import { useBingos } from '@/store/bingo';
 import { useBookshelf } from '@/store/bookshelf';
 import { useChallenges, type Challenge } from '@/store/challenges';
 import { useLoans } from '@/store/loans';
@@ -27,6 +34,7 @@ import { useProfile } from '@/store/profile';
 import { useReadingSheets } from '@/store/reading-sheets';
 import { useReadingStreak } from '@/store/reading-streak';
 import { useTimer } from '@/store/timer';
+import type { BingoCompletion } from '@/types/bingo';
 import type { ReadingSheet, UserBook } from '@/types/book';
 
 export async function pullUserData(userId: string): Promise<void> {
@@ -39,6 +47,9 @@ export async function pullUserData(userId: string): Promise<void> {
     streakRes,
     profileRes,
     cycleRes,
+    bingoRes,
+    completionRes,
+    pillRes,
   ] = await Promise.all([
     supabase
       .from('user_books')
@@ -55,6 +66,9 @@ export async function pullUserData(userId: string): Promise<void> {
       .eq('id', userId)
       .maybeSingle(),
     supabase.from('read_cycles').select('*'),
+    supabase.from('bingos').select('*').eq('user_id', userId),
+    supabase.from('bingo_completions').select('*'),
+    supabase.from('bingo_pills').select('*').eq('user_id', userId),
   ]);
 
   if (ubRes.error) throw new Error(`Pull user_books: ${ubRes.error.message}`);
@@ -65,6 +79,10 @@ export async function pullUserData(userId: string): Promise<void> {
   if (streakRes.error) throw new Error(`Pull streak: ${streakRes.error.message}`);
   if (profileRes.error) throw new Error(`Pull profile: ${profileRes.error.message}`);
   if (cycleRes.error) throw new Error(`Pull cycles: ${cycleRes.error.message}`);
+  if (bingoRes.error) throw new Error(`Pull bingos: ${bingoRes.error.message}`);
+  if (completionRes.error)
+    throw new Error(`Pull bingo_completions: ${completionRes.error.message}`);
+  if (pillRes.error) throw new Error(`Pull bingo_pills: ${pillRes.error.message}`);
 
   type UbRow = DbUserBook & { book: DbBook };
   const books: UserBook[] = ((ubRes.data as UbRow[]) ?? []).map((row) =>
@@ -93,6 +111,15 @@ export async function pullUserData(userId: string): Promise<void> {
   const prefs = profileRow ? preferencesFromDb(profileRow) : {};
   const username = profileRow?.username ?? null;
 
+  const bingos = ((bingoRes.data as DbBingo[]) ?? []).map(bingoFromDb);
+  const completions: Record<string, BingoCompletion[]> = {};
+  for (const row of (completionRes.data as DbBingoCompletion[]) ?? []) {
+    const c = completionFromDb(row);
+    if (!c) continue;
+    (completions[c.bingoId] ||= []).push(c);
+  }
+  const pills = ((pillRes.data as DbBingoPill[]) ?? []).map(pillFromDb);
+
   useBookshelf.setState({ books });
   useTimer.setState({ sessions, cycles });
   useLoans.setState({ loans });
@@ -101,4 +128,5 @@ export async function pullUserData(userId: string): Promise<void> {
   useReadingStreak.setState({ manualDays });
   usePreferences.setState({ ...DEFAULT_PREFERENCES, ...prefs });
   useProfile.setState({ username });
+  useBingos.setState({ bingos, completions, pills });
 }

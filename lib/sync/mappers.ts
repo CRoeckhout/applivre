@@ -9,6 +9,7 @@ import type {
   SheetSection,
   UserBook,
 } from '@/types/book';
+import type { Bingo, BingoCompletion, BingoItem, BingoPill } from '@/types/bingo';
 import type { Challenge } from '@/store/challenges';
 
 // ═══════════════ Book (public cache) ═══════════════
@@ -276,6 +277,97 @@ export type DbStreakDay = {
 
 export function streakDayFromDb(row: DbStreakDay): string {
   return row.day;
+}
+
+// ═══════════════ Bingo ═══════════════
+
+// Contenu du champ `grid` JSONB — items positionnés + métadonnées applicatives
+// qui n'ont pas besoin d'une colonne dédiée (savedAt).
+type DbBingoGrid = { items: BingoItem[]; savedAt?: string };
+
+export type DbBingo = {
+  id: string;
+  user_id: string;
+  title: string;
+  grid: DbBingoGrid;
+  created_at: string;
+  archived_at: string | null;
+};
+
+export function bingoFromDb(row: DbBingo): Bingo {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    title: row.title,
+    items: row.grid?.items ?? [],
+    createdAt: row.created_at,
+    archivedAt: row.archived_at ?? undefined,
+    savedAt: row.grid?.savedAt ?? undefined,
+  };
+}
+
+export function bingoToDb(b: Bingo): Omit<DbBingo, 'created_at'> {
+  return {
+    id: b.id,
+    user_id: b.userId,
+    title: b.title,
+    grid: { items: b.items, savedAt: b.savedAt },
+    archived_at: b.archivedAt ?? null,
+  };
+}
+
+export type DbBingoCompletion = {
+  id: string;
+  bingo_id: string;
+  cell_index: number;
+  user_book_id: string | null;
+  completed_at: string;
+};
+
+export function completionFromDb(row: DbBingoCompletion): BingoCompletion | null {
+  // user_book_id nullable côté DB (on delete set null). Skip si orphelin.
+  if (!row.user_book_id) return null;
+  return {
+    id: row.id,
+    bingoId: row.bingo_id,
+    cellIndex: row.cell_index,
+    userBookId: row.user_book_id,
+    completedAt: row.completed_at,
+  };
+}
+
+export function completionToDb(c: BingoCompletion): DbBingoCompletion {
+  return {
+    id: c.id,
+    bingo_id: c.bingoId,
+    cell_index: c.cellIndex,
+    user_book_id: c.userBookId,
+    completed_at: c.completedAt,
+  };
+}
+
+export type DbBingoPill = {
+  id: string;
+  user_id: string;
+  label: string;
+  created_at: string;
+};
+
+export function pillFromDb(row: DbBingoPill): BingoPill {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    label: row.label,
+    createdAt: row.created_at,
+  };
+}
+
+export function pillToDb(p: BingoPill): Omit<DbBingoPill, 'created_at'> {
+  return {
+    id: p.id,
+    user_id: p.userId,
+    label: p.label,
+  };
 }
 
 // ═══════════════ Profile / Preferences ═══════════════

@@ -1,3 +1,4 @@
+import { BingoCard } from "@/components/bingo-card";
 import { ChallengeCard } from "@/components/challenge-card";
 import { StreakCard } from "@/components/streak-card";
 import { ScrollView, Text, View } from "react-native";
@@ -16,6 +17,7 @@ export default function DefiScreen() {
         </Animated.View>
 
         <View className="mt-6 flex gap-6">
+          <BingoCard />
           <ChallengeCard />
           <StreakCard />
         </View>

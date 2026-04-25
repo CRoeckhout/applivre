@@ -1,5 +1,9 @@
 import {
+  internalDeleteBingo,
+  internalDeleteBingoCompletion,
+  internalDeleteBingoPill,
   internalDeleteChallenge,
+  internalDeleteCompletionsForUserBook,
   internalDeleteLoan,
   internalDeleteSheet,
   internalDeleteStreakDay,
@@ -7,6 +11,9 @@ import {
   internalFinishReadingCycle,
   internalInsertSession,
   internalStartReadingSession,
+  internalUpsertBingo,
+  internalUpsertBingoCompletion,
+  internalUpsertBingoPill,
   internalUpsertBook,
   internalUpsertChallenge,
   internalUpsertCycle,
@@ -17,6 +24,7 @@ import {
   internalUpsertUserBook,
   internalUpsertUsername,
 } from '@/lib/sync/internals';
+import type { Bingo, BingoCompletion, BingoPill } from '@/types/bingo';
 import type { Preferences } from '@/store/preferences';
 import { flushQueue } from '@/lib/sync/queue';
 import { useSyncQueue, type QueuedOp } from '@/store/sync-queue';
@@ -207,5 +215,59 @@ export function syncUpsertUsername(userId: string, username: string): Promise<vo
   return runOrQueue(
     () => internalUpsertUsername(userId, username),
     () => ({ kind: 'upsertUsername', payload: { userId, username } }),
+  );
+}
+
+// ═══════════════ Bingos ═══════════════
+
+export function syncUpsertBingo(bingo: Bingo): Promise<void> {
+  return runOrQueue(
+    () => internalUpsertBingo(bingo),
+    () => ({ kind: 'upsertBingo', payload: { bingo } }),
+  );
+}
+
+export function syncDeleteBingo(id: string): Promise<void> {
+  return runOrQueue(
+    () => internalDeleteBingo(id),
+    () => ({ kind: 'deleteBingo', payload: { id } }),
+  );
+}
+
+export function syncUpsertBingoCompletion(completion: BingoCompletion): Promise<void> {
+  return runOrQueue(
+    () => internalUpsertBingoCompletion(completion),
+    () => ({ kind: 'upsertBingoCompletion', payload: { completion } }),
+  );
+}
+
+export function syncDeleteBingoCompletion(
+  bingoId: string,
+  cellIndex: number,
+): Promise<void> {
+  return runOrQueue(
+    () => internalDeleteBingoCompletion(bingoId, cellIndex),
+    () => ({ kind: 'deleteBingoCompletion', payload: { bingoId, cellIndex } }),
+  );
+}
+
+export function syncDeleteCompletionsForUserBook(userBookId: string): Promise<void> {
+  return runOrQueue(
+    () => internalDeleteCompletionsForUserBook(userBookId),
+    () => ({ kind: 'deleteCompletionsForUserBook', payload: { userBookId } }),
+  );
+}
+
+export function syncUpsertBingoPill(pill: BingoPill): Promise<void> {
+  return runOrQueue(
+    () => internalUpsertBingoPill(pill),
+    () => ({ kind: 'upsertBingoPill', payload: { pill } }),
+  );
+}
+
+export function syncDeleteBingoPill(id: string): Promise<void> {
+  return runOrQueue(
+    () => internalDeleteBingoPill(id),
+    () => ({ kind: 'deleteBingoPill', payload: { id } }),
   );
 }
