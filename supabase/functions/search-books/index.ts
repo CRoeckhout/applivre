@@ -12,6 +12,10 @@ type SearchResult = {
   pages?: number;
 };
 
+// Champ de tri interne (non exposé au client). Plus haut = plus populaire.
+// Source : Google `ratingsCount` ou OpenLibrary `readinglog_count`.
+type RankedResult = SearchResult & { _pop?: number };
+
 const GOOGLE_KEY = Deno.env.get('GOOGLE_BOOKS_KEY') ?? '';
 
 const CORS = {
@@ -56,19 +60,39 @@ Deno.serve(async (req) => {
   const out = settled.map((s) => (s.status === 'fulfilled' ? s.value : []));
   const [google, openlib, bnf, googleAuthor = [], openlibAuthor = []] = out;
 
-  // Auteur d'abord (intent fort), puis sources génériques.
-  const ordered = [...googleAuthor, ...openlibAuthor, ...google, ...openlib, ...bnf];
+  // Buckets : auteur d'abord (intent fort), puis générique, puis BNF.
+  // Dans chaque bucket on trie par popularité décroissante (signal Google /
+  // OpenLibrary). BNF ne renvoie pas de score → ordre source préservé.
+  const authorBucket = sortByPopularity(dedup([...googleAuthor, ...openlibAuthor]));
+  const genericBucket = sortByPopularity(dedup([...google, ...openlib]));
+
   const seen = new Set<string>();
   const merged: SearchResult[] = [];
-  for (const r of ordered) {
-    if (!seen.has(r.isbn)) {
-      seen.add(r.isbn);
-      merged.push(r);
-    }
+  for (const r of [...authorBucket, ...genericBucket, ...bnf]) {
+    if (seen.has(r.isbn)) continue;
+    seen.add(r.isbn);
+    const { _pop, ...clean } = r as RankedResult;
+    void _pop;
+    merged.push(clean);
   }
 
   return json({ results: merged.slice(0, limit) });
 });
+
+function dedup(list: RankedResult[]): RankedResult[] {
+  const seen = new Set<string>();
+  const out: RankedResult[] = [];
+  for (const r of list) {
+    if (seen.has(r.isbn)) continue;
+    seen.add(r.isbn);
+    out.push(r);
+  }
+  return out;
+}
+
+function sortByPopularity(list: RankedResult[]): RankedResult[] {
+  return [...list].sort((a, b) => (b._pop ?? 0) - (a._pop ?? 0));
+}
 
 // Heuristique simple : 3 à 30 lettres, sans espaces, accents/apostrophe/tiret
 // autorisés (ex: "Rowling", "Hugo", "Dostoïevski", "O'Brien", "Saint-Exupéry").
@@ -94,20 +118,24 @@ type GBVolumeInfo = {
   pageCount?: number;
   industryIdentifiers?: { type: string; identifier: string }[];
   imageLinks?: { thumbnail?: string; smallThumbnail?: string };
+  ratingsCount?: number;
+  averageRating?: number;
 };
 type GBVolume = { volumeInfo: GBVolumeInfo };
 
-async function searchGoogle(query: string, limit: number): Promise<SearchResult[]> {
+async function searchGoogle(query: string, limit: number): Promise<RankedResult[]> {
   const url = new URL('https://www.googleapis.com/books/v1/volumes');
   url.searchParams.set('q', query);
   url.searchParams.set('maxResults', String(limit));
   url.searchParams.set('printType', 'books');
+  // Locale boost — privilégier les éditions françaises (l'app est FR-only).
+  url.searchParams.set('langRestrict', 'fr');
   if (GOOGLE_KEY) url.searchParams.set('key', GOOGLE_KEY);
   const res = await fetch(url.toString());
   if (!res.ok) return [];
   const data = (await res.json()) as { items?: GBVolume[] };
   return (data.items ?? [])
-    .map((item): SearchResult | null => {
+    .map((item): RankedResult | null => {
       const v = item.volumeInfo;
       const ids = v.industryIdentifiers ?? [];
       const isbn =
@@ -126,17 +154,19 @@ async function searchGoogle(query: string, limit: number): Promise<SearchResult[
           ? parseInt(v.publishedDate.slice(0, 4), 10) || undefined
           : undefined,
         pages: v.pageCount,
+        _pop: v.ratingsCount ?? 0,
       };
     })
-    .filter((r): r is SearchResult => r !== null);
+    .filter((r): r is RankedResult => r !== null);
 }
 
 // ─── OpenLibrary ───
 
-async function searchOpenLibrary(query: string, limit: number): Promise<SearchResult[]> {
+async function searchOpenLibrary(query: string, limit: number): Promise<RankedResult[]> {
   const url = new URL('https://openlibrary.org/search.json');
   url.searchParams.set('q', query);
   url.searchParams.set('limit', String(limit));
+  url.searchParams.set('language', 'fre');
   return fetchOpenLibrary(url);
 }
 
@@ -146,14 +176,30 @@ async function searchOpenLibrary(query: string, limit: number): Promise<SearchRe
 async function searchOpenLibraryByAuthor(
   author: string,
   limit: number,
-): Promise<SearchResult[]> {
+): Promise<RankedResult[]> {
   const url = new URL('https://openlibrary.org/search.json');
   url.searchParams.set('author', author);
   url.searchParams.set('limit', String(limit));
+  url.searchParams.set('language', 'fre');
   return fetchOpenLibrary(url);
 }
 
-async function fetchOpenLibrary(url: URL): Promise<SearchResult[]> {
+async function fetchOpenLibrary(url: URL): Promise<RankedResult[]> {
+  // Demander explicitement les champs popularité — OL ne les renvoie pas
+  // tous par défaut.
+  url.searchParams.set(
+    'fields',
+    [
+      'isbn',
+      'title',
+      'author_name',
+      'first_publish_year',
+      'number_of_pages_median',
+      'cover_i',
+      'readinglog_count',
+      'ratings_count',
+    ].join(','),
+  );
   const res = await fetch(url.toString());
   if (!res.ok) return [];
   const data = (await res.json()) as {
@@ -164,12 +210,17 @@ async function fetchOpenLibrary(url: URL): Promise<SearchResult[]> {
       first_publish_year?: number;
       number_of_pages_median?: number;
       cover_i?: number;
+      readinglog_count?: number;
+      ratings_count?: number;
     }[];
   };
   return (data.docs ?? [])
-    .map((d): SearchResult | null => {
+    .map((d): RankedResult | null => {
       const isbn = d.isbn?.[0];
       if (!isbn) return null;
+      // `readinglog_count` (nb d'utilisateurs ayant le livre dans une étagère)
+      // est le signal le plus stable. Fallback sur `ratings_count`.
+      const pop = d.readinglog_count ?? d.ratings_count ?? 0;
       return {
         isbn,
         title: d.title ?? 'Titre inconnu',
@@ -179,14 +230,15 @@ async function fetchOpenLibrary(url: URL): Promise<SearchResult[]> {
           : undefined,
         year: d.first_publish_year,
         pages: d.number_of_pages_median,
+        _pop: pop,
       };
     })
-    .filter((r): r is SearchResult => r !== null);
+    .filter((r): r is RankedResult => r !== null);
 }
 
 // ─── BNF (SRU XML, best effort) ───
 
-async function searchBnf(query: string, limit: number): Promise<SearchResult[]> {
+async function searchBnf(query: string, limit: number): Promise<RankedResult[]> {
   const q = encodeURIComponent(`bib.anywhere all "${query}"`);
   const url =
     `https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&` +
@@ -195,7 +247,7 @@ async function searchBnf(query: string, limit: number): Promise<SearchResult[]> 
   if (!res.ok) return [];
   const xml = await res.text();
   const records = xml.split('<srw:record>').slice(1);
-  const out: SearchResult[] = [];
+  const out: RankedResult[] = [];
   for (const rec of records) {
     const get = (tag: string): string | undefined => {
       const m = rec.match(new RegExp(`<dc:${tag}[^>]*>([\\s\\S]*?)</dc:${tag}>`, 'i'));
