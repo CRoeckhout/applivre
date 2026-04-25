@@ -4,6 +4,7 @@ import type {
   SheetDefaultCategory,
   SheetFrame,
   SheetRatingIconConfig,
+  SheetSection,
 } from '@/types/book';
 
 export const DEFAULT_FRAME: SheetFrame = {
@@ -20,15 +21,15 @@ export const DEFAULT_RATING_ICONS: SheetRatingIconConfig[] = [
 ];
 
 export const DEFAULT_CATEGORIES: SheetDefaultCategory[] = [
-  { title: 'Histoire', icon: 'star' },
-  { title: 'Fin', icon: 'star' },
-  { title: 'Personnages', icon: 'star' },
-  { title: 'Romance', icon: 'heart' },
-  { title: 'Spicy', icon: 'chili' },
-  { title: 'Ambiance', icon: 'star' },
-  { title: "Ce que j'ai aimé" },
-  { title: "Ce qui m'a dérangé·e" },
-  { title: 'Citations favorites' },
+  { title: 'Histoire', materialIcon: 'auto-stories', materialIconColor: '#8e5dc8' },
+  { title: 'Fin', materialIcon: 'flag', materialIconColor: '#1f1a16' },
+  { title: 'Personnages', materialIcon: 'group', materialIconColor: '#4a90c2' },
+  { title: 'Romance', materialIcon: 'favorite', materialIconColor: '#d4493e' },
+  { title: 'Spicy', emoji: '🌶️' },
+  { title: 'Ambiance', materialIcon: 'palette', materialIconColor: '#c27b52' },
+  { title: "Ce que j'ai aimé", materialIcon: 'thumb-up', materialIconColor: '#5fa84d' },
+  { title: "Ce qui m'a dérangé·e", materialIcon: 'thumb-down', materialIconColor: '#a8a8a8' },
+  { title: 'Citations favorites', materialIcon: 'star', materialIconColor: '#d4a017' },
 ];
 
 // Couleurs alignées sur le thème "paper" de l'app — defaults raisonnables.
@@ -92,6 +93,37 @@ export function isCustomAppearance(
   if (!sheetAppearance) return false;
   const effective = mergeAppearance(global, sheetAppearance);
   return JSON.stringify(effective) !== JSON.stringify(global);
+}
+
+// Résout l'icône effective d'une section : si son titre matche une catégorie
+// du template courant, on utilise l'icône live de cette catégorie (pour que
+// les changements d'icône faits dans le customizer se propagent aux sections
+// déjà créées). Sinon, fallback sur la copie locale stockée sur la section.
+export function resolveSectionIcon(
+  section: SheetSection,
+  appearance: SheetAppearance,
+): {
+  emoji?: string;
+  materialIcon?: string;
+  materialIconColor?: string;
+} {
+  const norm = (s: string) => s.trim().toLocaleLowerCase('fr');
+  const target = norm(section.title);
+  const match = appearance.defaultCategories.find(
+    (c) => norm(c.title) === target,
+  );
+  if (match && (match.emoji || match.materialIcon)) {
+    return {
+      emoji: match.emoji,
+      materialIcon: match.materialIcon,
+      materialIconColor: match.materialIconColor,
+    };
+  }
+  return {
+    emoji: section.emoji,
+    materialIcon: section.materialIcon,
+    materialIconColor: section.materialIconColor,
+  };
 }
 
 // Override vide = template. Sinon merge champ-par-champ.

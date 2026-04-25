@@ -73,6 +73,11 @@ export type SheetSection = {
   title: string;
   body: string;
   rating?: SectionRating;
+  // Icône custom de la catégorie (copiée depuis le template au moment de
+  // l'ajout). Affichée à gauche du titre dans la fiche.
+  materialIcon?: string;
+  materialIconColor?: string;
+  emoji?: string;
 };
 
 export const SHEET_BORDER_STYLES = ['none', 'solid', 'dashed', 'dotted', 'double'] as const;
@@ -93,7 +98,15 @@ export type SheetRatingIconConfig = {
 
 export type SheetDefaultCategory = {
   title: string;
+  // Icône custom (set fermé `RatingIconKind`). Conservée pour compat ascendante.
   icon?: RatingIconKind;
+  // Nom MaterialIcons (set @expo/vector-icons baseline). Priorité sur `icon`.
+  materialIcon?: string;
+  // Couleur appliquée à `materialIcon`. Hex `#rrggbb`. Si absent → couleur de
+  // texte du thème de la fiche.
+  materialIconColor?: string;
+  // Emoji libre (saisi via clavier). Priorité absolue sur `materialIcon`/`icon`.
+  emoji?: string;
 };
 
 // Appearance d'une fiche. Toutes les clés sont optionnelles pour un override

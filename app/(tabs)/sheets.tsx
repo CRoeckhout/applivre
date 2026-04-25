@@ -9,7 +9,8 @@ import type { ReadingSheet, UserBook } from '@/types/book';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -18,7 +19,23 @@ type Entry = { sheet: ReadingSheet; userBook: UserBook };
 export default function SheetsScreen() {
   const router = useRouter();
   const sheets = useReadingSheets((s) => s.sheets);
+  const removeSheet = useReadingSheets((s) => s.removeSheet);
   const books = useBookshelf((s) => s.books);
+
+  const confirmDelete = (entry: Entry) => {
+    Alert.alert(
+      'Supprimer la fiche ?',
+      `« ${entry.userBook.book.title} » — les sections et les notes seront perdues.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: () => removeSheet(entry.userBook.id),
+        },
+      ],
+    );
+  };
 
   const globalTemplate = useSheetTemplates((s) => s.global);
   const setGlobalTemplate = useSheetTemplates((s) => s.setGlobal);
@@ -73,13 +90,20 @@ export default function SheetsScreen() {
                 <Animated.View
                   key={e.sheet.userBookId}
                   entering={FadeIn.duration(300).delay(i * 40)}>
-                  <SheetCard
-                    userBook={e.userBook}
-                    sheet={e.sheet}
-                    appearance={effective}
-                    isCustom={isCustom}
-                    onPress={() => router.push(`/sheet/${e.userBook.book.isbn}`)}
-                  />
+                  <Swipeable
+                    renderRightActions={() => (
+                      <DeleteAction onPress={() => confirmDelete(e)} />
+                    )}
+                    overshootRight={false}
+                    rightThreshold={48}>
+                    <SheetCard
+                      userBook={e.userBook}
+                      sheet={e.sheet}
+                      appearance={effective}
+                      isCustom={isCustom}
+                      onPress={() => router.push(`/sheet/${e.userBook.book.isbn}`)}
+                    />
+                  </Swipeable>
                 </Animated.View>
               );
             })}
@@ -104,6 +128,19 @@ export default function SheetsScreen() {
         publicToggle={{ value: globalIsPublic, onChange: setGlobalIsPublic }}
       />
     </SafeAreaView>
+  );
+}
+
+function DeleteAction({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityLabel="Supprimer la fiche"
+      style={{ backgroundColor: '#b8503a' }}
+      className="my-1 ml-2 items-center justify-center rounded-2xl px-5 active:opacity-80">
+      <MaterialIcons name="delete-outline" size={24} color="#fbf8f4" />
+      <Text className="mt-1 text-xs font-sans-med text-paper">Supprimer</Text>
+    </Pressable>
   );
 }
 

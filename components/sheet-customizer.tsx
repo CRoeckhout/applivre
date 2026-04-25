@@ -1,4 +1,5 @@
 import { ColorPickerModal } from '@/components/color-picker-modal';
+import { IconPickerModal } from '@/components/icon-picker-modal';
 import { RatingIcon } from '@/components/rating-row';
 import { FONTS } from '@/lib/theme/fonts';
 import {
@@ -313,50 +314,12 @@ export function SheetCustomizer({
             </View>
           </Section>
 
-          <Section title="Notations">
-            <Text className="mb-2 text-xs text-ink-muted">
-              Active les icônes disponibles dans les fiches. Renomme le libellé si tu préfères.
-            </Text>
-            <View className="gap-2">
-              {draft.ratingIcons.map((r, idx) => (
-                <RatingIconRow
-                  key={r.kind}
-                  config={r}
-                  onToggle={(enabled) =>
-                    setDraft((d) => ({
-                      ...d,
-                      ratingIcons: d.ratingIcons.map((x, i) =>
-                        i === idx ? { ...x, enabled } : x,
-                      ),
-                    }))
-                  }
-                  onLabelChange={(label) =>
-                    setDraft((d) => ({
-                      ...d,
-                      ratingIcons: d.ratingIcons.map((x, i) =>
-                        i === idx ? { ...x, label } : x,
-                      ),
-                    }))
-                  }
-                />
-              ))}
-            </View>
-            <Pressable
-              onPress={() =>
-                setDraft((d) => ({ ...d, ratingIcons: DEFAULT_RATING_ICONS }))
-              }
-              className="mt-3 self-start px-2 py-1 active:opacity-60">
-              <Text className="text-xs text-ink-muted">Rétablir par défaut</Text>
-            </Pressable>
-          </Section>
-
           <Section title="Catégories par défaut">
             <Text className="mb-2 text-xs text-ink-muted">
               Ces catégories sont proposées à la création d&apos;une fiche.
             </Text>
             <CategoriesEditor
               categories={draft.defaultCategories}
-              ratingIcons={draft.ratingIcons}
               onChange={(next) =>
                 setDraft((d) => ({ ...d, defaultCategories: next }))
               }
@@ -730,46 +693,15 @@ function ColorRowLabeled({
   );
 }
 
-function RatingIconRow({
-  config,
-  onToggle,
-  onLabelChange,
-}: {
-  config: SheetRatingIconConfig;
-  onToggle: (enabled: boolean) => void;
-  onLabelChange: (label: string) => void;
-}) {
-  return (
-    <View className="flex-row items-center gap-3 rounded-2xl bg-paper-warm px-4 py-3">
-      <RatingIcon kind={config.kind} filled size={22} />
-      <TextInput
-        value={config.label}
-        onChangeText={onLabelChange}
-        placeholder="Libellé"
-        placeholderTextColor="rgb(107 98 89)"
-        maxLength={20}
-        className="flex-1 text-base text-ink"
-      />
-      <Switch
-        value={config.enabled}
-        onValueChange={onToggle}
-        trackColor={{ false: '#d6cdbf', true: '#c27b52' }}
-        thumbColor="#fbf8f4"
-      />
-    </View>
-  );
-}
-
 function CategoriesEditor({
   categories,
-  ratingIcons,
   onChange,
 }: {
   categories: SheetDefaultCategory[];
-  ratingIcons: SheetRatingIconConfig[];
   onChange: (next: SheetDefaultCategory[]) => void;
 }) {
   const [draft, setDraft] = useState('');
+  const [pickerForIdx, setPickerForIdx] = useState<number | null>(null);
 
   const addCategory = () => {
     const t = draft.trim();
@@ -788,12 +720,34 @@ function CategoriesEditor({
   const removeAt = (idx: number) =>
     onChange(categories.filter((_, i) => i !== idx));
 
-  const setIcon = (idx: number, icon: RatingIconKind | undefined) =>
+  const applyPick = (
+    idx: number,
+    name: string | undefined,
+    color: string | undefined,
+    emoji: string | undefined,
+  ) =>
     onChange(
-      categories.map((c, i) => (i === idx ? { ...c, icon } : c)),
+      categories.map((c, i) =>
+        i === idx
+          ? {
+              ...c,
+              materialIcon: emoji ? undefined : name,
+              materialIconColor: emoji ? undefined : name ? color : undefined,
+              emoji: emoji ?? undefined,
+              icon: undefined,
+            }
+          : c,
+      ),
     );
 
-  const enabledIcons = ratingIcons.filter((r) => r.enabled);
+  const currentSelection =
+    pickerForIdx != null ? categories[pickerForIdx]?.materialIcon : undefined;
+  const currentColor =
+    pickerForIdx != null
+      ? categories[pickerForIdx]?.materialIconColor
+      : undefined;
+  const currentEmoji =
+    pickerForIdx != null ? categories[pickerForIdx]?.emoji : undefined;
 
   return (
     <View className="gap-2">
@@ -801,23 +755,25 @@ function CategoriesEditor({
         <View
           key={`${c.title}-${idx}`}
           className="flex-row items-center gap-2 rounded-2xl bg-paper-warm px-3 py-2">
-          <Text className="flex-1 text-base text-ink">{c.title}</Text>
-          <View className="flex-row items-center gap-1">
-            <IconPickerChip
-              selected={undefined}
-              active={!c.icon}
-              onPress={() => setIcon(idx, undefined)}
-              label="∅"
-            />
-            {enabledIcons.map((r) => (
-              <IconPickerChip
-                key={r.kind}
-                selected={r.kind}
-                active={c.icon === r.kind}
-                onPress={() => setIcon(idx, r.kind)}
+          <Pressable
+            onPress={() => setPickerForIdx(idx)}
+            hitSlop={6}
+            className="h-9 w-9 items-center justify-center rounded-full bg-paper active:opacity-70">
+            {c.emoji ? (
+              <Text style={{ fontSize: 18 }}>{c.emoji}</Text>
+            ) : c.materialIcon ? (
+              <MaterialIcons
+                name={c.materialIcon as keyof typeof MaterialIcons.glyphMap}
+                size={20}
+                color={c.materialIconColor ?? '#1f1a16'}
               />
-            ))}
-          </View>
+            ) : c.icon ? (
+              <RatingIcon kind={c.icon} filled size={18} />
+            ) : (
+              <MaterialIcons name="add" size={18} color="rgb(107 98 89)" />
+            )}
+          </Pressable>
+          <Text className="flex-1 text-base text-ink">{c.title}</Text>
           <Pressable
             onPress={() => removeAt(idx)}
             hitSlop={6}
@@ -826,6 +782,19 @@ function CategoriesEditor({
           </Pressable>
         </View>
       ))}
+
+      <IconPickerModal
+        open={pickerForIdx != null}
+        selected={currentSelection}
+        selectedColor={currentColor}
+        selectedEmoji={currentEmoji}
+        onPick={(result) => {
+          if (pickerForIdx != null)
+            applyPick(pickerForIdx, result.name, result.color, result.emoji);
+          setPickerForIdx(null);
+        }}
+        onClose={() => setPickerForIdx(null)}
+      />
       <View className="mt-1 flex-row items-center gap-2 rounded-2xl bg-paper-warm px-4 py-2">
         <MaterialIcons name="add" size={18} color="rgb(107 98 89)" />
         <TextInput
@@ -849,32 +818,6 @@ function CategoriesEditor({
   );
 }
 
-function IconPickerChip({
-  selected,
-  active,
-  onPress,
-  label,
-}: {
-  selected: RatingIconKind | undefined;
-  active: boolean;
-  onPress: () => void;
-  label?: string;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      hitSlop={4}
-      className={`h-8 w-8 items-center justify-center rounded-full ${
-        active ? 'bg-accent' : 'bg-paper active:bg-paper-shade'
-      }`}>
-      {selected ? (
-        <RatingIcon kind={selected} filled size={16} />
-      ) : (
-        <Text className={active ? 'text-paper' : 'text-ink-muted'}>{label ?? '∅'}</Text>
-      )}
-    </Pressable>
-  );
-}
 
 function PreviewCard({
   appearance,
@@ -994,7 +937,17 @@ function PreviewCard({
                   borderColor: mutedColor,
                 }}>
                 <Text style={{ color: textColor, fontSize: 11 }}>+ {c.title}</Text>
-                {c.icon ? <RatingIcon kind={c.icon} filled size={10} /> : null}
+                {c.emoji ? (
+                  <Text style={{ color: textColor, fontSize: 11 }}>{c.emoji}</Text>
+                ) : c.materialIcon ? (
+                  <MaterialIcons
+                    name={c.materialIcon as keyof typeof MaterialIcons.glyphMap}
+                    size={11}
+                    color={c.materialIconColor ?? textColor}
+                  />
+                ) : c.icon ? (
+                  <RatingIcon kind={c.icon} filled size={10} />
+                ) : null}
               </View>
             ))}
           </View>

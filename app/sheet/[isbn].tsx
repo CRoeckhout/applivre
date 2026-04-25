@@ -1,30 +1,30 @@
-import { BookCover } from '@/components/book-cover';
-import { RatingIcon } from '@/components/rating-row';
-import { SheetCustomizer } from '@/components/sheet-customizer';
-import { newId } from '@/lib/id';
+import { BookCover } from "@/components/book-cover";
+import { KeyboardDismissBar } from "@/components/keyboard-dismiss-bar";
+import { useKeyboardOffset } from "@/hooks/use-keyboard-offset";
+import { RatingIcon } from "@/components/rating-row";
+import { SheetCustomizer } from "@/components/sheet-customizer";
+import { newId } from "@/lib/id";
 import {
   hexWithAlpha,
   isCustomAppearance,
   mergeAppearance,
   outerCardStyle,
-} from '@/lib/sheet-appearance';
-import { getFont } from '@/lib/theme/fonts';
-import { useBookshelf } from '@/store/bookshelf';
-import { usePreferences } from '@/store/preferences';
-import { useReadingSheets } from '@/store/reading-sheets';
-import { useSheetTemplates } from '@/store/sheet-templates';
-import { useTimer } from '@/store/timer';
+  resolveSectionIcon,
+} from "@/lib/sheet-appearance";
+import { getFont } from "@/lib/theme/fonts";
+import { useBookshelf } from "@/store/bookshelf";
+import { usePreferences } from "@/store/preferences";
+import { useReadingSheets } from "@/store/reading-sheets";
+import { useSheetTemplates } from "@/store/sheet-templates";
+import { useTimer } from "@/store/timer";
 import type {
-  RatingIconKind,
-  SectionRating,
   SheetAppearance,
   SheetDefaultCategory,
-  SheetRatingIconConfig,
   SheetSection,
-} from '@/types/book';
-import { MaterialIcons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+} from "@/types/book";
+import { MaterialIcons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useMemo, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -36,9 +36,9 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+} from "react-native";
+import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function SheetScreen() {
   const { isbn } = useLocalSearchParams<{ isbn: string }>();
@@ -74,8 +74,6 @@ export default function SheetScreen() {
   );
   const fontFamily = getFont(appearance.fontId as any).variants.display;
 
-  const enabledRatingIcons = appearance.ratingIcons.filter((r) => r.enabled);
-
   const unusedDefaults = useMemo(() => {
     const used = new Set(draft.map((s) => s.title.toLowerCase()));
     return appearance.defaultCategories.filter(
@@ -86,14 +84,23 @@ export default function SheetScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [customizerOpen, setCustomizerOpen] = useState(false);
 
-  const addSectionDraft = (title: string, icon?: RatingIconKind) => {
+  const addSectionDraft = (
+    title: string,
+    opts?: {
+      materialIcon?: string;
+      materialIconColor?: string;
+      emoji?: string;
+    },
+  ) => {
     setDraft((d) => [
       ...d,
       {
         id: newId(),
-        title: title.trim() || 'Sans titre',
-        body: '',
-        rating: icon ? { value: 0, icon } : undefined,
+        title: title.trim() || "Sans titre",
+        body: "",
+        materialIcon: opts?.materialIcon,
+        materialIconColor: opts?.materialIconColor,
+        emoji: opts?.emoji,
       },
     ]);
   };
@@ -103,9 +110,25 @@ export default function SheetScreen() {
   const updateBodyDraft = (sectionId: string, body: string) => {
     setDraft((d) => d.map((s) => (s.id === sectionId ? { ...s, body } : s)));
   };
-  const setRatingDraft = (sectionId: string, rating: SectionRating | null) => {
+  const setRatingValueDraft = (
+    sectionId: string,
+    value: number | undefined,
+  ) => {
     setDraft((d) =>
-      d.map((s) => (s.id === sectionId ? { ...s, rating: rating ?? undefined } : s)),
+      d.map((s) => {
+        if (s.id !== sectionId) return s;
+        if (value == null) {
+          // Clear rating entirely.
+
+          const { rating, ...rest } = s;
+          return rest as SheetSection;
+        }
+        // Conserve `icon` legacy si présent ; sinon stub 'star' (non rendu).
+        return {
+          ...s,
+          rating: { value, icon: s.rating?.icon ?? "star" },
+        };
+      }),
     );
   };
   const removeSectionDraft = (sectionId: string) => {
@@ -123,13 +146,13 @@ export default function SheetScreen() {
       return;
     }
     Alert.alert(
-      'Modifications non enregistrées',
-      'Tu as des changements non sauvegardés. Les perdre ?',
+      "Modifications non enregistrées",
+      "Tu as des changements non sauvegardés. Les perdre ?",
       [
-        { text: 'Continuer l’édition', style: 'cancel' },
+        { text: "Continuer l’édition", style: "cancel" },
         {
-          text: 'Quitter sans sauver',
-          style: 'destructive',
+          text: "Quitter sans sauver",
+          style: "destructive",
           onPress: () => router.back(),
         },
       ],
@@ -139,13 +162,16 @@ export default function SheetScreen() {
   if (!userBook) {
     return (
       <SafeAreaView className="flex-1 items-center justify-center bg-paper px-8">
-        <Text className="font-display text-2xl text-ink">Livre introuvable</Text>
+        <Text className="font-display text-2xl text-ink">
+          Livre introuvable
+        </Text>
         <Text className="mt-2 text-center text-ink-muted">
           Ajoute d&apos;abord le livre à ta bibliothèque pour créer une fiche.
         </Text>
         <Pressable
           onPress={() => router.back()}
-          className="mt-8 rounded-full bg-accent px-6 py-3 active:opacity-80">
+          className="mt-8 rounded-full bg-accent px-6 py-3 active:opacity-80"
+        >
           <Text className="font-sans-med text-paper">Retour</Text>
         </Pressable>
       </SafeAreaView>
@@ -155,13 +181,13 @@ export default function SheetScreen() {
   const confirmDelete = () => {
     setMenuOpen(false);
     Alert.alert(
-      'Supprimer la fiche ?',
-      'Les sections et les notes seront perdues. Le livre reste dans ta biblio.',
+      "Supprimer la fiche ?",
+      "Les sections et les notes seront perdues. Le livre reste dans ta biblio.",
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: "Annuler", style: "cancel" },
         {
-          text: 'Supprimer',
-          style: 'destructive',
+          text: "Supprimer",
+          style: "destructive",
           onPress: () => {
             removeSheet(userBook.id);
             router.back();
@@ -175,16 +201,19 @@ export default function SheetScreen() {
     setMenuOpen(false);
     const lines: string[] = [`Fiche : ${userBook.book.title}`];
     if (userBook.book.authors[0]) lines.push(`par ${userBook.book.authors[0]}`);
-    lines.push('');
+    lines.push("");
     for (const s of draft) {
       if (!s.body.trim() && !s.rating) continue;
-      lines.push(`— ${s.title || 'Sans titre'}`);
-      if (s.rating) lines.push(`  ${'★'.repeat(s.rating.value)}${'☆'.repeat(5 - s.rating.value)}`);
+      lines.push(`— ${s.title || "Sans titre"}`);
+      if (s.rating)
+        lines.push(
+          `  ${"★".repeat(s.rating.value)}${"☆".repeat(5 - s.rating.value)}`,
+        );
       if (s.body.trim()) lines.push(`  ${s.body.trim()}`);
-      lines.push('');
+      lines.push("");
     }
     try {
-      await Share.share({ message: lines.join('\n') });
+      await Share.share({ message: lines.join("\n") });
     } catch {
       // user cancelled — no-op
     }
@@ -208,42 +237,48 @@ export default function SheetScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={['top', 'bottom']}>
+    <SafeAreaView className="flex-1 bg-paper" edges={["top", "bottom"]}>
+      <KeyboardDismissBar />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}>
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
+      >
         <View className="flex-row items-center justify-between px-4 pt-2 pb-2">
           <Pressable
             onPress={handleBack}
             hitSlop={8}
-            className="h-10 w-10 items-center justify-center rounded-full active:opacity-60">
+            className="h-10 w-10 items-center justify-center rounded-full active:opacity-60"
+          >
             <MaterialIcons name="arrow-back" size={22} color={themeInk} />
           </Pressable>
           <Pressable
             onPress={() => setMenuOpen(true)}
             hitSlop={8}
             accessibilityLabel="Actions de la fiche"
-            className="h-10 w-10 items-center justify-center rounded-full active:opacity-60">
+            className="h-10 w-10 items-center justify-center rounded-full active:opacity-60"
+          >
             <MaterialIcons name="more-horiz" size={24} color={themeInk} />
           </Pressable>
         </View>
 
         <ScrollView
           contentContainerClassName="px-4 pt-2 pb-32"
-          keyboardShouldPersistTaps="handled">
+          keyboardShouldPersistTaps="handled"
+        >
           <Animated.View
             entering={FadeInDown.duration(400)}
             style={[
               outerCardStyle(appearance),
               {
                 marginTop: 8,
-                shadowColor: '#000',
+                shadowColor: "#000",
                 shadowOpacity: 0.12,
                 shadowRadius: 14,
                 shadowOffset: { width: 0, height: 6 },
                 elevation: 6,
               },
-            ]}>
+            ]}
+          >
             <View className="flex-row items-start gap-3">
               <BookCover
                 isbn={userBook.book.isbn}
@@ -253,19 +288,27 @@ export default function SheetScreen() {
               <View className="flex-1">
                 <Text
                   style={{ color: appearance.mutedColor }}
-                  className="text-xs uppercase tracking-wider">
+                  className="text-xs uppercase tracking-wider"
+                >
                   Fiche de lecture
                 </Text>
                 <Text
                   numberOfLines={2}
                   style={{ color: appearance.textColor, fontFamily }}
-                  className="text-xl">
+                  className="text-xl"
+                >
                   {userBook.book.title}
                 </Text>
                 {isCustomAppearance(sheet?.appearance, globalTemplate) ? (
                   <View className="mt-1 flex-row items-center gap-1">
-                    <MaterialIcons name="palette" size={12} color={appearance.mutedColor} />
-                    <Text style={{ color: appearance.mutedColor, fontSize: 11 }}>
+                    <MaterialIcons
+                      name="palette"
+                      size={12}
+                      color={appearance.mutedColor}
+                    />
+                    <Text
+                      style={{ color: appearance.mutedColor, fontSize: 11 }}
+                    >
                       Personnalisée
                     </Text>
                   </View>
@@ -282,8 +325,14 @@ export default function SheetScreen() {
               <EmptyState
                 appearance={appearance}
                 fontFamily={fontFamily}
-                onAdd={(c) => addSectionDraft(c.title, c.icon)}
-                onAddCustom={() => addSectionDraft('')}
+                onAdd={(c) =>
+                  addSectionDraft(c.title, {
+                    materialIcon: c.materialIcon,
+                    materialIconColor: c.materialIconColor,
+                    emoji: c.emoji,
+                  })
+                }
+                onAddCustom={() => addSectionDraft("")}
                 suggestions={unusedDefaults}
               />
             ) : (
@@ -296,15 +345,17 @@ export default function SheetScreen() {
                       paddingVertical: 14,
                       borderTopWidth: i === 0 ? 0 : 1,
                       borderTopColor: hexWithAlpha(appearance.mutedColor, 0.22),
-                    }}>
+                    }}
+                  >
                     <SectionEditor
                       section={section}
                       appearance={appearance}
                       fontFamily={fontFamily}
-                      ratingIcons={enabledRatingIcons}
-                      onUpdateTitle={(title) => updateTitleDraft(section.id, title)}
+                      onUpdateTitle={(title) =>
+                        updateTitleDraft(section.id, title)
+                      }
                       onUpdateBody={(body) => updateBodyDraft(section.id, body)}
-                      onSetRating={(r) => setRatingDraft(section.id, r)}
+                      onSetRating={(v) => setRatingValueDraft(section.id, v)}
                       onRemove={() => removeSectionDraft(section.id)}
                     />
                   </Animated.View>
@@ -318,10 +369,12 @@ export default function SheetScreen() {
                 style={{
                   borderTopWidth: 1,
                   borderTopColor: hexWithAlpha(appearance.mutedColor, 0.22),
-                }}>
+                }}
+              >
                 <Text
                   style={{ color: appearance.mutedColor }}
-                  className="mb-3 text-sm">
+                  className="mb-3 text-sm"
+                >
                   Ajouter une catégorie
                 </Text>
                 <View className="flex-row flex-wrap gap-2">
@@ -330,7 +383,13 @@ export default function SheetScreen() {
                       key={c.title}
                       category={c}
                       appearance={appearance}
-                      onPress={() => addSectionDraft(c.title, c.icon)}
+                      onPress={() =>
+                        addSectionDraft(c.title, {
+                          materialIcon: c.materialIcon,
+                          materialIconColor: c.materialIconColor,
+                          emoji: c.emoji,
+                        })
+                      }
                     />
                   ))}
                 </View>
@@ -339,12 +398,14 @@ export default function SheetScreen() {
 
             {draft.length > 0 && (
               <Pressable
-                onPress={() => addSectionDraft('')}
+                onPress={() => addSectionDraft("")}
                 style={{ borderColor: appearance.mutedColor, borderWidth: 1 }}
-                className="mt-4 rounded-full py-3 active:opacity-70">
+                className="mt-4 rounded-full py-3 active:opacity-70"
+              >
                 <Text
                   style={{ color: appearance.mutedColor }}
-                  className="text-center">
+                  className="text-center"
+                >
                   + Section personnalisée
                 </Text>
               </Pressable>
@@ -354,7 +415,8 @@ export default function SheetScreen() {
           <Pressable
             onPress={handleCustomize}
             className="mt-4 flex-row items-center justify-center gap-2 rounded-full py-3 active:opacity-70"
-            style={{ borderWidth: 1, borderColor: themeInk }}>
+            style={{ borderWidth: 1, borderColor: themeInk }}
+          >
             <MaterialIcons name="palette" size={16} color={themeInk} />
             <Text style={{ color: themeInk }} className="font-sans-med">
               Personnaliser la fiche
@@ -416,8 +478,12 @@ function ReadCountSheetBadge({
   return (
     <View
       style={{ borderColor: mutedColor, borderWidth: 1 }}
-      className="items-center justify-center rounded-full px-2 py-0.5">
-      <Text style={{ color: accentColor }} className="text-[10px] font-sans-med">
+      className="items-center justify-center rounded-full px-2 py-0.5"
+    >
+      <Text
+        style={{ color: accentColor }}
+        className="text-[10px] font-sans-med"
+      >
         {max}× lu
       </Text>
     </View>
@@ -442,11 +508,21 @@ function ActionMenu({
   themeInk: string;
 }) {
   return (
-    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable onPress={onClose} className="flex-1" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}>
+    <Modal
+      visible={open}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <Pressable
+        onPress={onClose}
+        className="flex-1"
+        style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+      >
         <View
           className="absolute right-4 w-64 overflow-hidden rounded-2xl shadow-lg"
-          style={{ top: 56, elevation: 6, backgroundColor: themePaper }}>
+          style={{ top: 56, elevation: 6, backgroundColor: themePaper }}
+        >
           <MenuRow
             icon="palette"
             label="Personnaliser"
@@ -483,14 +559,14 @@ function MenuRow({
   destructive,
   themeInk,
 }: {
-  icon: React.ComponentProps<typeof MaterialIcons>['name'];
+  icon: React.ComponentProps<typeof MaterialIcons>["name"];
   label: string;
   sublabel?: string;
   onPress: () => void;
   destructive?: boolean;
   themeInk: string;
 }) {
-  const color = destructive ? '#c8322a' : themeInk;
+  const color = destructive ? "#c8322a" : themeInk;
   return (
     <Pressable onPress={onPress} className="px-4 py-3 active:bg-paper-warm">
       <View className="flex-row items-center gap-3">
@@ -522,18 +598,16 @@ function EmptyState({
   fontFamily: string;
 }) {
   return (
-    <Animated.View
-      entering={FadeIn.duration(500).delay(100)}
-      className="mt-6">
+    <Animated.View entering={FadeIn.duration(500).delay(100)} className="mt-6">
       <Text
         style={{ color: appearance.textColor, fontFamily }}
-        className="text-2xl">
+        className="text-2xl"
+      >
         Crée ta fiche
       </Text>
-      <Text
-        style={{ color: appearance.mutedColor }}
-        className="mt-2">
-        Note tes impressions sur ce livre. Ajoute les catégories qui t&apos;inspirent, crée les tiennes.
+      <Text style={{ color: appearance.mutedColor }} className="mt-2">
+        Note tes impressions sur ce livre. Ajoute les catégories qui
+        t&apos;inspirent, crée les tiennes.
       </Text>
       <View className="mt-5 flex-row flex-wrap gap-2">
         {suggestions.map((c) => (
@@ -548,8 +622,11 @@ function EmptyState({
       <Pressable
         onPress={onAddCustom}
         style={{ backgroundColor: appearance.accentColor }}
-        className="mt-4 rounded-full px-6 py-3 active:opacity-80">
-        <Text className="text-center font-sans-med text-paper">+ Section personnalisée</Text>
+        className="mt-4 rounded-full px-6 py-3 active:opacity-80"
+      >
+        <Text className="text-center font-sans-med text-paper">
+          + Section personnalisée
+        </Text>
       </Pressable>
     </Animated.View>
   );
@@ -568,11 +645,22 @@ function SuggestionPill({
     <Pressable
       onPress={onPress}
       style={{ borderColor: appearance.mutedColor, borderWidth: 1 }}
-      className="flex-row items-center gap-1.5 rounded-full px-4 py-2 active:opacity-70">
+      className="flex-row items-center gap-1.5 rounded-full px-4 py-2 active:opacity-70"
+    >
       <Text style={{ color: appearance.textColor }} className="text-sm">
         + {category.title}
       </Text>
-      {category.icon && <RatingIcon kind={category.icon} filled size={14} />}
+      {category.emoji ? (
+        <Text style={{ fontSize: 14 }}>{category.emoji}</Text>
+      ) : category.materialIcon ? (
+        <MaterialIcons
+          name={category.materialIcon as keyof typeof MaterialIcons.glyphMap}
+          size={14}
+          color={category.materialIconColor ?? appearance.textColor}
+        />
+      ) : category.icon ? (
+        <RatingIcon kind={category.icon} filled size={14} />
+      ) : null}
     </Pressable>
   );
 }
@@ -581,7 +669,6 @@ function SectionEditor({
   section,
   appearance,
   fontFamily,
-  ratingIcons,
   onUpdateTitle,
   onUpdateBody,
   onSetRating,
@@ -590,21 +677,17 @@ function SectionEditor({
   section: SheetSection;
   appearance: SheetAppearance;
   fontFamily: string;
-  ratingIcons: SheetRatingIconConfig[];
   onUpdateTitle: (title: string) => void;
   onUpdateBody: (body: string) => void;
-  onSetRating: (rating: SectionRating | null) => void;
+  onSetRating: (value: number | undefined) => void;
   onRemove: () => void;
 }) {
-  const handleAddRating = (icon: RatingIconKind) => onSetRating({ value: 0, icon });
-  const handleChangeRating = (value: number) => {
-    if (!section.rating) return;
-    onSetRating({ ...section.rating, value });
-  };
-
+  const ratingValue = section.rating?.value ?? 0;
+  const resolvedIcon = resolveSectionIcon(section, appearance);
+  const hasIcon = !!(resolvedIcon.emoji || resolvedIcon.materialIcon);
   return (
     <View>
-      <View className="flex-row items-start gap-2">
+      <View className="flex-row items-center gap-2">
         <TextInput
           value={section.title}
           onChangeText={onUpdateTitle}
@@ -616,30 +699,42 @@ function SectionEditor({
         <Pressable
           onPress={onRemove}
           hitSlop={8}
-          className="h-8 w-8 items-center justify-center rounded-full active:opacity-60">
+          className="h-8 w-8 items-center justify-center rounded-full active:opacity-60"
+        >
           <Text style={{ color: appearance.mutedColor }} className="text-xl">
             ×
           </Text>
         </Pressable>
       </View>
 
-      {section.rating ? (
-        <View className="mt-2">
-          <InlineRatingRow
-            kind={section.rating.icon}
-            value={section.rating.value}
-            onChange={handleChangeRating}
-            onRemove={() => onSetRating(null)}
-            mutedColor={appearance.mutedColor}
-          />
-        </View>
-      ) : (
-        <View className="mt-2">
-          <InlineAddRating
-            ratingIcons={ratingIcons}
-            mutedColor={appearance.mutedColor}
-            onAdd={handleAddRating}
-          />
+      {hasIcon && (
+        <View className="mt-2 flex-row items-center gap-2">
+          {[1, 2, 3, 4, 5].map((i) => {
+            const filled = i <= ratingValue;
+            const next = ratingValue === i ? undefined : i;
+            return (
+              <Pressable
+                key={i}
+                onPress={() => onSetRating(next)}
+                hitSlop={6}
+                style={{ opacity: filled ? 1 : 0.3 }}
+              >
+                {resolvedIcon.emoji ? (
+                  <Text style={{ fontSize: 22 }}>{resolvedIcon.emoji}</Text>
+                ) : (
+                  <MaterialIcons
+                    name={
+                      resolvedIcon.materialIcon as keyof typeof MaterialIcons.glyphMap
+                    }
+                    size={22}
+                    color={
+                      resolvedIcon.materialIconColor ?? appearance.textColor
+                    }
+                  />
+                )}
+              </Pressable>
+            );
+          })}
         </View>
       )}
 
@@ -666,26 +761,34 @@ function SaveFab({
   accentColor: string;
   isEmpty: boolean;
 }) {
+  const kb = useKeyboardOffset();
   return (
     <View
       pointerEvents="box-none"
-      className="absolute inset-x-0 bottom-6 items-center">
+      style={{ position: 'absolute', left: 0, right: 0, bottom: (kb > 0 ? kb : 0) + 24 }}
+      className="items-center"
+    >
       <Animated.View entering={FadeInDown.duration(220)}>
         <Pressable
           onPress={onPress}
           accessibilityLabel="Enregistrer la fiche"
           style={{
             backgroundColor: accentColor,
-            shadowColor: '#000',
+            shadowColor: "#000",
             shadowOpacity: 0.25,
             shadowRadius: 10,
             shadowOffset: { width: 0, height: 4 },
             elevation: 8,
           }}
-          className="flex-row items-center gap-2 rounded-full px-6 py-3 active:opacity-85">
-          <MaterialIcons name={isEmpty ? 'delete-outline' : 'check'} size={20} color="#fff" />
+          className="flex-row items-center gap-2 rounded-full px-6 py-3 active:opacity-85"
+        >
+          <MaterialIcons
+            name={isEmpty ? "delete-outline" : "check"}
+            size={20}
+            color="#fff"
+          />
           <Text className="font-sans-med text-paper">
-            {isEmpty ? 'Supprimer la fiche' : 'Enregistrer'}
+            {isEmpty ? "Supprimer la fiche" : "Enregistrer"}
           </Text>
         </Pressable>
       </Animated.View>
@@ -713,63 +816,3 @@ function sectionsEqual(a: SheetSection[], b: SheetSection[]): boolean {
   }
   return true;
 }
-
-function InlineRatingRow({
-  kind,
-  value,
-  onChange,
-  onRemove,
-  mutedColor,
-}: {
-  kind: RatingIconKind;
-  value: number;
-  onChange: (v: number) => void;
-  onRemove: () => void;
-  mutedColor: string;
-}) {
-  return (
-    <View className="flex-row items-center gap-2">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Pressable
-          key={i}
-          onPress={() => onChange(value === i ? i - 1 : i)}
-          hitSlop={6}>
-          <RatingIcon kind={kind} filled={value >= i} size={26} />
-        </Pressable>
-      ))}
-      <Pressable onPress={onRemove} hitSlop={6} className="ml-auto">
-        <Text style={{ color: mutedColor, fontSize: 12 }}>retirer</Text>
-      </Pressable>
-    </View>
-  );
-}
-
-function InlineAddRating({
-  ratingIcons,
-  mutedColor,
-  onAdd,
-}: {
-  ratingIcons: SheetRatingIconConfig[];
-  mutedColor: string;
-  onAdd: (icon: RatingIconKind) => void;
-}) {
-  if (ratingIcons.length === 0) return null;
-  return (
-    <View className="flex-row items-center gap-2">
-      <Text style={{ color: mutedColor, fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>
-        Noter :
-      </Text>
-      {ratingIcons.map((r) => (
-        <Pressable
-          key={r.kind}
-          onPress={() => onAdd(r.kind)}
-          accessibilityLabel={`Ajouter une note ${r.label.toLowerCase()}`}
-          hitSlop={6}
-          className="opacity-70 active:opacity-100">
-          <RatingIcon kind={r.kind} filled size={20} />
-        </Pressable>
-      ))}
-    </View>
-  );
-}
-
