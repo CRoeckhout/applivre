@@ -4,6 +4,7 @@ import { useKeyboardOffset } from '@/hooks/use-keyboard-offset';
 import { BINGO_PRESETS } from '@/lib/bingo-presets';
 import { completedLines, hasAnyWin } from '@/lib/bingo-win';
 import { newId } from '@/lib/id';
+import { useBadgeToasts } from '@/store/badge-toasts';
 import { useBingos, isBingoLocked } from '@/store/bingo';
 import { useBookshelf } from '@/store/bookshelf';
 import type { BingoCompletion, BingoItem } from '@/types/bingo';
@@ -609,6 +610,15 @@ function PlayMode({
     if (!wonNow) winSeenRef.current = false;
   }, [readCells, archived]);
 
+  // Pendant que la popup victoire est ouverte, on suspend le host de toasts
+  // de badges : ils s'enchaîneront après fermeture de la popup.
+  useEffect(() => {
+    if (!showWin) return;
+    const { pause, resume } = useBadgeToasts.getState();
+    pause();
+    return () => resume();
+  }, [showWin]);
+
   const onCellPress = (index: number, _item: BingoItem | undefined) => {
     if (archived) {
       // Lecture seule.
@@ -892,10 +902,9 @@ function DraggableBook({
   const ty = useSharedValue(0);
   const dragging = useSharedValue(0);
 
-  // Long-press 200 ms avant activation : permet le scroll vertical sans
-  // déclencher de drag accidentel sur appui rapide.
+  // Press court de 50 ms avant activation du drag.
   const pan = Gesture.Pan()
-    .activateAfterLongPress(200)
+    .activateAfterLongPress(50)
     .onStart(() => {
       dragging.value = withSpring(1);
       runOnJS(onDragStart)();
