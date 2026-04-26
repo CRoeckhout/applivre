@@ -10,7 +10,7 @@ create index if not exists bingos_user_active_idx
   where archived_at is null;
 
 create table if not exists public.bingo_pills (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   label text not null,
   created_at timestamptz not null default now(),
