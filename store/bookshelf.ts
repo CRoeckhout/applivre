@@ -48,8 +48,22 @@ export const useBookshelf = create<BookshelfState>()(
             if (b.id !== id) return b;
             const now = new Date().toISOString();
             const next: UserBook = { ...b, status };
-            if (status === 'reading' && !b.startedAt) next.startedAt = now;
+            if (status === 'reading') {
+              if (!b.startedAt) next.startedAt = now;
+              // Nouveau cycle ouvert : on efface l'éventuel finished_at antérieur
+              // pour préserver la contrainte finished_at >= started_at.
+              next.finishedAt = undefined;
+            }
             if (status === 'read' && !b.finishedAt) next.finishedAt = now;
+            // Garde-fou : si les deux dates existent et sont incohérentes,
+            // on remet started_at sur finished_at (lecture éclair).
+            if (
+              next.startedAt &&
+              next.finishedAt &&
+              next.startedAt > next.finishedAt
+            ) {
+              next.startedAt = next.finishedAt;
+            }
             // Règle métier : abandonné retire le J'aime.
             if (status === 'abandoned' && b.favorite) next.favorite = false;
             updated = next;

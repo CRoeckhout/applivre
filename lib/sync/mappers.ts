@@ -22,7 +22,7 @@ export type DbBook = {
   published_at: string | null;
   cover_url: string | null;
   source: string | null;
-  categories: string[] | null;
+  categories: string[];
 };
 
 export function bookFromDb(row: DbBook): Book {
@@ -47,7 +47,7 @@ export function bookToDb(book: Book): DbBook {
     published_at: book.publishedAt ?? null,
     cover_url: book.coverUrl ?? null,
     source: book.source ?? null,
-    categories: book.categories ?? null,
+    categories: book.categories ?? [],
   };
 }
 
@@ -83,6 +83,14 @@ export function userBookFromDb(row: DbUserBook, book: Book): UserBook {
 }
 
 export function userBookToDb(ub: UserBook, userId: string): DbUserBook {
+  // Garde-fou contre la contrainte CHECK user_books_dates_ok :
+  // si les deux timestamps existent et sont inversés, on aligne started_at
+  // sur finished_at (les opérations futures recréeront un cycle propre).
+  let startedAt = ub.startedAt ?? null;
+  const finishedAt = ub.finishedAt ?? null;
+  if (startedAt && finishedAt && startedAt > finishedAt) {
+    startedAt = finishedAt;
+  }
   return {
     id: ub.id,
     user_id: userId,
@@ -90,8 +98,8 @@ export function userBookToDb(ub: UserBook, userId: string): DbUserBook {
     status: ub.status,
     rating: ub.rating ?? null,
     favorite: ub.favorite,
-    started_at: ub.startedAt ?? null,
-    finished_at: ub.finishedAt ?? null,
+    started_at: startedAt,
+    finished_at: finishedAt,
     genres: ub.genres ?? [],
   };
 }
