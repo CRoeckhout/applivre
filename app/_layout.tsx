@@ -55,6 +55,8 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, DevSettings, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
+import { BadgeUnlockToastHost } from "@/components/badges/badge-unlock-toast-host";
+import { useBadgeUnlockDetector } from "@/hooks/use-badges";
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -147,6 +149,9 @@ function AuthGate() {
 
   // Pilote la Live Activity iOS depuis le store timer (no-op en Expo Go).
   useReadingLiveActivity();
+
+  // Détection unlocks de badges (silencieux au premier render, toast ensuite).
+  useBadgeUnlockDetector();
 
   // Commande dans le menu dev RN (Cmd+D / shake) pour toggler les panneaux debug.
   useEffect(() => {
@@ -274,6 +279,8 @@ function AuthGate() {
           )}
         </View>
       )}
+
+      <BadgeUnlockToastHost />
     </View>
   );
 }

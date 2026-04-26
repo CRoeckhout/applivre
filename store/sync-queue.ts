@@ -51,7 +51,11 @@ export type QueuedOp =
       payload: { userBookId: string };
     }
   | { kind: 'upsertBingoPill'; payload: { pill: BingoPill } }
-  | { kind: 'deleteBingoPill'; payload: { id: string } };
+  | { kind: 'deleteBingoPill'; payload: { id: string } }
+  | {
+      kind: 'upsertUserBadge';
+      payload: { userId: string; badgeKey: string; earnedAt: string };
+    };
 
 export type QueueEntry = QueuedOp & {
   id: string;

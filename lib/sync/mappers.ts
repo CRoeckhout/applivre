@@ -287,6 +287,18 @@ export function streakDayFromDb(row: DbStreakDay): string {
   return row.day;
 }
 
+// ═══════════════ User badges ═══════════════
+
+export type DbUserBadge = {
+  user_id: string;
+  badge_key: string;
+  earned_at: string;
+};
+
+export function badgeFromDb(row: DbUserBadge): { key: string; earnedAt: string } {
+  return { key: row.badge_key, earnedAt: row.earned_at };
+}
+
 // ═══════════════ Bingo ═══════════════
 
 // Contenu du champ `grid` JSONB — items positionnés + métadonnées applicatives

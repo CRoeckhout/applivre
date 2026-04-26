@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 509.18 496.7">
+  <defs>
+    <clipPath id="clippath">
+      <path d="M255.59.65l-1-.65-1,.65C124.31,84.74,11.2,96.11,0,82.35c74.02,394.36,192.65,340.34,253.59,413.14l1,1.21,1-1.21c60.94-72.8,179.57-18.78,253.59-413.14-11.2,13.76-124.31,2.39-253.59-81.7Z"/>
+    </clipPath>
+    <linearGradient id="linear-gradient" x1="398.21" y1="398.66" x2="398.21" y2="111.42" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#000"/>
+      <stop offset="1" stop-color="#333"/>
+    </linearGradient>
+    <radialGradient id="radial-gradient" cx="474.31" cy="261.81" fx="474.31" fy="261.81" r="151.17" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#faf3b0"/>
+      <stop offset=".08" stop-color="#faf5be" stop-opacity=".81"/>
+      <stop offset=".19" stop-color="#fcf7cf" stop-opacity=".6"/>
+      <stop offset=".3" stop-color="#fcfade" stop-opacity=".42"/>
+      <stop offset=".41" stop-color="#fdfbea" stop-opacity=".27"/>
+      <stop offset=".52" stop-color="#fefdf3" stop-opacity=".15"/>
+      <stop offset=".63" stop-color="#fefef9" stop-opacity=".07"/>
+      <stop offset=".73" stop-color="#fefefd" stop-opacity=".02"/>
+      <stop offset=".83" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <g id="Layer_1-2" data-name="Layer 1">
+    <g>
+      <path d="M255.59.65l-1-.65-1,.65C124.31,84.74,11.2,96.11,0,82.35c74.02,394.36,192.65,340.34,253.59,413.14l1,1.21,1-1.21c60.94-72.8,179.57-18.78,253.59-413.14-11.2,13.76-124.31,2.39-253.59-81.7Z"/>
+      <g clip-path="url(#clippath)">
+        <rect x="254.59" y="-46.71" width="287.24" height="573.3" fill="url(#linear-gradient)"/>
+        <rect x="254.59" y="-46.71" width="287.24" height="573.3" fill="url(#radial-gradient)"/>
+      </g>
+    </g>
+    <path d="M224.51,440.15c-58.01-22.61-100.94-73.26-126.94-128.78-26.88-56.28-41.4-117.45-52.64-178.15,0,0,91.05-5.07,91.05-5.07-5.55,83.33-8.32,171.76,32.1,247.32,13.83,25.16,33.06,47.37,56.43,64.69h0Z" fill="#fff"/>
+  </g>
+</svg>

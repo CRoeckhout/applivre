@@ -21,6 +21,7 @@ import {
   internalUpsertPreferences,
   internalUpsertSheet,
   internalUpsertStreakDay,
+  internalUpsertUserBadge,
   internalUpsertUserBook,
   internalUpsertUsername,
 } from '@/lib/sync/internals';
@@ -269,5 +270,18 @@ export function syncDeleteBingoPill(id: string): Promise<void> {
   return runOrQueue(
     () => internalDeleteBingoPill(id),
     () => ({ kind: 'deleteBingoPill', payload: { id } }),
+  );
+}
+
+// ═══════════════ User badges ═══════════════
+
+export function syncUpsertUserBadge(
+  userId: string,
+  badgeKey: string,
+  earnedAt: string,
+): Promise<void> {
+  return runOrQueue(
+    () => internalUpsertUserBadge(userId, badgeKey, earnedAt),
+    () => ({ kind: 'upsertUserBadge', payload: { userId, badgeKey, earnedAt } }),
   );
 }

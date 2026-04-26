@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import {
+  badgeFromDb,
   bingoFromDb,
   bookFromDb,
   challengeFromDb,
@@ -23,8 +24,10 @@ import {
   type DbReadingSession,
   type DbReadingSheet,
   type DbStreakDay,
+  type DbUserBadge,
   type DbUserBook,
 } from '@/lib/sync/mappers';
+import { useBadges } from '@/store/badges';
 import { useBingos } from '@/store/bingo';
 import { useBookshelf } from '@/store/bookshelf';
 import { useChallenges, type Challenge } from '@/store/challenges';
@@ -50,6 +53,7 @@ export async function pullUserData(userId: string): Promise<void> {
     bingoRes,
     completionRes,
     pillRes,
+    badgeRes,
   ] = await Promise.all([
     supabase
       .from('user_books')
@@ -69,6 +73,7 @@ export async function pullUserData(userId: string): Promise<void> {
     supabase.from('bingos').select('*').eq('user_id', userId),
     supabase.from('bingo_completions').select('*'),
     supabase.from('bingo_pills').select('*').eq('user_id', userId),
+    supabase.from('user_badges').select('*').eq('user_id', userId),
   ]);
 
   if (ubRes.error) throw new Error(`Pull user_books: ${ubRes.error.message}`);
@@ -83,6 +88,7 @@ export async function pullUserData(userId: string): Promise<void> {
   if (completionRes.error)
     throw new Error(`Pull bingo_completions: ${completionRes.error.message}`);
   if (pillRes.error) throw new Error(`Pull bingo_pills: ${pillRes.error.message}`);
+  if (badgeRes.error) throw new Error(`Pull user_badges: ${badgeRes.error.message}`);
 
   type UbRow = DbUserBook & { book: DbBook };
   const books: UserBook[] = ((ubRes.data as UbRow[]) ?? []).map((row) =>
@@ -120,6 +126,12 @@ export async function pullUserData(userId: string): Promise<void> {
   }
   const pills = ((pillRes.data as DbBingoPill[]) ?? []).map(pillFromDb);
 
+  const earned: Record<string, string> = {};
+  for (const row of (badgeRes.data as DbUserBadge[]) ?? []) {
+    const b = badgeFromDb(row);
+    earned[b.key] = b.earnedAt;
+  }
+
   useBookshelf.setState({ books });
   useTimer.setState({ sessions, cycles });
   useLoans.setState({ loans });
@@ -129,4 +141,5 @@ export async function pullUserData(userId: string): Promise<void> {
   usePreferences.setState({ ...DEFAULT_PREFERENCES, ...prefs });
   useProfile.setState({ username });
   useBingos.setState({ bingos, completions, pills });
+  useBadges.setState({ earned });
 }

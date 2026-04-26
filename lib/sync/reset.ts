@@ -1,3 +1,4 @@
+import { useBadges } from '@/store/badges';
 import { useBookshelf } from '@/store/bookshelf';
 import { useChallenges } from '@/store/challenges';
 import { useLoans } from '@/store/loans';
@@ -18,4 +19,5 @@ export function resetAllStores(): void {
   usePreferences.setState({ ...DEFAULT_PREFERENCES });
   useProfile.setState({ username: null });
   useSyncQueue.setState({ ops: [] });
+  useBadges.setState({ earned: {} });
 }

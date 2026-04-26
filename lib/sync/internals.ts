@@ -316,6 +316,22 @@ export async function internalDeleteBingoPill(id: string): Promise<void> {
   await throwIfError(supabase.from('bingo_pills').delete().eq('id', id));
 }
 
+// User badges (locked-in : pas de delete public, on garde ignoreDuplicates).
+export async function internalUpsertUserBadge(
+  userId: string,
+  badgeKey: string,
+  earnedAt: string,
+): Promise<void> {
+  await throwIfError(
+    supabase
+      .from('user_badges')
+      .upsert(
+        { user_id: userId, badge_key: badgeKey, earned_at: earnedAt },
+        { onConflict: 'user_id,badge_key', ignoreDuplicates: true },
+      ),
+  );
+}
+
 // Reading streak days
 export async function internalUpsertStreakDay(day: string, userId: string): Promise<void> {
   await throwIfError(

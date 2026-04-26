@@ -6,6 +6,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
+import { BadgeStrip } from './badges/badge-strip';
 
 export function UserProfileCard() {
   const { session } = useAuth();
@@ -81,6 +82,7 @@ export function UserProfileCard() {
             {email}
           </Text>
         </View>
+        <BadgeStrip />
       </View>
     </View>
   );
