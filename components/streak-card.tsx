@@ -1,3 +1,4 @@
+import { useCardFrame } from "@/components/card-frame-context";
 import {
   dayOffset,
   frShortWeekday,
@@ -63,6 +64,7 @@ export function StreakCard({
   const toggleDay = useReadingStreak((s) => s.toggleDay);
   const sessions = useTimer((s) => s.sessions);
   const goalMinutes = usePreferences((s) => s.dailyReadingGoalMinutes);
+  const { inFrame, padding: framedPadding } = useCardFrame();
 
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -140,8 +142,9 @@ export function StreakCard({
       >
         <Animated.View
           entering={FadeIn.duration(400)}
-          className="rounded-3xl bg-paper-warm p-6"
-          style={
+          className={`rounded-3xl bg-paper-warm ${inFrame ? '' : 'p-6'}`}
+          style={[
+            inFrame ? { padding: framedPadding } : null,
             isDragging
               ? {
                   shadowColor: "#1a1410",
@@ -150,8 +153,8 @@ export function StreakCard({
                   shadowOffset: { width: 0, height: 8 },
                   elevation: 8,
                 }
-              : undefined
-          }
+              : null,
+          ]}
         >
           <View className="flex-row items-center gap-3">
             <View className="h-10 w-10 items-center justify-center rounded-full bg-accent">

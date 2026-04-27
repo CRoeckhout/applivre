@@ -1,12 +1,13 @@
-import { useAuth } from '@/hooks/use-auth';
-import { pickAndUploadAvatar } from '@/lib/avatar';
-import { usePreferences } from '@/store/preferences';
-import { useProfile } from '@/store/profile';
-import { MaterialIcons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
-import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
-import { BadgeStrip } from './badges/badge-strip';
+import { useCardFrame } from "@/components/card-frame-context";
+import { useAuth } from "@/hooks/use-auth";
+import { pickAndUploadAvatar } from "@/lib/avatar";
+import { usePreferences } from "@/store/preferences";
+import { useProfile } from "@/store/profile";
+import { MaterialIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { useState } from "react";
+import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
+import { BadgeStrip } from "./badges/badge-strip";
 
 export function UserProfileCard() {
   const { session } = useAuth();
@@ -14,11 +15,12 @@ export function UserProfileCard() {
   const setAvatarUrl = usePreferences((s) => s.setAvatarUrl);
   const username = useProfile((s) => s.username);
   const [uploading, setUploading] = useState(false);
+  const { inFrame, padding: framedPadding } = useCardFrame();
 
-  const email = session?.user.email ?? '';
-  const displayName = username ? `@${username}` : email || 'Anonyme';
+  const email = session?.user.email ?? "";
+  const displayName = username ? `@${username}` : email || "Anonyme";
   const initialSource = username || email;
-  const initial = initialSource ? initialSource[0].toUpperCase() : '?';
+  const initial = initialSource ? initialSource[0].toUpperCase() : "?";
   const userId = session?.user.id;
 
   const onPressAvatar = async () => {
@@ -29,8 +31,8 @@ export function UserProfileCard() {
       if (url) setAvatarUrl(url);
     } catch (err) {
       Alert.alert(
-        'Upload impossible',
-        err instanceof Error ? err.message : 'Réessaye dans un instant.',
+        "Upload impossible",
+        err instanceof Error ? err.message : "Réessaye dans un instant.",
       );
     } finally {
       setUploading(false);
@@ -38,12 +40,16 @@ export function UserProfileCard() {
   };
 
   return (
-    <View className="mt-4 flex-row items-center gap-4 rounded-3xl bg-paper-warm p-5">
+    <View
+      className={`flex-row items-center gap-4 rounded-3xl bg-paper-warm ${inFrame ? "" : "p-5"}`}
+      style={inFrame ? { padding: framedPadding } : undefined}
+    >
       <Pressable
         onPress={onPressAvatar}
         disabled={!userId || uploading}
         accessibilityLabel="Changer ma photo de profil"
-        className="relative">
+        className="relative"
+      >
         {avatarUrl ? (
           <Image
             source={{ uri: avatarUrl }}
@@ -60,13 +66,15 @@ export function UserProfileCard() {
         {uploading ? (
           <View
             className="absolute inset-0 items-center justify-center rounded-full bg-ink/50"
-            pointerEvents="none">
+            pointerEvents="none"
+          >
             <ActivityIndicator size="small" color="#fbf8f4" />
           </View>
         ) : (
           <View
             className="absolute -bottom-1 -right-1 h-6 w-6 items-center justify-center rounded-full bg-ink"
-            pointerEvents="none">
+            pointerEvents="none"
+          >
             <MaterialIcons name="photo-camera" size={14} color="#fbf8f4" />
           </View>
         )}

@@ -1,10 +1,15 @@
 import { ColorPickerModal } from '@/components/color-picker-modal';
+import { NineSliceFrame } from '@/components/nine-slice-frame';
+import { useThemeColors } from '@/hooks/use-theme-colors';
+import { type BorderDef } from '@/lib/borders/catalog';
+import { applyBorderTokens } from '@/lib/borders/tokens';
 import { FONTS, type FontId } from '@/lib/theme/fonts';
 import { THEMES, customThemeId, type CustomTheme } from '@/lib/theme/themes';
+import { useAllBorders } from '@/store/border-catalog';
 import { usePersonalization } from '@/store/personalization';
 import { usePreferences } from '@/store/preferences';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,6 +32,8 @@ export function PersonalizationSheet() {
   const secondary = usePreferences((s) => s.colorSecondary);
   const bg = usePreferences((s) => s.colorBg);
   const customThemes = usePreferences((s) => s.customThemes);
+  const borderId = usePreferences((s) => s.borderId);
+  const setBorderId = usePreferences((s) => s.setBorderId);
   const applyTheme = usePreferences((s) => s.applyTheme);
   const setFontId = usePreferences((s) => s.setFontId);
   const setPrimary = usePreferences((s) => s.setColorPrimary);
@@ -92,45 +99,53 @@ export function PersonalizationSheet() {
           </View>
 
           <ScrollView
-            horizontal={tab === 'theme'}
+            horizontal={false}
             showsHorizontalScrollIndicator={false}
             showsVerticalScrollIndicator={false}
-            style={{ maxHeight: 260 }}
-            contentContainerStyle={{
-              paddingHorizontal: 20,
-              paddingVertical: 16,
-              gap: 10,
-              flexDirection: tab === 'theme' ? 'row' : 'column',
-            }}>
+            style={{ maxHeight: tab === 'theme' ? 360 : 260 }}
+            contentContainerStyle={
+              tab === 'theme'
+                ? { paddingVertical: 16, gap: 14 }
+                : { paddingHorizontal: 20, paddingVertical: 16, gap: 10 }
+            }>
             {tab === 'theme' && (
               <>
-                <SaveThemeCard onPress={() => setSaveOpen(true)} />
-                {customThemes.map((t) => (
-                  <ThemeCard
-                    key={`custom-${t.id}`}
-                    label={t.label}
-                    description="Thème personnel"
-                    primary={t.primary}
-                    secondary={t.secondary}
-                    bg={t.bg}
-                    active={customThemeId(t.id) === themeId}
-                    isCustom
-                    onPress={() => applyTheme(customThemeId(t.id))}
-                    onLongPress={() => confirmDeleteCustom(t)}
-                  />
-                ))}
-                {THEMES.map((t) => (
-                  <ThemeCard
-                    key={t.id}
-                    label={t.label}
-                    description={t.description}
-                    primary={t.primary}
-                    secondary={t.secondary}
-                    bg={t.bg}
-                    active={t.id === themeId}
-                    onPress={() => applyTheme(t.id)}
-                  />
-                ))}
+                <SectionLabel>Thèmes</SectionLabel>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
+                  <SaveThemeCard onPress={() => setSaveOpen(true)} />
+                  {customThemes.map((t) => (
+                    <ThemeCard
+                      key={`custom-${t.id}`}
+                      label={t.label}
+                      description="Thème personnel"
+                      primary={t.primary}
+                      secondary={t.secondary}
+                      bg={t.bg}
+                      active={customThemeId(t.id) === themeId}
+                      isCustom
+                      onPress={() => applyTheme(customThemeId(t.id))}
+                      onLongPress={() => confirmDeleteCustom(t)}
+                    />
+                  ))}
+                  {THEMES.map((t) => (
+                    <ThemeCard
+                      key={t.id}
+                      label={t.label}
+                      description={t.description}
+                      primary={t.primary}
+                      secondary={t.secondary}
+                      bg={t.bg}
+                      active={t.id === themeId}
+                      onPress={() => applyTheme(t.id)}
+                    />
+                  ))}
+                </ScrollView>
+
+                <SectionLabel>Cadres</SectionLabel>
+                <BordersRow borderId={borderId} setBorderId={setBorderId} />
               </>
             )}
 
@@ -482,5 +497,113 @@ function SaveThemeModal({
         </Pressable>
       </Pressable>
     </Modal>
+  );
+}
+
+function BordersRow({
+  borderId,
+  setBorderId,
+}: {
+  borderId: string;
+  setBorderId: (id: string) => void;
+}) {
+  const all = useAllBorders();
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
+      {all.map((b) => (
+        <BorderCard
+          key={b.id}
+          def={b}
+          active={b.id === borderId}
+          onPress={() => setBorderId(b.id)}
+        />
+      ))}
+    </ScrollView>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <Text
+      className="px-5 text-xs uppercase tracking-wider text-ink-muted"
+      style={{ marginTop: -4 }}>
+      {children}
+    </Text>
+  );
+}
+
+function BorderCard({
+  def,
+  active,
+  onPress,
+}: {
+  def: BorderDef;
+  active: boolean;
+  onPress: () => void;
+}) {
+  const W = 96;
+  const H = 96;
+  const colorPrimary = usePreferences((s) => s.colorPrimary);
+  const colorSecondary = usePreferences((s) => s.colorSecondary);
+  const colorBg = usePreferences((s) => s.colorBg);
+  const theme = useThemeColors();
+  const themedSvgXml = useMemo(() => {
+    if (!def.svgXml) return undefined;
+    return applyBorderTokens(
+      def.svgXml,
+      def.tokens,
+      { colorPrimary, colorSecondary, colorBg },
+      theme,
+    );
+  }, [def.svgXml, def.tokens, colorPrimary, colorSecondary, colorBg, theme]);
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        width: W,
+        height: H,
+        borderWidth: active ? 2 : 1,
+        borderColor: active ? '#c27b52' : 'rgba(107,98,89,0.2)',
+        borderRadius: 14,
+        overflow: 'hidden',
+        backgroundColor: 'rgba(255,255,255,0.4)',
+      }}>
+      {(def.source || def.svgXml) && def.imageSize && def.slice ? (
+        <NineSliceFrame
+          source={def.source}
+          svgXml={themedSvgXml}
+          imageSize={def.imageSize}
+          slice={def.slice}
+          padding={{ top: 0, right: 0, bottom: 0, left: 0 }}
+          repeat={def.repeat}
+          fillCenter={false}
+          style={{ flex: 1 }}>
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 10, color: 'rgb(107 98 89)' }}>{def.label}</Text>
+          </View>
+        </NineSliceFrame>
+      ) : (
+        <View
+          style={{
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderStyle: 'dashed',
+            borderWidth: 1,
+            borderColor: 'rgba(107,98,89,0.4)',
+            margin: 6,
+            borderRadius: 8,
+          }}>
+          <MaterialIcons name="block" size={20} color="rgb(107 98 89)" />
+          <Text
+            style={{ fontSize: 10, color: 'rgb(107 98 89)', marginTop: 4, textAlign: 'center' }}>
+            {def.label}
+          </Text>
+        </View>
+      )}
+    </Pressable>
   );
 }

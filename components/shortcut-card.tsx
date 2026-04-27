@@ -1,3 +1,4 @@
+import { useCardFrame } from '@/components/card-frame-context';
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
@@ -20,19 +21,21 @@ export function ShortcutCard({
   isDragging = false,
 }: Props) {
   const theme = useThemeColors();
+  const { inFrame, padding: framedPadding } = useCardFrame();
   return (
     <Pressable
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={280}
-      className={`flex-row items-center gap-3 rounded-3xl p-5 ${
+      className={`flex-row items-center gap-3 rounded-3xl ${inFrame ? '' : 'p-5'} ${
         isDragging ? 'bg-accent-pale' : 'bg-paper-warm active:bg-paper-shade'
       }`}
-      style={
+      style={[
+        inFrame ? { padding: framedPadding } : null,
         isDragging
           ? { shadowColor: '#1a1410', shadowOpacity: 0.18, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8 }
-          : undefined
-      }>
+          : null,
+      ]}>
       <View className="h-12 w-12 items-center justify-center rounded-full bg-accent-pale">
         <MaterialIcons name={icon} size={24} color={theme.accentDeep} />
       </View>

@@ -1,4 +1,5 @@
 import { BookCover } from '@/components/book-cover';
+import { useCardFrame } from '@/components/card-frame-context';
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import type { UserBook } from '@/types/book';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -27,6 +28,7 @@ type Props = {
 export function LibraryRowCard({ books, onPress, onLongPress, isDragging = false }: Props) {
   const theme = useThemeColors();
   const router = useRouter();
+  const { inFrame, padding: framedPadding } = useCardFrame();
   // Pile déjà triée par date d'ajout décroissante dans le store (prepend).
   // On prend les N premières couvertures existantes.
   const recents = books.slice(0, MAX_COVERS);
@@ -86,8 +88,9 @@ export function LibraryRowCard({ books, onPress, onLongPress, isDragging = false
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={280}
-      className={`rounded-3xl p-5 ${isDragging ? 'bg-accent-pale' : 'bg-paper-warm active:bg-paper-shade'}`}
-      style={
+      className={`rounded-3xl ${inFrame ? '' : 'p-5'} ${isDragging ? 'bg-accent-pale' : 'bg-paper-warm active:bg-paper-shade'}`}
+      style={[
+        inFrame ? { padding: framedPadding } : null,
         isDragging
           ? {
               shadowColor: '#1a1410',
@@ -96,8 +99,8 @@ export function LibraryRowCard({ books, onPress, onLongPress, isDragging = false
               shadowOffset: { width: 0, height: 8 },
               elevation: 8,
             }
-          : undefined
-      }>
+          : null,
+      ]}>
       <View className="flex-row items-center gap-3">
         <View className="h-12 w-12 items-center justify-center rounded-full bg-accent-pale">
           <MaterialIcons name="menu-book" size={24} color={theme.accentDeep} />
