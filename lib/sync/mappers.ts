@@ -9,6 +9,7 @@ import type {
   SheetSection,
   UserBook,
 } from '@/types/book';
+import type { BadgeCatalogEntry } from '@/types/badge';
 import type { Bingo, BingoCompletion, BingoItem, BingoPill } from '@/types/bingo';
 import type { Challenge } from '@/store/challenges';
 
@@ -297,6 +298,30 @@ export type DbUserBadge = {
 
 export function badgeFromDb(row: DbUserBadge): { key: string; earnedAt: string } {
   return { key: row.badge_key, earnedAt: row.earned_at };
+}
+
+// ═══════════════ Badge catalog ═══════════════
+
+export type DbBadgeCatalog = {
+  badge_key: string;
+  title: string;
+  description: string;
+  graphic_kind: 'svg' | 'lottie';
+  graphic_payload: string;
+  graphic_tokens: Record<string, string> | null;
+  retired_at: string | null;
+};
+
+export function badgeCatalogFromDb(row: DbBadgeCatalog): BadgeCatalogEntry {
+  return {
+    badgeKey: row.badge_key,
+    title: row.title,
+    description: row.description,
+    graphicKind: row.graphic_kind,
+    graphicPayload: row.graphic_payload,
+    graphicTokens: row.graphic_tokens ?? {},
+    retiredAt: row.retired_at,
+  };
 }
 
 // ═══════════════ Bingo ═══════════════

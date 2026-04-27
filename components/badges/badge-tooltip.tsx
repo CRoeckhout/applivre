@@ -1,13 +1,15 @@
+import type { GraphicKind } from '@/types/badge';
 import { Modal, Pressable, Text } from 'react-native';
-import { BadgeIcon } from './badge-icon';
+import { BadgeGraphic } from './badge-graphic';
 
 type Props = {
   visible: boolean;
   onClose: () => void;
   title: string;
   description: string;
-  primaryColor: string;
-  count?: number;
+  graphicKind: GraphicKind;
+  graphicPayload: string;
+  graphicTokens: Record<string, string>;
   earnedAt?: string;
 };
 
@@ -16,8 +18,9 @@ export function BadgeTooltip({
   onClose,
   title,
   description,
-  primaryColor,
-  count,
+  graphicKind,
+  graphicPayload,
+  graphicTokens,
   earnedAt,
 }: Props) {
   return (
@@ -28,7 +31,12 @@ export function BadgeTooltip({
         <Pressable
           onPress={(e) => e.stopPropagation()}
           className="w-full max-w-xs items-center gap-3 rounded-3xl bg-paper p-5">
-          <BadgeIcon primaryColor={primaryColor} count={count} size={96} />
+          <BadgeGraphic
+            kind={graphicKind}
+            payload={graphicPayload}
+            tokens={graphicTokens}
+            size={96}
+          />
           <Text className="font-display text-lg text-ink" numberOfLines={2}>
             {title}
           </Text>

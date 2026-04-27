@@ -1,3 +1,4 @@
+import { useBadgeCatalog } from '@/store/badge-catalog';
 import { useBadges } from '@/store/badges';
 import { useBookshelf } from '@/store/bookshelf';
 import { useChallenges } from '@/store/challenges';
@@ -20,4 +21,5 @@ export function resetAllStores(): void {
   useProfile.setState({ username: null });
   useSyncQueue.setState({ ops: [] });
   useBadges.setState({ earned: {} });
+  useBadgeCatalog.getState().reset();
 }

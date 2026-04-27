@@ -20,7 +20,6 @@ import {
   internalUpsertPreferences,
   internalUpsertSheet,
   internalUpsertStreakDay,
-  internalUpsertUserBadge,
   internalUpsertUserBook,
   internalUpsertUsername,
 } from '@/lib/sync/internals';
@@ -81,12 +80,6 @@ export async function executeEntry(entry: QueueEntry): Promise<void> {
       return internalUpsertBingoPill(entry.payload.pill);
     case 'deleteBingoPill':
       return internalDeleteBingoPill(entry.payload.id);
-    case 'upsertUserBadge':
-      return internalUpsertUserBadge(
-        entry.payload.userId,
-        entry.payload.badgeKey,
-        entry.payload.earnedAt,
-      );
   }
 }
 

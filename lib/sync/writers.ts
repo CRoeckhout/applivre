@@ -21,12 +21,12 @@ import {
   internalUpsertPreferences,
   internalUpsertSheet,
   internalUpsertStreakDay,
-  internalUpsertUserBadge,
   internalUpsertUserBook,
   internalUpsertUsername,
 } from '@/lib/sync/internals';
 import type { Bingo, BingoCompletion, BingoPill } from '@/types/bingo';
 import type { Preferences } from '@/store/preferences';
+import { scheduleBadgeEval } from '@/lib/sync/eval-badges';
 import { flushQueue } from '@/lib/sync/queue';
 import { useSyncQueue, type QueuedOp } from '@/store/sync-queue';
 import type { Challenge } from '@/store/challenges';
@@ -55,6 +55,9 @@ async function runOrQueue(
     await fn();
     // Best-effort : tenter de drainer ce qui trainait
     void flushQueue();
+    // Toute mutation peut potentiellement débloquer un badge — on planifie
+    // une évaluation serveur debouncée (coalesce les rafales).
+    scheduleBadgeEval();
   } catch {
     enqueue(onFailQueue());
   }
@@ -273,15 +276,3 @@ export function syncDeleteBingoPill(id: string): Promise<void> {
   );
 }
 
-// ═══════════════ User badges ═══════════════
-
-export function syncUpsertUserBadge(
-  userId: string,
-  badgeKey: string,
-  earnedAt: string,
-): Promise<void> {
-  return runOrQueue(
-    () => internalUpsertUserBadge(userId, badgeKey, earnedAt),
-    () => ({ kind: 'upsertUserBadge', payload: { userId, badgeKey, earnedAt } }),
-  );
-}

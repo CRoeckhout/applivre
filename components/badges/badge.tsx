@@ -1,8 +1,8 @@
-import { BADGES } from '@/lib/badges/catalog';
+import { useBadgeCatalog } from '@/store/badge-catalog';
 import type { BadgeKey } from '@/types/badge';
 import { useState } from 'react';
 import { Pressable } from 'react-native';
-import { BadgeIcon } from './badge-icon';
+import { BadgeGraphic } from './badge-graphic';
 import { BadgeTooltip } from './badge-tooltip';
 
 type Props = {
@@ -12,28 +12,32 @@ type Props = {
 };
 
 export function Badge({ badgeKey, earnedAt, size = 32 }: Props) {
-  const def = BADGES[badgeKey];
+  const entry = useBadgeCatalog((s) => s.entries[badgeKey]);
   const [open, setOpen] = useState(false);
 
-  if (!def) return null;
-
-  const count = def.showCount ? def.tier : undefined;
+  if (!entry) return null;
 
   return (
     <>
       <Pressable
         onPress={() => setOpen(true)}
-        accessibilityLabel={def.title}
+        accessibilityLabel={entry.title}
         hitSlop={6}>
-        <BadgeIcon primaryColor={def.primaryColor} count={count} size={size} />
+        <BadgeGraphic
+          kind={entry.graphicKind}
+          payload={entry.graphicPayload}
+          tokens={entry.graphicTokens}
+          size={size}
+        />
       </Pressable>
       <BadgeTooltip
         visible={open}
         onClose={() => setOpen(false)}
-        title={def.title}
-        description={def.description}
-        primaryColor={def.primaryColor}
-        count={count}
+        title={entry.title}
+        description={entry.description}
+        graphicKind={entry.graphicKind}
+        graphicPayload={entry.graphicPayload}
+        graphicTokens={entry.graphicTokens}
         earnedAt={earnedAt}
       />
     </>

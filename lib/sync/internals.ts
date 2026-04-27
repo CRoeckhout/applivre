@@ -316,21 +316,9 @@ export async function internalDeleteBingoPill(id: string): Promise<void> {
   await throwIfError(supabase.from('bingo_pills').delete().eq('id', id));
 }
 
-// User badges (locked-in : pas de delete public, on garde ignoreDuplicates).
-export async function internalUpsertUserBadge(
-  userId: string,
-  badgeKey: string,
-  earnedAt: string,
-): Promise<void> {
-  await throwIfError(
-    supabase
-      .from('user_badges')
-      .upsert(
-        { user_id: userId, badge_key: badgeKey, earned_at: earnedAt },
-        { onConflict: 'user_id,badge_key', ignoreDuplicates: true },
-      ),
-  );
-}
+// User badges : aucune écriture client directe.
+// L'unlock passe par l'RPC serveur evaluate_user_badges (lib/sync/eval-badges.ts)
+// qui valide les conditions côté DB. Voir migration 0017.
 
 // Reading streak days
 export async function internalUpsertStreakDay(day: string, userId: string): Promise<void> {

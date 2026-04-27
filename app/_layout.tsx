@@ -52,11 +52,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, DevSettings, Text, View } from "react-native";
+import { ActivityIndicator, DevSettings, Platform, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { BadgeUnlockToastHost } from "@/components/badges/badge-unlock-toast-host";
-import { useBadgeUnlockDetector } from "@/hooks/use-badges";
+import { useBadgeForegroundEval } from "@/hooks/use-badges";
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -150,12 +150,15 @@ function AuthGate() {
   // Pilote la Live Activity iOS depuis le store timer (no-op en Expo Go).
   useReadingLiveActivity();
 
-  // Détection unlocks de badges (silencieux au premier render, toast ensuite).
-  useBadgeUnlockDetector();
+  // Eval serveur des badges au foreground (les writers déclenchent déjà
+  // une eval debouncée après chaque mutation).
+  useBadgeForegroundEval();
 
   // Commande dans le menu dev RN (Cmd+D / shake) pour toggler les panneaux debug.
   useEffect(() => {
     if (!__DEV__) return;
+    // DevSettings.addMenuItem n'existe pas sur web (Platform.OS === 'web').
+    if (Platform.OS === 'web') return;
     DevSettings.addMenuItem("Toggle debug panels", () => {
       useDebug.getState().togglePanels();
     });

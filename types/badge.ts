@@ -1,31 +1,23 @@
-export type BadgeFamily =
-  | 'first_sheet'
-  | 'sheets_count'
-  | 'books_read'
-  | 'first_bingo'
-  | 'bingo_completed'
-  | 'streak_max';
-
+// Badge identifié par sa clé (ex: 'first_sheet', 'sheets_count:5').
+// Le catalog complet (titre, desc, visuel, règle) vit côté serveur dans
+// public.badge_catalog et est récupéré via le store badge-catalog.
 export type BadgeKey = string;
 
-export type BadgeDef = {
-  key: BadgeKey;
-  family: BadgeFamily;
-  tier?: number;
-  primaryColor: string;
-  showCount: boolean;
+export type GraphicKind = 'svg' | 'lottie';
+
+export type BadgeCatalogEntry = {
+  badgeKey: BadgeKey;
   title: string;
   description: string;
+  graphicKind: GraphicKind;
+  graphicPayload: string;
+  // Pour SVG : `{{name}}` placeholders → valeur (text replace).
+  // Pour Lottie : `"layer_name": "#hex"` mapping → colorFilters au render.
+  graphicTokens: Record<string, string>;
+  retiredAt: string | null;
 };
 
 export type EarnedBadge = {
   key: BadgeKey;
   earnedAt: string;
-};
-
-export type BadgeStats = {
-  sheetsCount: number;
-  booksRead: number;
-  bingoCompletedCount: number;
-  streakMax: number;
 };

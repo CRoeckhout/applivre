@@ -10,6 +10,16 @@ const { withNativeWind } = require('nativewind/metro');
 
 const config = getDefaultConfig(__dirname);
 
+// Le dossier `admin/` est une web-app Vite indépendante (backoffice local).
+// On exclut sa node_modules et ses sources du bundle Metro pour éviter que
+// l'autolinking ne tente d'importer des deps web côté natif.
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const adminPath = path.resolve(__dirname, 'admin');
+config.resolver.blockList = [
+  ...(Array.isArray(config.resolver.blockList) ? config.resolver.blockList : []),
+  new RegExp(`^${escapeRegex(adminPath)}/.*$`),
+];
+
 // Zustand v5 ships an ESM middleware that uses import.meta.env, ce que le
 // bundler web de Metro ne sait pas gérer. On force la résolution vers les
 // entrypoints CJS (présents à la racine du package) pour toutes les plateformes.

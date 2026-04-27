@@ -1,48 +1,37 @@
-import { getSyncUserId } from '@/lib/sync/session';
-import { syncUpsertUserBadge } from '@/lib/sync/writers';
 import type { BadgeKey } from '@/types/badge';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-type BadgesState = {
+// Mirror local des badges débloqués (public.user_badges).
+// Source de vérité = serveur. Le store ne fait QUE refléter (merge depuis
+// pull ou depuis le retour de l'RPC evaluate_user_badges). Aucune écriture
+// directe vers la DB depuis le client : un trigger Postgres rejette tout
+// insert non justifié par les stats serveur (lib/sync/eval-badges.ts).
+
+type State = {
   earned: Record<BadgeKey, string>;
-  unlock: (key: BadgeKey, when?: string) => boolean;
-  unlockMany: (keys: BadgeKey[]) => BadgeKey[];
+  merge: (keys: BadgeKey[], earnedAt: string) => void;
   reset: () => void;
 };
 
-export const useBadges = create<BadgesState>()(
+export const useBadges = create<State>()(
   persist(
     (set, get) => ({
       earned: {},
-      unlock: (key, when) => {
-        if (get().earned[key]) return false;
-        const at = when ?? new Date().toISOString();
-        set((s) => ({ earned: { ...s.earned, [key]: at } }));
-        const userId = getSyncUserId();
-        if (userId) void syncUpsertUserBadge(userId, key, at);
-        return true;
-      },
-      unlockMany: (keys) => {
+      merge: (keys, earnedAt) => {
         const cur = get().earned;
         const fresh = keys.filter((k) => !cur[k]);
-        if (fresh.length === 0) return [];
-        const at = new Date().toISOString();
+        if (fresh.length === 0) return;
         const next = { ...cur };
-        for (const k of fresh) next[k] = at;
+        for (const k of fresh) next[k] = earnedAt;
         set({ earned: next });
-        const userId = getSyncUserId();
-        if (userId) {
-          for (const k of fresh) void syncUpsertUserBadge(userId, k, at);
-        }
-        return fresh;
       },
       reset: () => set({ earned: {} }),
     }),
     {
       name: 'applivre-badges',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => AsyncStorage),
     },
   ),

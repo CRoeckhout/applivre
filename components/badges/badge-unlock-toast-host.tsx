@@ -1,11 +1,11 @@
-import { BADGES } from '@/lib/badges/catalog';
 import { useBadgeToasts } from '@/store/badge-toasts';
+import { useBadgeCatalog } from '@/store/badge-catalog';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated, { FadeInUp, FadeOutUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BadgeIcon } from './badge-icon';
+import { BadgeGraphic } from './badge-graphic';
 import { BadgeTooltip } from './badge-tooltip';
 
 export function BadgeUnlockToastHost() {
@@ -31,10 +31,11 @@ export function BadgeUnlockToastHost() {
     return () => clearTimeout(t);
   }, [current, paused]);
 
-  if (!mountedCurrent || !current) return null;
-  const def = BADGES[current.badgeKey];
-  if (!def) return null;
-  const count = def.showCount ? def.tier : undefined;
+  const entry = useBadgeCatalog((s) =>
+    mountedCurrent ? s.entries[mountedCurrent.badgeKey] : undefined,
+  );
+
+  if (!mountedCurrent || !current || !entry) return null;
 
   return (
     <>
@@ -58,17 +59,22 @@ export function BadgeUnlockToastHost() {
             <Pressable
               onPress={() => setTooltipOpen(true)}
               className="flex-1 flex-row items-center gap-3"
-              accessibilityLabel={`Voir le badge ${def.title}`}>
-              <BadgeIcon primaryColor={def.primaryColor} count={count} size={40} />
+              accessibilityLabel={`Voir le badge ${entry.title}`}>
+              <BadgeGraphic
+                kind={entry.graphicKind}
+                payload={entry.graphicPayload}
+                tokens={entry.graphicTokens}
+                size={40}
+              />
               <View className="flex-1">
                 <Text className="text-xs uppercase tracking-wide text-paper/70">
                   Nouveau badge débloqué !
                 </Text>
                 <Text className="font-display text-base text-paper" numberOfLines={1}>
-                  {def.title}
+                  {entry.title}
                 </Text>
                 <Text className="text-xs text-paper/80" numberOfLines={2}>
-                  {def.description}
+                  {entry.description}
                 </Text>
               </View>
             </Pressable>
@@ -86,10 +92,11 @@ export function BadgeUnlockToastHost() {
       <BadgeTooltip
         visible={tooltipOpen}
         onClose={() => setTooltipOpen(false)}
-        title={def.title}
-        description={def.description}
-        primaryColor={def.primaryColor}
-        count={count}
+        title={entry.title}
+        description={entry.description}
+        graphicKind={entry.graphicKind}
+        graphicPayload={entry.graphicPayload}
+        graphicTokens={entry.graphicTokens}
       />
     </>
   );
