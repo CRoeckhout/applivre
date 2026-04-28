@@ -1,3 +1,4 @@
+import { BugReportModal } from '@/components/bug-report-modal';
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { usePersonalization } from '@/store/personalization';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -7,12 +8,18 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 
 export function HomeCogMenu() {
   const [open, setOpen] = useState(false);
+  const [bugOpen, setBugOpen] = useState(false);
   const openPerso = usePersonalization((s) => s.open);
   const theme = useThemeColors();
 
   const onPersonalize = () => {
     setOpen(false);
     openPerso();
+  };
+
+  const onReportBug = () => {
+    setOpen(false);
+    setBugOpen(true);
   };
 
   return (
@@ -43,6 +50,18 @@ export function HomeCogMenu() {
                 <MaterialIcons name="chevron-right" size={20} color={theme.inkMuted} />
               </View>
             </Pressable>
+            <Pressable
+              onPress={onReportBug}
+              className="border-t border-paper-warm px-4 py-3 active:bg-paper-warm">
+              <View className="flex-row items-center gap-3">
+                <MaterialIcons name="bug-report" size={20} color={theme.ink} />
+                <View className="flex-1">
+                  <Text className="font-sans-med text-base text-ink">Signaler un bug</Text>
+                  <Text className="text-xs text-ink-muted">Crée une tâche pour l&apos;équipe</Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color={theme.inkMuted} />
+              </View>
+            </Pressable>
             <View className="border-t border-paper-warm px-4 py-3">
               <Text className="text-xs italic text-ink-muted">
                 Astuce : appuie longuement sur une carte pour la déplacer.
@@ -51,6 +70,8 @@ export function HomeCogMenu() {
           </Animated.View>
         </Pressable>
       </Modal>
+
+      <BugReportModal open={bugOpen} onClose={() => setBugOpen(false)} />
     </>
   );
 }
