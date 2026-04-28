@@ -71,3 +71,21 @@ export type BorderCatalogRow = {
   created_at: string;
   updated_at: string;
 };
+
+// ═══════════════ Books (catalog public) ═══════════════
+
+export type BookSource = 'openlibrary' | 'googlebooks' | 'bnf' | 'manual';
+
+export type BookCatalogRow = {
+  isbn: string;
+  title: string;
+  authors: string[];
+  pages: number | null;
+  published_at: string | null;
+  cover_url: string | null;
+  source: BookSource | null;
+  categories: string[];
+  cached_at: string;
+};
+
+export const BOOK_SOURCES: BookSource[] = ['openlibrary', 'googlebooks', 'bnf', 'manual'];
