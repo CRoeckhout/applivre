@@ -1,3 +1,5 @@
+import { APP_SLUG } from '@/constants/app';
+import { DEFAULT_BORDER_ID } from '@/lib/borders/catalog';
 import { newId } from '@/lib/id';
 import { DEFAULT_FONT_ID, type FontId } from '@/lib/theme/fonts';
 import {
@@ -28,6 +30,7 @@ export type Preferences = {
   colorSecondary: string;
   colorBg: string;
   customThemes: CustomTheme[];
+  borderId: string;
 };
 
 const papier = getTheme(DEFAULT_THEME_ID);
@@ -42,6 +45,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   colorSecondary: papier.secondary,
   colorBg: papier.bg,
   customThemes: [],
+  borderId: DEFAULT_BORDER_ID,
 };
 
 type PreferencesState = Preferences & {
@@ -55,6 +59,7 @@ type PreferencesState = Preferences & {
   setColorBg: (hex: string) => void;
   saveCurrentAsCustomTheme: (label: string) => CustomTheme;
   deleteCustomTheme: (id: string) => void;
+  setBorderId: (id: string) => void;
   resetToDefaults: () => void;
 };
 
@@ -79,6 +84,7 @@ function pushFullPrefs(state: Preferences): void {
     colorSecondary: state.colorSecondary,
     colorBg: state.colorBg,
     customThemes: state.customThemes,
+    borderId: state.borderId,
   });
 }
 
@@ -162,6 +168,10 @@ export const usePreferences = create<PreferencesState>()(
         pushFullPrefs(get());
         return theme;
       },
+      setBorderId: (id) => {
+        set({ borderId: id });
+        pushFullPrefs(get());
+      },
       deleteCustomTheme: (id) => {
         const state = get();
         const next = state.customThemes.filter((t) => t.id !== id);
@@ -179,14 +189,22 @@ export const usePreferences = create<PreferencesState>()(
       },
     }),
     {
-      name: 'applivre-preferences',
-      version: 3,
+      name: `${APP_SLUG}-preferences`,
+      version: 6,
       storage: createJSONStorage(() => AsyncStorage),
-      migrate: (persisted: unknown) => {
+      migrate: (persisted: unknown, version: number) => {
         // Toute version antérieure → merge avec defaults : ajoute les champs
         // manquants (theme/font/colors, customThemes) sans perdre l'existant.
         const prev = (persisted ?? {}) as Partial<Preferences>;
-        return { ...DEFAULT_PREFERENCES, ...prev };
+        const merged = { ...DEFAULT_PREFERENCES, ...prev };
+        // v5 utilisait '' comme sentinel auto-default. v6 abandonne cette
+        // sémantique : les cadres "default" sont maintenant ceux dispo pour
+        // tous (sans unlock), pas un cadre auto-appliqué. On retombe sur
+        // 'none' (pas de cadre) ; user re-pick s'il veut un cadre.
+        if (version < 6 && merged.borderId === '') {
+          merged.borderId = 'none';
+        }
+        return merged;
       },
     },
   ),

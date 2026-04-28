@@ -23,18 +23,22 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// `overrides` (optionnel) prennent priorité absolue sur prefs et theme.
+// Utilisé par les fiches de lecture pour permettre une override per-fiche
+// des couleurs d'un cadre SVG sans modifier les userPreferences globales.
 export function applyBorderTokens(
   svgXml: string,
   tokens: Record<string, string> | undefined,
   prefs: BorderColorPrefs,
   theme: ThemeColors,
+  overrides?: Record<string, string>,
 ): string {
   if (!tokens) return svgXml;
   const prefMap = prefs as unknown as Record<string, string | undefined>;
   const themeMap = theme as unknown as Record<string, string | undefined>;
   let out = svgXml;
   for (const [key, sentinel] of Object.entries(tokens)) {
-    const replacement = prefMap[key] ?? themeMap[key];
+    const replacement = overrides?.[key] ?? prefMap[key] ?? themeMap[key];
     if (!replacement || !sentinel) continue;
     out = out.replace(new RegExp(escapeRegex(sentinel), 'gi'), replacement);
   }

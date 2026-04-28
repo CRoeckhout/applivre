@@ -1,16 +1,19 @@
 import { ColorPickerModal } from '@/components/color-picker-modal';
 import { IconPickerModal } from '@/components/icon-picker-modal';
 import { RatingIcon } from '@/components/rating-row';
+import { SheetSurface } from '@/components/sheet-surface';
+import { useThemeColors } from '@/hooks/use-theme-colors';
+import { PERSO_BORDER_ID, type BorderDef } from '@/lib/borders/catalog';
 import { FONTS } from '@/lib/theme/fonts';
 import {
   DEFAULT_APPEARANCE,
   DEFAULT_CATEGORIES,
   DEFAULT_RATING_ICONS,
   hexWithAlpha,
-  outerCardStyle,
   shiftTowardsPaper,
 } from '@/lib/sheet-appearance';
 import { BUILTIN_PRESETS, type SheetPreset } from '@/lib/sheet-presets';
+import { useAllBorders } from '@/store/border-catalog';
 import { usePreferences } from '@/store/preferences';
 import { useSheetTemplates } from '@/store/sheet-templates';
 import { Alert } from 'react-native';
@@ -71,11 +74,19 @@ export function SheetCustomizer({
 }: Props) {
   const [draft, setDraft] = useState<SheetAppearance>(appearance);
   const [colorTarget, setColorTarget] = useState<ColorTarget>(null);
+  // Quand on édite un override de couleur d'un token SVG : nom du token
+  // ouvert dans le picker. `null` = pas d'édition d'override en cours.
+  const [overrideTokenTarget, setOverrideTokenTarget] = useState<string | null>(null);
   const [savePresetOpen, setSavePresetOpen] = useState(false);
 
   const userPresets = useSheetTemplates((s) => s.userPresets);
   const addUserPreset = useSheetTemplates((s) => s.addUserPreset);
   const deleteUserPreset = useSheetTemplates((s) => s.deleteUserPreset);
+  const allBorders = useAllBorders();
+  const theme = useThemeColors();
+  const colorPrimary = usePreferences((s) => s.colorPrimary);
+  const colorSecondary = usePreferences((s) => s.colorSecondary);
+  const colorBg = usePreferences((s) => s.colorBg);
 
   useEffect(() => {
     if (open) setDraft(appearance);
@@ -83,6 +94,33 @@ export function SheetCustomizer({
 
   const updateFrame = (partial: Partial<SheetFrame>) =>
     setDraft((d) => ({ ...d, frame: { ...d.frame, ...partial } }));
+
+  const setColorOverride = (tokenName: string, hex: string | null) =>
+    setDraft((d) => {
+      const next = { ...(d.frame.colorOverrides ?? {}) };
+      if (hex === null) {
+        delete next[tokenName];
+      } else {
+        next[tokenName] = hex;
+      }
+      return {
+        ...d,
+        frame: {
+          ...d.frame,
+          colorOverrides: Object.keys(next).length > 0 ? next : undefined,
+        },
+      };
+    });
+
+  const selectedBorder: BorderDef | undefined = useMemo(() => {
+    const id = draft.frame.borderId;
+    if (!id || id === PERSO_BORDER_ID) return undefined;
+    return allBorders.find((b) => b.id === id);
+  }, [draft.frame.borderId, allBorders]);
+
+  const isPerso = !draft.frame.borderId || draft.frame.borderId === PERSO_BORDER_ID;
+  const isSvg = !!selectedBorder?.svgXml;
+  const isPng = !!selectedBorder?.source;
 
   const pickerInitial =
     colorTarget === 'bg'
@@ -217,45 +255,134 @@ export function SheetCustomizer({
           </Section>
 
           <Section title="Cadre">
-            <Label>Style</Label>
-            <View className="mt-1 flex-row flex-wrap gap-2">
-              {SHEET_BORDER_STYLES.map((s) => (
-                <Chip
-                  key={s}
-                  label={borderLabel(s)}
-                  active={draft.frame.style === s}
-                  onPress={() => updateFrame({ style: s })}
+            <Label>Type</Label>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+              <FrameTypeChip
+                label="Perso"
+                active={isPerso}
+                onPress={() => updateFrame({ borderId: PERSO_BORDER_ID, colorOverrides: undefined })}
+              />
+              {allBorders
+                .filter((b) => (b.source || b.svgXml) && b.imageSize && b.slice)
+                .map((b) => (
+                  <FrameTypeChip
+                    key={b.id}
+                    label={b.label}
+                    active={draft.frame.borderId === b.id}
+                    onPress={() => updateFrame({ borderId: b.id, colorOverrides: undefined })}
+                  />
+                ))}
+            </ScrollView>
+
+            {isPerso && (
+              <>
+                <Label className="mt-4">Style</Label>
+                <View className="mt-1 flex-row flex-wrap gap-2">
+                  {SHEET_BORDER_STYLES.map((s) => (
+                    <Chip
+                      key={s}
+                      label={borderLabel(s)}
+                      active={draft.frame.style === s}
+                      onPress={() => updateFrame({ style: s })}
+                    />
+                  ))}
+                </View>
+
+                <Label className="mt-4">Épaisseur</Label>
+                <Stepper
+                  value={draft.frame.width}
+                  min={0}
+                  max={6}
+                  step={1}
+                  onChange={(v) => updateFrame({ width: v })}
+                  suffix="px"
+                  disabled={draft.frame.style === 'none'}
                 />
-              ))}
-            </View>
 
-            <Label className="mt-4">Épaisseur</Label>
-            <Stepper
-              value={draft.frame.width}
-              min={0}
-              max={6}
-              step={1}
-              onChange={(v) => updateFrame({ width: v })}
-              suffix="px"
-              disabled={draft.frame.style === 'none'}
-            />
+                <Label className="mt-4">Arrondi</Label>
+                <Stepper
+                  value={draft.frame.radius}
+                  min={0}
+                  max={32}
+                  step={2}
+                  onChange={(v) => updateFrame({ radius: v })}
+                  suffix="px"
+                />
 
-            <Label className="mt-4">Arrondi</Label>
-            <Stepper
-              value={draft.frame.radius}
-              min={0}
-              max={32}
-              step={2}
-              onChange={(v) => updateFrame({ radius: v })}
-              suffix="px"
-            />
+                <Label className="mt-4">Couleur</Label>
+                <ColorRow
+                  hex={draft.frame.color}
+                  onPress={() => setColorTarget('frame')}
+                  disabled={draft.frame.style === 'none'}
+                />
+              </>
+            )}
 
-            <Label className="mt-4">Couleur</Label>
-            <ColorRow
-              hex={draft.frame.color}
-              onPress={() => setColorTarget('frame')}
-              disabled={draft.frame.style === 'none'}
-            />
+            {isPng && (
+              <Text className="mt-3 text-xs text-ink-muted">
+                Cadre image — épaisseur, arrondi et couleur fixés par le visuel.
+              </Text>
+            )}
+
+            {isSvg && selectedBorder?.tokens && (
+              <>
+                <Label className="mt-4">Couleurs du cadre</Label>
+                <Text className="mb-2 text-xs text-ink-muted">
+                  Par défaut le cadre utilise les couleurs du thème. Tu peux surcharger
+                  par fiche.
+                </Text>
+                <View className="gap-2">
+                  {Object.keys(selectedBorder.tokens).map((tokenName) => {
+                    const override = draft.frame.colorOverrides?.[tokenName];
+                    const themed =
+                      ({ colorPrimary, colorSecondary, colorBg } as Record<string, string>)[
+                        tokenName
+                      ] ??
+                      (theme as unknown as Record<string, string>)[tokenName] ??
+                      selectedBorder.tokens?.[tokenName] ??
+                      '#000000';
+                    const effective = override ?? themed;
+                    return (
+                      <View
+                        key={tokenName}
+                        className="flex-row items-center justify-between rounded-2xl bg-paper-warm px-4 py-3">
+                        <Pressable
+                          onPress={() => setOverrideTokenTarget(tokenName)}
+                          className="flex-1 flex-row items-center gap-3 active:opacity-70">
+                          <View
+                            style={{
+                              width: 22,
+                              height: 22,
+                              borderRadius: 11,
+                              backgroundColor: effective,
+                              borderWidth: 1,
+                              borderColor: 'rgba(107,98,89,0.3)',
+                            }}
+                          />
+                          <View className="flex-1">
+                            <Text className="font-sans-med text-sm text-ink">{tokenName}</Text>
+                            <Text className="text-xs text-ink-muted">
+                              {override ? 'Override' : 'Thème'}
+                            </Text>
+                          </View>
+                        </Pressable>
+                        {override ? (
+                          <Pressable
+                            onPress={() => setColorOverride(tokenName, null)}
+                            hitSlop={6}
+                            className="ml-2 px-2 py-1 active:opacity-60">
+                            <MaterialIcons name="restart-alt" size={18} color="rgb(107 98 89)" />
+                          </Pressable>
+                        ) : null}
+                      </View>
+                    );
+                  })}
+                </View>
+              </>
+            )}
           </Section>
 
           <Section title="Police">
@@ -376,6 +503,19 @@ export function SheetCustomizer({
           title={pickerTitle}
           onClose={() => setColorTarget(null)}
           onChange={onPickColor}
+        />
+        <ColorPickerModal
+          open={overrideTokenTarget !== null}
+          initial={
+            (overrideTokenTarget &&
+              draft.frame.colorOverrides?.[overrideTokenTarget]) ||
+            '#000000'
+          }
+          title={overrideTokenTarget ? `Override "${overrideTokenTarget}"` : ''}
+          onClose={() => setOverrideTokenTarget(null)}
+          onChange={(hex) => {
+            if (overrideTokenTarget) setColorOverride(overrideTokenTarget, hex);
+          }}
         />
 
         <SavePresetModal
@@ -582,6 +722,40 @@ function Chip({
       onPress={onPress}
       className={`rounded-full px-4 py-2 ${active ? 'bg-accent' : 'bg-paper-warm active:bg-paper-shade'}`}>
       <Text className={active ? 'font-sans-med text-paper' : 'text-ink'}>{label}</Text>
+    </Pressable>
+  );
+}
+
+// Variante de Chip dédiée à la sélection de cadre. Bord plus marqué quand
+// actif pour matcher le pattern de sélection des borders ailleurs (perso).
+function FrameTypeChip({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        borderRadius: 999,
+        borderWidth: active ? 2 : 1,
+        borderColor: active ? '#c27b52' : 'rgba(107,98,89,0.2)',
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        backgroundColor: active ? '#fff5ee' : 'transparent',
+      }}>
+      <Text
+        style={{
+          color: active ? '#9b5a38' : 'rgb(58 50 43)',
+          fontSize: 13,
+          fontWeight: active ? '600' : '400',
+        }}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -843,7 +1017,7 @@ function PreviewCard({
         borderWidth: 1,
         borderColor: 'rgba(107,98,89,0.12)',
       }}>
-      <View style={outerCardStyle(appearance, 14)}>
+      <SheetSurface appearance={appearance} padding={14}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <View
             style={{
@@ -952,7 +1126,7 @@ function PreviewCard({
             ))}
           </View>
         ) : null}
-      </View>
+      </SheetSurface>
 
       <View
         style={{

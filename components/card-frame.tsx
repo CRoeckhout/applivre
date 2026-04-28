@@ -12,13 +12,26 @@ type Props = {
   children: ReactNode;
   // Override le borderId courant (utile pour previews dans la perso).
   borderId?: string;
+  // Couleur de fond rendue derrière le cadre. Default = theme.paperWarm
+  // (utilisé par les cards de la home). Les fiches de lecture passent
+  // `appearance.bgColor` pour matcher la couleur de la fiche.
+  innerBackgroundColor?: string;
+  // Color overrides à appliquer à la résolution des tokens SVG (priorité
+  // sur userPrefs et theme). Permet une override per-instance.
+  colorOverrides?: Record<string, string>;
   style?: StyleProp<ViewStyle>;
 };
 
 // Wrapper conditionnel : applique le NineSliceFrame correspondant au borderId
 // (depuis prefs user ou override). Passthrough si 'none' / inconnu / non
 // dispo dans le catalog du user (default-pour-tous ou unlocked).
-export function CardFrame({ children, borderId, style }: Props) {
+export function CardFrame({
+  children,
+  borderId,
+  innerBackgroundColor,
+  colorOverrides,
+  style,
+}: Props) {
   const fromPrefs = usePreferences((s) => s.borderId);
   const colorPrimary = usePreferences((s) => s.colorPrimary);
   const colorSecondary = usePreferences((s) => s.colorSecondary);
@@ -41,8 +54,17 @@ export function CardFrame({ children, borderId, style }: Props) {
       def.tokens,
       { colorPrimary, colorSecondary, colorBg },
       theme,
+      colorOverrides,
     );
-  }, [def?.svgXml, def?.tokens, colorPrimary, colorSecondary, colorBg, theme]);
+  }, [
+    def?.svgXml,
+    def?.tokens,
+    colorPrimary,
+    colorSecondary,
+    colorBg,
+    theme,
+    colorOverrides,
+  ]);
 
   if (!def || (!def.source && !def.svgXml) || !def.imageSize || !def.slice) {
     return <>{children}</>;
@@ -63,7 +85,7 @@ export function CardFrame({ children, borderId, style }: Props) {
       bgInsets={def.bgInsets}
       repeat={def.repeat}
       fillCenter={false}
-      innerBackgroundColor={theme.paperWarm}
+      innerBackgroundColor={innerBackgroundColor ?? theme.paperWarm}
       style={style}>
       <CardFrameProvider value={ctx}>{children}</CardFrameProvider>
     </NineSliceFrame>

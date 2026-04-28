@@ -113,6 +113,21 @@ export function NineSliceFrame({
 
   if (!painter) return <View style={style}>{children}</View>;
 
+  // Le middle row ne doit utiliser `flex: 1` que si le parent contraint la
+  // hauteur (style avec flex/height/minHeight). Sans contrainte, flex:1 +
+  // basis 0 collapse à 0 et le frame se réduit à top+bottom uniquement —
+  // bug visible quand on utilise NineSliceFrame dans une preview de fiche
+  // (parent auto-sized). En mode auto, on laisse le middle row sizer à son
+  // contenu (le children intrinsèque détermine la hauteur).
+  const flatStyle = StyleSheet.flatten(style ?? {}) as ViewStyle;
+  const parentConstrainsHeight =
+    flatStyle.flex != null ||
+    flatStyle.height != null ||
+    flatStyle.minHeight != null;
+  const middleRowStyle: ViewStyle = parentConstrainsHeight
+    ? { flexDirection: 'row', flex: 1 }
+    : { flexDirection: 'row' };
+
   return (
     <View style={style}>
       {innerBackgroundColor && (
@@ -134,7 +149,7 @@ export function NineSliceFrame({
         <Slice painter={painter} iw={iw} ih={ih} sx={iw - R} sy={0} sw={R} sh={T} kind="corner" w={R} h={T} repeat={repeat} />
       </View>
 
-      <View style={{ flexDirection: 'row', flex: 1 }}>
+      <View style={middleRowStyle}>
         <Slice painter={painter} iw={iw} ih={ih} sx={0} sy={T} sw={L} sh={mh} kind="col" w={L} repeat={repeat} />
         <View style={{ flex: 1 }}>
           {fillCenter && (

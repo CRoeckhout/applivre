@@ -3,12 +3,12 @@ import { KeyboardDismissBar } from "@/components/keyboard-dismiss-bar";
 import { useKeyboardOffset } from "@/hooks/use-keyboard-offset";
 import { RatingIcon } from "@/components/rating-row";
 import { SheetCustomizer } from "@/components/sheet-customizer";
+import { SheetSurface } from "@/components/sheet-surface";
 import { newId } from "@/lib/id";
 import {
   hexWithAlpha,
   isCustomAppearance,
   mergeAppearance,
-  outerCardStyle,
   resolveSectionIcon,
 } from "@/lib/sheet-appearance";
 import { getFont } from "@/lib/theme/fonts";
@@ -265,20 +265,17 @@ export default function SheetScreen() {
           contentContainerClassName="px-4 pt-2 pb-32"
           keyboardShouldPersistTaps="handled"
         >
-          <Animated.View
-            entering={FadeInDown.duration(400)}
-            style={[
-              outerCardStyle(appearance),
-              {
-                marginTop: 8,
+          <Animated.View entering={FadeInDown.duration(400)} style={{ marginTop: 8 }}>
+            <SheetSurface
+              appearance={appearance}
+              style={{
                 shadowColor: "#000",
                 shadowOpacity: 0.12,
                 shadowRadius: 14,
                 shadowOffset: { width: 0, height: 6 },
                 elevation: 6,
-              },
-            ]}
-          >
+              }}
+            >
             <View className="flex-row items-start gap-3">
               <BookCover
                 isbn={userBook.book.isbn}
@@ -410,6 +407,7 @@ export default function SheetScreen() {
                 </Text>
               </Pressable>
             )}
+            </SheetSurface>
           </Animated.View>
 
           <Pressable

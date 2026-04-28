@@ -1,4 +1,5 @@
 import { BookCover } from "@/components/book-cover";
+import { SheetSurface } from "@/components/sheet-surface";
 import { hexWithAlpha, resolveSectionIcon } from "@/lib/sheet-appearance";
 import { getFont } from "@/lib/theme/fonts";
 import type {
@@ -46,17 +47,10 @@ export function SheetCard({
   const fontDef = getFont(appearance.fontId as any);
   const displayFont = fontDef.variants.display;
   const sansFont = fontDef.variants.sans;
-  const { frame, bgColor, textColor, mutedColor } = appearance;
-  const borderWidth = frame.style === "none" ? 0 : frame.width;
+  const { textColor, mutedColor } = appearance;
   const divider = hexWithAlpha(mutedColor, 0.22);
 
-  const containerStyle = {
-    backgroundColor: bgColor,
-    borderStyle: frame.style === "none" ? undefined : (frame.style as "solid"),
-    borderWidth,
-    borderColor: frame.color,
-    borderRadius: frame.radius,
-    padding: 12,
+  const surfaceStyle = {
     shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowRadius: 8,
@@ -142,16 +136,18 @@ export function SheetCard({
     </>
   );
 
+  const surface = (
+    <SheetSurface appearance={appearance} padding={12} style={surfaceStyle}>
+      {inner}
+    </SheetSurface>
+  );
+
   if (readOnly || !onPress) {
-    return <View style={containerStyle}>{inner}</View>;
+    return surface;
   }
   return (
-    <Pressable
-      onPress={onPress}
-      style={containerStyle}
-      className="active:opacity-80"
-    >
-      {inner}
+    <Pressable onPress={onPress} className="active:opacity-80">
+      {surface}
     </Pressable>
   );
 }

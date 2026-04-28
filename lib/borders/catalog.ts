@@ -37,6 +37,11 @@ export const BORDERS: BorderDef[] = [
   { id: 'none', label: 'Aucun cadre' },
 ];
 
+// Sentinel id utilisé par les fiches de lecture pour indiquer "rendu CSS
+// custom" (style/width/color/radius modifiables) au lieu d'un cadre du
+// catalog. Pas une row réelle ; reste hors de `BORDERS`.
+export const PERSO_BORDER_ID = 'perso';
+
 // Pas de cadre. Les nouveaux users démarrent ici. Pour utiliser un cadre,
 // l'utilisateur doit le sélectionner dans le perso parmi ceux disponibles
 // (= cadres `is_default = true` côté catalog OU cadres unlock via user_borders).

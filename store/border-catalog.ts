@@ -42,11 +42,16 @@ function rowToDef(r: BorderRow): BorderDef | null {
   // Lottie pas encore supporté côté rendu — ignoré. PNG et SVG OK.
   if (r.kind !== 'png_9slice' && r.kind !== 'svg_9slice') return null;
 
-  const hasBgInsets =
-    r.bg_inset_top != null &&
-    r.bg_inset_right != null &&
-    r.bg_inset_bottom != null &&
-    r.bg_inset_left != null;
+  // Bg insets : fallback per-side sur slice/2 si null en DB. Ancien code
+  // était tout-ou-rien (un seul null ⇒ tout retombait sur le default global),
+  // ce qui surprend l'admin qui en remplit certains seulement (placeholder
+  // "auto" laisse penser que les vides sont individuels).
+  const bgInsets = {
+    top: r.bg_inset_top ?? Math.round(r.slice_top / 2),
+    right: r.bg_inset_right ?? Math.round(r.slice_right / 2),
+    bottom: r.bg_inset_bottom ?? Math.round(r.slice_bottom / 2),
+    left: r.bg_inset_left ?? Math.round(r.slice_left / 2),
+  };
 
   const baseDef = {
     id: r.border_key,
@@ -59,14 +64,7 @@ function rowToDef(r: BorderRow): BorderDef | null {
       left: r.slice_left,
     },
     padding: { top: 0, right: 0, bottom: 0, left: 0 },
-    bgInsets: hasBgInsets
-      ? {
-          top: r.bg_inset_top!,
-          right: r.bg_inset_right!,
-          bottom: r.bg_inset_bottom!,
-          left: r.bg_inset_left!,
-        }
-      : undefined,
+    bgInsets,
     repeat: r.repeat_mode,
     tokens: r.tokens ?? undefined,
     cardPadding: r.card_padding,

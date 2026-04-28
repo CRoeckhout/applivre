@@ -84,6 +84,17 @@ export const SHEET_BORDER_STYLES = ['none', 'solid', 'dashed', 'dotted', 'double
 export type SheetBorderStyle = (typeof SHEET_BORDER_STYLES)[number];
 
 export type SheetFrame = {
+  // Sélection du cadre. `undefined` ou `'perso'` ⇒ rendu CSS legacy via les
+  // champs (style/width/color/radius). Toute autre valeur ⇒ id d'une row du
+  // border_catalog appliquée via CardFrame ; les champs CSS sont alors
+  // ignorés (épaisseur/arrondi/couleur fixés par le visuel).
+  borderId?: string;
+  // Color overrides per-fiche pour les cadres SVG. Keys = token names définis
+  // dans la row du catalog (ex: `colorPrimary`, `paperWarm`). Prennent
+  // priorité sur la chaîne userPrefs → theme à la résolution des SVG.
+  colorOverrides?: Record<string, string>;
+  // Champs CSS legacy, utilisés uniquement quand `borderId` est absent ou
+  // égal à `'perso'`.
   style: SheetBorderStyle;
   width: number;
   color: string;

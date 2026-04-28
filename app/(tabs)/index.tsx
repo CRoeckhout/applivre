@@ -1,3 +1,4 @@
+import { CardFrame } from '@/components/card-frame';
 import { HomeCogMenu } from '@/components/home-cog-menu';
 import { HomeFab } from '@/components/home-fab';
 import { LibraryRowCard } from '@/components/library-row-card';
@@ -121,7 +122,9 @@ export default function HomeScreen() {
       return (
         <ScaleDecorator>
           <View style={{ marginBottom: 12 }}>
-            <StreakCard onLongPress={drag} isDragging={isActive} />
+            <CardFrame>
+              <StreakCard onLongPress={drag} isDragging={isActive} />
+            </CardFrame>
           </View>
         </ScaleDecorator>
       );
@@ -130,12 +133,14 @@ export default function HomeScreen() {
       return (
         <ScaleDecorator>
           <View style={{ marginBottom: 12 }}>
-            <LibraryRowCard
-              books={books}
-              onPress={item.onPress}
-              onLongPress={drag}
-              isDragging={isActive}
-            />
+            <CardFrame>
+              <LibraryRowCard
+                books={books}
+                onPress={item.onPress}
+                onLongPress={drag}
+                isDragging={isActive}
+              />
+            </CardFrame>
           </View>
         </ScaleDecorator>
       );
@@ -143,14 +148,16 @@ export default function HomeScreen() {
     return (
       <ScaleDecorator>
         <View style={{ marginBottom: 12 }}>
-          <ShortcutCard
-            title={item.title}
-            subtitle={item.subtitle}
-            icon={item.icon}
-            onPress={item.onPress}
-            onLongPress={drag}
-            isDragging={isActive}
-          />
+          <CardFrame>
+            <ShortcutCard
+              title={item.title}
+              subtitle={item.subtitle}
+              icon={item.icon}
+              onPress={item.onPress}
+              onLongPress={drag}
+              isDragging={isActive}
+            />
+          </CardFrame>
         </View>
       </ScaleDecorator>
     );
@@ -185,7 +192,9 @@ function HomeHeader() {
         <HomeCogMenu />
       </Animated.View>
 
-      <UserProfileCard />
+      <CardFrame>
+        <UserProfileCard />
+      </CardFrame>
 
       <View className="mt-6" />
     </>
