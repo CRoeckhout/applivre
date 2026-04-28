@@ -1,9 +1,9 @@
 import { BookCover } from "@/components/book-cover";
 import { KeyboardDismissBar } from "@/components/keyboard-dismiss-bar";
-import { useKeyboardOffset } from "@/hooks/use-keyboard-offset";
 import { RatingIcon } from "@/components/rating-row";
 import { SheetCustomizer } from "@/components/sheet-customizer";
 import { SheetSurface } from "@/components/sheet-surface";
+import { useKeyboardOffset } from "@/hooks/use-keyboard-offset";
 import { newId } from "@/lib/id";
 import {
   hexWithAlpha,
@@ -38,7 +38,10 @@ import {
   View,
 } from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 export default function SheetScreen() {
   const { isbn } = useLocalSearchParams<{ isbn: string }>();
@@ -265,7 +268,10 @@ export default function SheetScreen() {
           contentContainerClassName="px-4 pt-2 pb-32"
           keyboardShouldPersistTaps="handled"
         >
-          <Animated.View entering={FadeInDown.duration(400)} style={{ marginTop: 8 }}>
+          <Animated.View
+            entering={FadeInDown.duration(400)}
+            style={{ marginTop: 8 }}
+          >
             <SheetSurface
               appearance={appearance}
               style={{
@@ -276,137 +282,142 @@ export default function SheetScreen() {
                 elevation: 6,
               }}
             >
-            <View className="flex-row items-start gap-3">
-              <BookCover
-                isbn={userBook.book.isbn}
-                coverUrl={userBook.book.coverUrl}
-                style={{ width: 48, height: 72, borderRadius: 6 }}
-              />
-              <View className="flex-1">
-                <Text
-                  style={{ color: appearance.mutedColor }}
-                  className="text-xs uppercase tracking-wider"
-                >
-                  Fiche de lecture
-                </Text>
-                <Text
-                  numberOfLines={2}
-                  style={{ color: appearance.textColor, fontFamily }}
-                  className="text-xl"
-                >
-                  {userBook.book.title}
-                </Text>
-                {isCustomAppearance(sheet?.appearance, globalTemplate) ? (
-                  <View className="mt-1 flex-row items-center gap-1">
-                    <MaterialIcons
-                      name="palette"
-                      size={12}
-                      color={appearance.mutedColor}
-                    />
-                    <Text
-                      style={{ color: appearance.mutedColor, fontSize: 11 }}
-                    >
-                      Personnalisée
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-              <ReadCountSheetBadge
-                userBookId={userBook.id}
-                mutedColor={appearance.mutedColor}
-                accentColor={appearance.accentColor}
-              />
-            </View>
-
-            {draft.length === 0 ? (
-              <EmptyState
-                appearance={appearance}
-                fontFamily={fontFamily}
-                onAdd={(c) =>
-                  addSectionDraft(c.title, {
-                    materialIcon: c.materialIcon,
-                    materialIconColor: c.materialIconColor,
-                    emoji: c.emoji,
-                  })
-                }
-                onAddCustom={() => addSectionDraft("")}
-                suggestions={unusedDefaults}
-              />
-            ) : (
-              <View className="mt-6">
-                {draft.map((section, i) => (
-                  <Animated.View
-                    key={section.id}
-                    entering={FadeIn.duration(300).delay(i * 40)}
-                    style={{
-                      paddingVertical: 14,
-                      borderTopWidth: i === 0 ? 0 : 1,
-                      borderTopColor: hexWithAlpha(appearance.mutedColor, 0.22),
-                    }}
+              <View className="flex-row items-start gap-3">
+                <BookCover
+                  isbn={userBook.book.isbn}
+                  coverUrl={userBook.book.coverUrl}
+                  style={{ width: 48, height: 72, borderRadius: 6 }}
+                />
+                <View className="flex-1">
+                  <Text
+                    style={{ color: appearance.mutedColor }}
+                    className="text-xs uppercase tracking-wider"
                   >
-                    <SectionEditor
-                      section={section}
-                      appearance={appearance}
-                      fontFamily={fontFamily}
-                      onUpdateTitle={(title) =>
-                        updateTitleDraft(section.id, title)
-                      }
-                      onUpdateBody={(body) => updateBodyDraft(section.id, body)}
-                      onSetRating={(v) => setRatingValueDraft(section.id, v)}
-                      onRemove={() => removeSectionDraft(section.id)}
-                    />
-                  </Animated.View>
-                ))}
+                    Fiche de lecture
+                  </Text>
+                  <Text
+                    numberOfLines={2}
+                    style={{ color: appearance.textColor, fontFamily }}
+                    className="text-xl"
+                  >
+                    {userBook.book.title}
+                  </Text>
+                  {isCustomAppearance(sheet?.appearance, globalTemplate) ? (
+                    <View className="mt-1 flex-row items-center gap-1">
+                      <MaterialIcons
+                        name="palette"
+                        size={12}
+                        color={appearance.mutedColor}
+                      />
+                      <Text
+                        style={{ color: appearance.mutedColor, fontSize: 11 }}
+                      >
+                        Personnalisée
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+                <ReadCountSheetBadge
+                  userBookId={userBook.id}
+                  mutedColor={appearance.mutedColor}
+                  accentColor={appearance.accentColor}
+                />
               </View>
-            )}
 
-            {draft.length > 0 && unusedDefaults.length > 0 && (
-              <View
-                className="mt-4 pt-4"
-                style={{
-                  borderTopWidth: 1,
-                  borderTopColor: hexWithAlpha(appearance.mutedColor, 0.22),
-                }}
-              >
-                <Text
-                  style={{ color: appearance.mutedColor }}
-                  className="mb-3 text-sm"
-                >
-                  Ajouter une catégorie
-                </Text>
-                <View className="flex-row flex-wrap gap-2">
-                  {unusedDefaults.map((c) => (
-                    <SuggestionPill
-                      key={c.title}
-                      category={c}
-                      appearance={appearance}
-                      onPress={() =>
-                        addSectionDraft(c.title, {
-                          materialIcon: c.materialIcon,
-                          materialIconColor: c.materialIconColor,
-                          emoji: c.emoji,
-                        })
-                      }
-                    />
+              {draft.length === 0 ? (
+                <EmptyState
+                  appearance={appearance}
+                  fontFamily={fontFamily}
+                  onAdd={(c) =>
+                    addSectionDraft(c.title, {
+                      materialIcon: c.materialIcon,
+                      materialIconColor: c.materialIconColor,
+                      emoji: c.emoji,
+                    })
+                  }
+                  onAddCustom={() => addSectionDraft("")}
+                  suggestions={unusedDefaults}
+                />
+              ) : (
+                <View className="mt-6">
+                  {draft.map((section, i) => (
+                    <Animated.View
+                      key={section.id}
+                      entering={FadeIn.duration(300).delay(i * 40)}
+                      style={{
+                        paddingVertical: 14,
+                        borderTopWidth: i === 0 ? 0 : 1,
+                        borderTopColor: hexWithAlpha(
+                          appearance.mutedColor,
+                          0.22,
+                        ),
+                      }}
+                    >
+                      <SectionEditor
+                        section={section}
+                        appearance={appearance}
+                        fontFamily={fontFamily}
+                        onUpdateTitle={(title) =>
+                          updateTitleDraft(section.id, title)
+                        }
+                        onUpdateBody={(body) =>
+                          updateBodyDraft(section.id, body)
+                        }
+                        onSetRating={(v) => setRatingValueDraft(section.id, v)}
+                        onRemove={() => removeSectionDraft(section.id)}
+                      />
+                    </Animated.View>
                   ))}
                 </View>
-              </View>
-            )}
+              )}
 
-            {draft.length > 0 && (
-              <Pressable
-                onPress={() => addSectionDraft("")}
-                style={{ borderColor: appearance.mutedColor, borderWidth: 1 }}
-                className="mt-4 rounded-full py-3 active:opacity-70"
-              >
-                <Text
-                  style={{ color: appearance.mutedColor }}
-                  className="text-center"
+              {draft.length > 0 && unusedDefaults.length > 0 && (
+                <View
+                  className="mt-4 pt-4"
+                  style={{
+                    borderTopWidth: 1,
+                    borderTopColor: hexWithAlpha(appearance.mutedColor, 0.22),
+                  }}
                 >
-                  + Section personnalisée
-                </Text>
-              </Pressable>
-            )}
+                  <Text
+                    style={{ color: appearance.mutedColor }}
+                    className="mb-3 text-sm"
+                  >
+                    Ajouter une catégorie
+                  </Text>
+                  <View className="flex-row flex-wrap gap-2">
+                    {unusedDefaults.map((c) => (
+                      <SuggestionPill
+                        key={c.title}
+                        category={c}
+                        appearance={appearance}
+                        onPress={() =>
+                          addSectionDraft(c.title, {
+                            materialIcon: c.materialIcon,
+                            materialIconColor: c.materialIconColor,
+                            emoji: c.emoji,
+                          })
+                        }
+                      />
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {draft.length > 0 && (
+                <Pressable
+                  onPress={() => addSectionDraft("")}
+                  style={{ borderColor: appearance.mutedColor, borderWidth: 1 }}
+                  className="mt-4 rounded-full py-3 active:opacity-70"
+                >
+                  <Text
+                    style={{ color: appearance.mutedColor }}
+                    className="text-center"
+                  >
+                    + Section personnalisée
+                  </Text>
+                </Pressable>
+              )}
             </SheetSurface>
           </Animated.View>
 
@@ -760,10 +771,18 @@ function SaveFab({
   isEmpty: boolean;
 }) {
   const kb = useKeyboardOffset();
+  const insets = useSafeAreaInsets();
+  const safeBottom =
+    Platform.OS === "ios" ? Math.max(insets.bottom - 16, 0) : insets.bottom;
   return (
     <View
       pointerEvents="box-none"
-      style={{ position: 'absolute', left: 0, right: 0, bottom: (kb > 0 ? kb : 0) + 24 }}
+      style={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        bottom: (kb > 0 ? kb : safeBottom) + 24,
+      }}
       className="items-center"
     >
       <Animated.View entering={FadeInDown.duration(220)}>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { BOOK_SOURCES, type BookCatalogRow, type BookSource } from '../lib/types';
+import { AiCleanupModal } from './ai-cleanup-modal';
+import { BOOK_SOURCES, type AiCleanedBook, type BookCatalogRow, type BookSource } from '../lib/types';
 
 type Props = {
   initial: BookCatalogRow;
@@ -21,6 +22,12 @@ export function BookForm({ initial, onSaved, onDeleted }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiProposal, setAiProposal] = useState<{
+    cleaned: AiCleanedBook;
+    model: string;
+  } | null>(null);
 
   useEffect(() => {
     setTitle(initial.title);
@@ -92,6 +99,69 @@ export function BookForm({ initial, onSaved, onDeleted }: Props) {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function runAiExtraction() {
+    setError(null);
+    setSuccess(null);
+    setAiLoading(true);
+    try {
+      const { data, error: invokeErr } = await supabase.functions.invoke<{
+        ok: boolean;
+        model?: string;
+        cleaned?: AiCleanedBook;
+        error?: string;
+      }>('extract-book-metadata', {
+        body: {
+          isbn: initial.isbn,
+          title: title.trim(),
+          authors: parseCsv(authorsText),
+          categories: parseCsv(categoriesText),
+        },
+      });
+      if (invokeErr) {
+        setError(`IA : ${invokeErr.message}`);
+        return;
+      }
+      if (!data?.ok || !data.cleaned) {
+        setError(`IA : ${data?.error ?? 'erreur inconnue'}`);
+        return;
+      }
+      setAiProposal({ cleaned: data.cleaned, model: data.model ?? 'unknown' });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'IA : erreur inconnue');
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  async function applyAiSelection(selected: {
+    title?: string;
+    authors?: string[];
+    categories?: string[];
+  }) {
+    const patch: Record<string, unknown> = {
+      ai_cleaned_at: new Date().toISOString(),
+    };
+    if (selected.title !== undefined) patch.title = selected.title;
+    if (selected.authors !== undefined) patch.authors = selected.authors;
+    if (selected.categories !== undefined) patch.categories = selected.categories;
+
+    const { data, error: upErr } = await supabase
+      .from('books')
+      .update(patch)
+      .eq('isbn', initial.isbn)
+      .select()
+      .single();
+    if (upErr) throw new Error(upErr.message);
+
+    const row = data as BookCatalogRow;
+    setTitle(row.title);
+    setAuthorsText(row.authors.join(', '));
+    setCategoriesText(row.categories.join(', '));
+    setSuccess('Métadonnées IA appliquées.');
+    setAiProposal(null);
+    onSaved(row);
   }
 
   async function remove() {
@@ -189,16 +259,22 @@ export function BookForm({ initial, onSaved, onDeleted }: Props) {
             {usageCount !== null && (
               <> · Utilisé dans <strong>{usageCount}</strong> étagère(s)</>
             )}
+            {initial.ai_cleaned_at && (
+              <> · IA : <strong>{new Date(initial.ai_cleaned_at).toLocaleDateString()}</strong></>
+            )}
           </div>
 
           {error && <div className="error" style={{ marginBottom: 12 }}>{error}</div>}
           {success && <div className="success" style={{ marginBottom: 12 }}>{success}</div>}
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button className="btn btn-primary" onClick={save} disabled={submitting}>
+            <button className="btn btn-primary" onClick={save} disabled={submitting || aiLoading}>
               {submitting ? 'Enregistrement…' : 'Enregistrer'}
             </button>
-            <button className="btn btn-danger" onClick={remove} disabled={submitting}>
+            <button className="btn" onClick={runAiExtraction} disabled={submitting || aiLoading}>
+              {aiLoading ? 'IA…' : 'Compléter avec l\'IA'}
+            </button>
+            <button className="btn btn-danger" onClick={remove} disabled={submitting || aiLoading}>
               Supprimer
             </button>
           </div>
@@ -225,6 +301,21 @@ export function BookForm({ initial, onSaved, onDeleted }: Props) {
           </div>
         </div>
       </div>
+
+      {aiProposal && (
+        <AiCleanupModal
+          isbn={initial.isbn}
+          current={{
+            title: title.trim(),
+            authors: parseCsv(authorsText),
+            categories: parseCsv(categoriesText),
+          }}
+          proposed={aiProposal.cleaned}
+          model={aiProposal.model}
+          onApply={applyAiSelection}
+          onClose={() => setAiProposal(null)}
+        />
+      )}
     </main>
   );
 }

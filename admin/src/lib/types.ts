@@ -86,6 +86,14 @@ export type BookCatalogRow = {
   source: BookSource | null;
   categories: string[];
   cached_at: string;
+  ai_cleaned_at: string | null;
+};
+
+export type AiCleanedBook = {
+  title: string;
+  authors: string[];
+  categories: string[];
+  confidence: number;
 };
 
 export const BOOK_SOURCES: BookSource[] = ['openlibrary', 'googlebooks', 'bnf', 'manual'];

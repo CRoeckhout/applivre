@@ -35,7 +35,7 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import type { UserBook } from '@/types/book';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Selected =
   | { kind: 'pill'; id: string }
@@ -228,6 +228,9 @@ function EditMode({
   const [selected, setSelected] = useState<Selected>(null);
   const [customInput, setCustomInput] = useState('');
   const kb = useKeyboardOffset();
+  const insets = useSafeAreaInsets();
+  const safeBottom =
+    Platform.OS === 'ios' ? Math.max(insets.bottom - 16, 0) : insets.bottom;
 
   const placedLabels = useMemo(
     () => new Set(items.map((it) => it.label.toLowerCase())),
@@ -467,7 +470,7 @@ function EditMode({
 
         <View
           pointerEvents="box-none"
-          style={{ position: 'absolute', left: 0, right: 0, bottom: (kb > 0 ? kb : 0) + 24 }}
+          style={{ position: 'absolute', left: 0, right: 0, bottom: (kb > 0 ? kb : safeBottom) + 24 }}
           className="items-center">
           <Animated.View entering={FadeIn.duration(220)} className="items-center gap-2">
             {items.length < BINGO_CELLS && (

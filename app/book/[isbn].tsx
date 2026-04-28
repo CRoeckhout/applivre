@@ -297,8 +297,15 @@ export default function BookDetailScreen() {
               }}
               className="mt-8 flex-row items-center justify-center gap-2 rounded-full px-4 py-3 active:opacity-80"
             >
-              <MaterialIcons name="delete-outline" size={20} color={themeColors.paper} />
-              <Text style={{ color: themeColors.paper }} className="font-sans-med">
+              <MaterialIcons
+                name="delete-outline"
+                size={20}
+                color={themeColors.paper}
+              />
+              <Text
+                style={{ color: themeColors.paper }}
+                className="font-sans-med"
+              >
                 Supprimer
               </Text>
             </Pressable>
