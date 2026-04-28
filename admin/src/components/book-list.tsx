@@ -1,5 +1,28 @@
 import type { BookCatalogRow } from '../lib/types';
 
+export type QuickFilter =
+  | 'no_cover'
+  | 'no_categories'
+  | 'no_isbn'
+  | 'no_pages'
+  | 'no_year';
+
+export const QUICK_FILTERS: QuickFilter[] = [
+  'no_cover',
+  'no_categories',
+  'no_isbn',
+  'no_pages',
+  'no_year',
+];
+
+const FILTER_LABELS: Record<QuickFilter, string> = {
+  no_cover: 'Sans image',
+  no_categories: 'Sans catégorie',
+  no_isbn: 'Sans ISBN',
+  no_pages: 'Sans pages',
+  no_year: 'Sans année',
+};
+
 type Props = {
   books: BookCatalogRow[];
   selectedIsbn: string | null;
@@ -8,6 +31,9 @@ type Props = {
   onSelect: (isbn: string) => void;
   loading: boolean;
   total: number;
+  activeFilters: Set<QuickFilter>;
+  filterCounts: Record<QuickFilter, number>;
+  onToggleFilter: (f: QuickFilter) => void;
 };
 
 export function BookList({
@@ -18,6 +44,9 @@ export function BookList({
   onSelect,
   loading,
   total,
+  activeFilters,
+  filterCounts,
+  onToggleFilter,
 }: Props) {
   return (
     <aside style={{ width: 360, borderRight: '1px solid var(--line)', overflow: 'auto', background: 'white' }}>
@@ -29,7 +58,50 @@ export function BookList({
           onChange={(e) => onQueryChange(e.target.value)}
           style={{ width: '100%', padding: '6px 10px', border: '1px solid var(--line)', borderRadius: 6, fontSize: 13 }}
         />
-        <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+          {QUICK_FILTERS.map((f) => {
+            const active = activeFilters.has(f);
+            const count = filterCounts[f];
+            return (
+              <button
+                key={f}
+                onClick={() => onToggleFilter(f)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  border: '1px solid',
+                  borderColor: active ? 'var(--accent)' : 'var(--line)',
+                  background: active ? 'var(--accent)' : 'white',
+                  color: active ? 'white' : 'var(--ink)',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}>
+                {FILTER_LABELS[f]}
+                <span
+                  style={{
+                    display: 'inline-block',
+                    minWidth: 18,
+                    padding: '0 5px',
+                    borderRadius: 999,
+                    background: active ? 'rgba(255,255,255,0.25)' : '#eee',
+                    color: active ? 'white' : 'var(--ink-muted)',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    textAlign: 'center',
+                    lineHeight: '14px',
+                  }}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
           {loading ? 'Chargement…' : `${books.length} affichés / ${total} total`}
         </div>
       </div>

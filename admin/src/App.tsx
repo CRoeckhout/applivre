@@ -13,9 +13,36 @@ type AuthState =
 
 type Tab = "badges" | "borders" | "books";
 
+const TABS: Tab[] = ["badges", "borders", "books"];
+const DEFAULT_TAB: Tab = "badges";
+
+type Route = { tab: Tab; itemId: string | null };
+
+function readRouteFromHash(): Route {
+  // Format : `#/<tab>` ou `#/<tab>/<itemId>`. ItemId encodé URL.
+  const raw = window.location.hash.replace(/^#\/?/, "");
+  const [tabRaw, ...rest] = raw.split("/");
+  const tab = (TABS as string[]).includes(tabRaw) ? (tabRaw as Tab) : DEFAULT_TAB;
+  const idRaw = rest.join("/");
+  const itemId = idRaw.length > 0 ? safeDecode(idRaw) : null;
+  return { tab, itemId };
+}
+
+function safeDecode(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
+
+function buildHash(tab: Tab, itemId: string | null): string {
+  return itemId ? `#/${tab}/${encodeURIComponent(itemId)}` : `#/${tab}`;
+}
+
 export function App() {
   const [auth, setAuth] = useState<AuthState>({ kind: "loading" });
-  const [tab, setTab] = useState<Tab>("badges");
+  const [route, setRoute] = useState<Route>(() => readRouteFromHash());
 
   useEffect(() => {
     void resolveAuth();
@@ -24,6 +51,32 @@ export function App() {
     });
     return () => sub.data.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const onHash = () => setRoute(readRouteFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  function selectTab(next: Tab) {
+    if (route.tab === next) return;
+    const nextRoute: Route = { tab: next, itemId: null };
+    setRoute(nextRoute);
+    const hash = buildHash(nextRoute.tab, nextRoute.itemId);
+    if (window.location.hash !== hash) {
+      window.history.replaceState(null, "", hash);
+    }
+  }
+
+  function selectItem(itemId: string | null) {
+    if (route.itemId === itemId) return;
+    const nextRoute: Route = { tab: route.tab, itemId };
+    setRoute(nextRoute);
+    const hash = buildHash(nextRoute.tab, nextRoute.itemId);
+    if (window.location.hash !== hash) {
+      window.history.replaceState(null, "", hash);
+    }
+  }
 
   async function resolveAuth() {
     const {
@@ -85,9 +138,9 @@ export function App() {
         <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
           <strong>Grimolia — admin</strong>
           <nav style={{ display: "flex", gap: 4 }}>
-            <TabButton label="Badges" active={tab === "badges"} onClick={() => setTab("badges")} />
-            <TabButton label="Cadres" active={tab === "borders"} onClick={() => setTab("borders")} />
-            <TabButton label="Livres" active={tab === "books"} onClick={() => setTab("books")} />
+            <TabButton label="Badges" active={route.tab === "badges"} onClick={() => selectTab("badges")} />
+            <TabButton label="Cadres" active={route.tab === "borders"} onClick={() => selectTab("borders")} />
+            <TabButton label="Livres" active={route.tab === "books"} onClick={() => selectTab("books")} />
           </nav>
         </div>
         <button className="btn" onClick={() => supabase.auth.signOut()}>
@@ -96,9 +149,15 @@ export function App() {
       </header>
 
       <div style={{ flex: 1, minHeight: 0 }}>
-        {tab === "badges" && <BadgesSection />}
-        {tab === "borders" && <BordersSection />}
-        {tab === "books" && <BooksSection />}
+        {route.tab === "badges" && (
+          <BadgesSection itemId={route.itemId} onItemChange={selectItem} />
+        )}
+        {route.tab === "borders" && (
+          <BordersSection itemId={route.itemId} onItemChange={selectItem} />
+        )}
+        {route.tab === "books" && (
+          <BooksSection itemId={route.itemId} onItemChange={selectItem} />
+        )}
       </div>
     </div>
   );

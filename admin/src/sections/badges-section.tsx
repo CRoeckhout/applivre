@@ -4,9 +4,13 @@ import { BadgeList } from "../components/badge-list";
 import { supabase } from "../lib/supabase";
 import type { BadgeCatalogRow } from "../lib/types";
 
-export function BadgesSection() {
+type Props = {
+  itemId: string | null;
+  onItemChange: (id: string | null) => void;
+};
+
+export function BadgesSection({ itemId, onItemChange }: Props) {
   const [badges, setBadges] = useState<BadgeCatalogRow[]>([]);
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [filter, setFilter] = useState<"all" | "active" | "retired">("all");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -39,34 +43,34 @@ export function BadgesSection() {
       next[idx] = saved;
       return next;
     });
-    setSelectedKey(saved.badge_key);
+    onItemChange(saved.badge_key);
     setCreating(false);
   }
 
   function onDeleted(key: string) {
     void load();
-    setSelectedKey(key);
+    onItemChange(key);
     setCreating(false);
   }
 
   const selected = creating
     ? null
-    : (badges.find((b) => b.badge_key === selectedKey) ?? null);
+    : (badges.find((b) => b.badge_key === itemId) ?? null);
 
   return (
     <div style={{ display: "flex", height: "100%" }}>
       <BadgeList
         badges={badges}
-        selectedKey={creating ? null : selectedKey}
+        selectedKey={creating ? null : itemId}
         filter={filter}
         onFilterChange={setFilter}
         onSelect={(k) => {
-          setSelectedKey(k);
+          onItemChange(k);
           setCreating(false);
         }}
         onNew={() => {
           setCreating(true);
-          setSelectedKey(null);
+          onItemChange(null);
         }}
       />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>

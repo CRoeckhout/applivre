@@ -1,17 +1,34 @@
 import { useEffect, useRef, useState } from 'react';
 import { BookForm } from '../components/book-form';
-import { BookList } from '../components/book-list';
+import { BookList, QUICK_FILTERS, type QuickFilter } from '../components/book-list';
 import { supabase } from '../lib/supabase';
 import type { BookCatalogRow } from '../lib/types';
 
 const PAGE_SIZE = 100;
 
-export function BooksSection() {
+type FilterCounts = Record<QuickFilter, number>;
+
+const ZERO_COUNTS: FilterCounts = {
+  no_cover: 0,
+  no_categories: 0,
+  no_isbn: 0,
+  no_pages: 0,
+  no_year: 0,
+};
+
+type Props = {
+  itemId: string | null;
+  onItemChange: (id: string | null) => void;
+};
+
+export function BooksSection({ itemId, onItemChange }: Props) {
   const [books, setBooks] = useState<BookCatalogRow[]>([]);
   const [total, setTotal] = useState(0);
-  const [selectedIsbn, setSelectedIsbn] = useState<string | null>(null);
+  const [directFetched, setDirectFetched] = useState<BookCatalogRow | null>(null);
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [activeFilters, setActiveFilters] = useState<Set<QuickFilter>>(new Set());
+  const [filterCounts, setFilterCounts] = useState<FilterCounts>(ZERO_COUNTS);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -28,10 +45,64 @@ export function BooksSection() {
   }, [query]);
 
   useEffect(() => {
-    void load(debouncedQuery);
-  }, [debouncedQuery]);
+    void load(debouncedQuery, activeFilters);
+  }, [debouncedQuery, activeFilters]);
 
-  async function load(q: string) {
+  useEffect(() => {
+    void loadCounts();
+  }, []);
+
+  // Si l'isbn de la route ne se trouve pas dans la liste filtrée actuelle
+  // (ex: deeplink vers une row hors page courante), on fetch directement.
+  useEffect(() => {
+    if (!itemId) {
+      setDirectFetched(null);
+      return;
+    }
+    if (books.some((b) => b.isbn === itemId)) {
+      setDirectFetched(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from('books')
+        .select('*')
+        .eq('isbn', itemId)
+        .maybeSingle();
+      if (!cancelled) setDirectFetched((data as BookCatalogRow) ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [itemId, books]);
+
+  function applyQuickFilter<T>(
+    req: T & {
+      is: (col: string, val: unknown) => T;
+      eq: (col: string, val: unknown) => T;
+      like: (col: string, val: string) => T;
+      filter: (col: string, op: string, val: string) => T;
+    },
+    f: QuickFilter,
+  ): T {
+    switch (f) {
+      case 'no_cover':
+        return req.is('cover_url', null);
+      case 'no_categories':
+        // categories text[] NOT NULL default '{}'. Empty array = '{}'.
+        return req.filter('categories', 'eq', '{}');
+      case 'no_isbn':
+        // ISBN saisis manuellement : `manual-<uuid>`.
+        return req.like('isbn', 'manual-%');
+      case 'no_pages':
+        return req.is('pages', null);
+      case 'no_year':
+        return req.is('published_at', null);
+    }
+  }
+
+  async function load(q: string, filters: Set<QuickFilter>) {
     setLoading(true);
     setLoadError(null);
     let req = supabase
@@ -40,11 +111,13 @@ export function BooksSection() {
       .order('cached_at', { ascending: false })
       .limit(PAGE_SIZE);
 
+    for (const f of filters) {
+      req = applyQuickFilter(req, f);
+    }
+
     if (q.length > 0) {
       const escaped = q.replace(/[%_,]/g, (c) => `\\${c}`);
       const pattern = `%${escaped}%`;
-      // Server-side OR sur isbn + title (substring case-insensitive).
-      // Filtre auteur appliqué côté client après fetch (array column).
       req = req.or(`isbn.ilike.${pattern},title.ilike.${pattern}`);
     }
 
@@ -56,10 +129,9 @@ export function BooksSection() {
     }
 
     let rows = (data ?? []) as BookCatalogRow[];
-    // Si la query ne matche aucun isbn/title mais peut matcher un auteur,
-    // on tente un second fetch ciblé. PostgREST ne supporte pas ilike sur
-    // array, on filtre donc une page brute par auteur côté client.
-    if (q.length > 0 && rows.length === 0) {
+    // Fallback recherche auteur (PostgREST ilike pas sur array).
+    // Skip si filtres actifs — on chainerait des filtres en mémoire, pas le but.
+    if (q.length > 0 && rows.length === 0 && filters.size === 0) {
       const fallback = await supabase
         .from('books')
         .select('*', { count: 'exact' })
@@ -77,6 +149,31 @@ export function BooksSection() {
     setTotal(count ?? 0);
   }
 
+  async function loadCounts() {
+    const entries = await Promise.all(
+      QUICK_FILTERS.map(async (f) => {
+        let req = supabase
+          .from('books')
+          .select('isbn', { count: 'exact', head: true });
+        req = applyQuickFilter(req, f);
+        const { count } = await req;
+        return [f, count ?? 0] as const;
+      }),
+    );
+    const next = { ...ZERO_COUNTS };
+    for (const [f, c] of entries) next[f] = c;
+    setFilterCounts(next);
+  }
+
+  function toggleFilter(f: QuickFilter) {
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(f)) next.delete(f);
+      else next.add(f);
+      return next;
+    });
+  }
+
   function onSaved(saved: BookCatalogRow) {
     setBooks((prev) => {
       const idx = prev.findIndex((b) => b.isbn === saved.isbn);
@@ -85,27 +182,36 @@ export function BooksSection() {
       next[idx] = saved;
       return next;
     });
-    setSelectedIsbn(saved.isbn);
+    setDirectFetched((prev) => (prev && prev.isbn === saved.isbn ? saved : prev));
+    onItemChange(saved.isbn);
+    void loadCounts();
   }
 
   function onDeleted(isbn: string) {
     setBooks((prev) => prev.filter((b) => b.isbn !== isbn));
     setTotal((t) => Math.max(0, t - 1));
-    setSelectedIsbn(null);
+    setDirectFetched(null);
+    onItemChange(null);
+    void loadCounts();
   }
 
-  const selected = books.find((b) => b.isbn === selectedIsbn) ?? null;
+  const selected =
+    (itemId ? books.find((b) => b.isbn === itemId) ?? null : null) ??
+    (directFetched && directFetched.isbn === itemId ? directFetched : null);
 
   return (
     <div style={{ display: 'flex', height: '100%' }}>
       <BookList
         books={books}
-        selectedIsbn={selectedIsbn}
+        selectedIsbn={itemId}
         query={query}
         onQueryChange={setQuery}
-        onSelect={setSelectedIsbn}
+        onSelect={onItemChange}
         loading={loading}
         total={total}
+        activeFilters={activeFilters}
+        filterCounts={filterCounts}
+        onToggleFilter={toggleFilter}
       />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         {loadError && (
