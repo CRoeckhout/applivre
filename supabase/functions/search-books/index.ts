@@ -1,7 +1,17 @@
 // Edge function `search-books`
-// Recherche multi-registres (Google / OpenLibrary / BNF), dédup par ISBN.
-// Google key en secret serveur. Pas de cache DB (résultats dépendent de
-// la query libre — trop volatil pour cacher par clé textuelle).
+// Recherche multi-registres (ISBN-DB / Google / OpenLibrary / BNF),
+// dédup par ISBN. Clés tierces en secret serveur. Pas de cache DB
+// (résultats dépendent de la query libre — trop volatil pour cacher par
+// clé textuelle).
+//
+// Ordre des résultats :
+//   ISBN-DB (top bucket, ordre API préservé)
+//   → bucket auteur si la query ressemble à un patronyme
+//   → bucket générique Google+OL (trié popularité)
+//   → BNF (queue, ordre source).
+// ISBN-DB n'expose pas de score popularité → on garde son ordre brut, ce
+// qui préserve la pertinence renvoyée par leur moteur. Sans clé configurée,
+// le bucket est vide et la chaîne historique reste intacte.
 
 type SearchResult = {
   isbn: string;
@@ -17,6 +27,7 @@ type SearchResult = {
 type RankedResult = SearchResult & { _pop?: number };
 
 const GOOGLE_KEY = Deno.env.get('GOOGLE_BOOKS_KEY') ?? '';
+const ISBNDB_KEY = Deno.env.get('ISBNDB_KEY') ?? '';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -46,27 +57,32 @@ Deno.serve(async (req) => {
   // l'ordre de pertinence des moteurs.
   const authorMode = looksLikeAuthor(q);
 
+  // Chaque source bornée à 6s : Promise.allSettled attend le maillon le plus
+  // lent ; sans timeout, un fetcher bloqué consomme tout le wall-time edge et
+  // le worker est tué avant de renvoyer. Même bug que resolve-book.
   const tasks = [
-    searchGoogle(q, limit),
-    searchOpenLibrary(q, limit),
-    searchBnf(q, limit),
+    withTimeout(searchIsbnDb(q, limit), 6000, 'isbndb'),
+    withTimeout(searchGoogle(q, limit), 6000, 'google'),
+    withTimeout(searchOpenLibrary(q, limit), 6000, 'openlibrary'),
+    withTimeout(searchBnf(q, limit), 6000, 'bnf'),
   ];
   if (authorMode) {
-    tasks.push(searchGoogle(`inauthor:"${q}"`, limit));
-    tasks.push(searchOpenLibraryByAuthor(q, limit));
+    tasks.push(withTimeout(searchGoogle(`inauthor:"${q}"`, limit), 6000, 'google-author'));
+    tasks.push(withTimeout(searchOpenLibraryByAuthor(q, limit), 6000, 'openlibrary-author'));
   }
 
   const settled = await Promise.allSettled(tasks);
   const out = settled.map((s) => (s.status === 'fulfilled' ? s.value : []));
-  const [google, openlib, bnf, googleAuthor = [], openlibAuthor = []] = out;
+  const [isbndb, google, openlib, bnf, googleAuthor = [], openlibAuthor = []] = out;
 
-  // Buckets : auteur d'abord (intent fort), puis générique, puis BNF.
-  // Dans chaque bucket on trie par popularité décroissante (signal Google /
-  // OpenLibrary). BNF ne renvoie pas de score → ordre source préservé.
-  // Le bucket auteur est filtré strict : on garde uniquement les résultats
-  // où le patronyme apparaît dans la liste d'auteurs (Google `inauthor:"X"`
-  // matche parfois le prénom dans des titres ou éditeurs — ex. "Hugo" pollué
-  // par Mark Twain).
+  // Buckets : ISBN-DB en tête (top priorité), auteur ensuite (intent fort),
+  // puis générique, puis BNF. Dans les buckets auteur/générique on trie par
+  // popularité décroissante (signal Google / OpenLibrary). ISBN-DB et BNF ne
+  // renvoient pas de score → ordre source préservé. Le bucket auteur est
+  // filtré strict : on garde uniquement les résultats où le patronyme
+  // apparaît dans la liste d'auteurs (Google `inauthor:"X"` matche parfois
+  // le prénom dans des titres ou éditeurs — ex. "Hugo" pollué par Mark Twain).
+  const isbndbBucket = dedup(isbndb);
   const filteredAuthor = authorMode
     ? [...googleAuthor, ...openlibAuthor].filter((r) =>
         r.authors.some((a) => a.toLowerCase().includes(q.toLowerCase())),
@@ -77,7 +93,7 @@ Deno.serve(async (req) => {
 
   const seen = new Set<string>();
   const merged: SearchResult[] = [];
-  for (const r of [...authorBucket, ...genericBucket, ...bnf]) {
+  for (const r of [...isbndbBucket, ...authorBucket, ...genericBucket, ...bnf]) {
     if (seen.has(r.isbn)) continue;
     seen.add(r.isbn);
     const { _pop, ...clean } = r as RankedResult;
@@ -87,6 +103,28 @@ Deno.serve(async (req) => {
 
   return json({ results: merged.slice(0, limit) });
 });
+
+// Borne une promesse : reject après `ms` au lieu de pendre indéfiniment.
+// Utilisé pour empêcher un fetcher bloqué de drag toute la fonction au-delà
+// du wall-time edge (Promise.allSettled attend le plus lent).
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => {
+      console.warn('[search-books] timeout', label, ms, 'ms');
+      reject(new Error(`timeout:${label}`));
+    }, ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
 
 function dedup(list: RankedResult[]): RankedResult[] {
   const seen = new Set<string>();
@@ -116,6 +154,49 @@ function json(obj: unknown, status = 200): Response {
     status,
     headers: { ...CORS, 'content-type': 'application/json' },
   });
+}
+
+// ─── ISBN-DB ───
+// API : https://api2.isbndb.com/books/{query}?page=1&pageSize=N
+// Auth : header `Authorization: <key>` (sans préfixe Bearer).
+// Sans clé configurée → no-op (retourne []) pour ne pas spammer 401.
+// ISBN-DB n'expose pas de score popularité → on laisse `_pop` undefined ;
+// le merge en bucket dédié préserve l'ordre renvoyé par leur moteur.
+
+type IsbnDbBookHit = {
+  title?: string;
+  title_long?: string;
+  authors?: string[];
+  pages?: number;
+  date_published?: string;
+  image?: string;
+  isbn?: string;
+  isbn13?: string;
+};
+
+async function searchIsbnDb(query: string, limit: number): Promise<RankedResult[]> {
+  if (!ISBNDB_KEY) return [];
+  const url =
+    `https://api2.isbndb.com/books/${encodeURIComponent(query)}` +
+    `?page=1&pageSize=${limit}`;
+  const res = await fetch(url, { headers: { Authorization: ISBNDB_KEY } });
+  if (!res.ok) return [];
+  const data = (await res.json()) as { books?: IsbnDbBookHit[] };
+  return (data.books ?? [])
+    .map((v): RankedResult | null => {
+      const isbn = v.isbn13 ?? v.isbn;
+      if (!isbn) return null;
+      const year = v.date_published?.match(/\d{4}/)?.[0];
+      return {
+        isbn,
+        title: v.title_long ?? v.title ?? 'Titre inconnu',
+        authors: v.authors ?? [],
+        coverUrl: v.image,
+        year: year ? parseInt(year, 10) || undefined : undefined,
+        pages: typeof v.pages === 'number' && v.pages > 0 ? v.pages : undefined,
+      };
+    })
+    .filter((r): r is RankedResult => r !== null);
 }
 
 // ─── Google Books ───

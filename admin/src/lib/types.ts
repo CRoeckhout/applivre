@@ -74,7 +74,7 @@ export type BorderCatalogRow = {
 
 // ═══════════════ Books (catalog public) ═══════════════
 
-export type BookSource = 'openlibrary' | 'googlebooks' | 'bnf' | 'manual';
+export type BookSource = 'isbndb' | 'openlibrary' | 'googlebooks' | 'bnf' | 'manual';
 
 export type BookCatalogRow = {
   isbn: string;
@@ -96,4 +96,4 @@ export type AiCleanedBook = {
   confidence: number;
 };
 
-export const BOOK_SOURCES: BookSource[] = ['openlibrary', 'googlebooks', 'bnf', 'manual'];
+export const BOOK_SOURCES: BookSource[] = ['isbndb', 'openlibrary', 'googlebooks', 'bnf', 'manual'];

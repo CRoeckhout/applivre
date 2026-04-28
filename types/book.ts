@@ -1,6 +1,6 @@
 export type ReadingStatus = 'wishlist' | 'to_read' | 'reading' | 'read' | 'abandoned';
 
-export type BookSource = 'openlibrary' | 'googlebooks' | 'bnf' | 'manual';
+export type BookSource = 'isbndb' | 'openlibrary' | 'googlebooks' | 'bnf' | 'manual';
 
 export type Book = {
   isbn: string;
