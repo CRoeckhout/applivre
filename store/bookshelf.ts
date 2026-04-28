@@ -1,3 +1,4 @@
+import { APP_SLUG } from '@/constants/app';
 import { getSyncUserId } from '@/lib/sync/session';
 import {
   syncDeleteUserBook,
@@ -110,7 +111,7 @@ export const useBookshelf = create<BookshelfState>()(
       reset: () => set({ books: [] }),
     }),
     {
-      name: 'applivre-bookshelf',
+      name: `${APP_SLUG}-bookshelf`,
       storage: createJSONStorage(() => AsyncStorage),
     },
   ),

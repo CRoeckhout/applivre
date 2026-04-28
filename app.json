@@ -1,16 +1,16 @@
 {
   "expo": {
-    "name": "applivre",
-    "slug": "applivre",
+    "name": "Grimolia",
+    "slug": "grimolia",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "applivre",
+    "scheme": "grimolia",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.corentin.applivre",
+      "bundleIdentifier": "com.corentin.grimolia",
       "deploymentTarget": "16.2",
       "infoPlist": {
         "NSSupportsLiveActivities": true,
@@ -34,7 +34,7 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.corentin.applivre"
+      "package": "com.corentin.grimolia"
     },
     "web": {
       "output": "static",
@@ -58,13 +58,13 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Applivre a besoin de la caméra pour scanner les codes-barres des livres."
+          "cameraPermission": "Grimolia a besoin de la caméra pour scanner les codes-barres des livres."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Applivre a besoin d'accéder à tes photos pour choisir ton avatar."
+          "photosPermission": "Grimolia a besoin d'accéder à tes photos pour choisir ton avatar."
         }
       ],
       "@bacons/apple-targets"
@@ -81,14 +81,14 @@
             "ios": {
               "appExtensions": [
                 {
-                  "bundleIdentifier": "com.corentin.applivre.widget",
+                  "bundleIdentifier": "com.corentin.grimolia.widget",
                   "targetName": "ReadingLiveActivity"
                 }
               ]
             }
           }
         },
-        "projectId": "79d0e17a-99ab-498e-bf47-84f1d48baf90"
+        "projectId": "b28a5016-0cce-46c6-822d-8ff7225afb36"
       }
     },
     "runtimeVersion": {
@@ -96,6 +96,7 @@
     },
     "updates": {
       "url": "https://u.expo.dev/79d0e17a-99ab-498e-bf47-84f1d48baf90"
-    }
+    },
+    "owner": "thilun"
   }
 }

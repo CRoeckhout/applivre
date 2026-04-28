@@ -1,3 +1,4 @@
+import { APP_SLUG } from '@/constants/app';
 import { newId } from '@/lib/id';
 import { getSyncUserId } from '@/lib/sync/session';
 import {
@@ -201,7 +202,7 @@ export const useTimer = create<TimerState>()(
         get().sessions.filter((s) => s.cycleId === cycleId),
     }),
     {
-      name: 'applivre-timer',
+      name: `${APP_SLUG}-timer`,
       version: 3,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (s) => ({

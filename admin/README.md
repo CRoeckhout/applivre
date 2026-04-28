@@ -1,4 +1,4 @@
-# applivre — admin (local)
+# grimolia — admin (local)
 
 Backoffice React (Vite) pour piloter `public.badge_catalog` :
 list / create / edit / retire des badges, upload de SVG, preview.

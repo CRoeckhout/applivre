@@ -1,5 +1,5 @@
 {
-  "name": "applivre-live-activity",
+  "name": "grimolia-live-activity",
   "version": "0.0.0",
   "description": "Local Expo module — iOS Live Activity for the reading timer",
   "main": "index.ts",

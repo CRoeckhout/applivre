@@ -1,3 +1,4 @@
+import { APP_SLUG } from '@/constants/app';
 import type { BadgeCatalogEntry } from '@/types/badge';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
@@ -23,7 +24,7 @@ export const useBadgeCatalog = create<State>()(
       reset: () => set({ entries: {} }),
     }),
     {
-      name: 'applivre-badge-catalog',
+      name: `${APP_SLUG}-badge-catalog`,
       version: 1,
       storage: createJSONStorage(() => AsyncStorage),
     },

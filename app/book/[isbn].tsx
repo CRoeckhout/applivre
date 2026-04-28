@@ -54,7 +54,7 @@ export default function BookDetailScreen() {
   const setDebugOpen = useDebug((s) => s.setPanelsEnabled);
   const themeColors = useThemeColors();
 
-  // Deeplinks depuis la Live Activity (applivre://book/<isbn>?action=...).
+  // Deeplinks depuis la Live Activity (grimolia://book/<isbn>?action=...).
   // Expo Router résout la route + on consomme `action` ici.
   useEffect(() => {
     if (!action) return;

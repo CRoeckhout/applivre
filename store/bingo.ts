@@ -1,3 +1,4 @@
+import { APP_SLUG } from '@/constants/app';
 import { newId } from '@/lib/id';
 import { getSyncUserId } from '@/lib/sync/session';
 import {
@@ -200,7 +201,7 @@ export const useBingos = create<BingoState>()(
       reset: () => set({ bingos: [], completions: {}, pills: [] }),
     }),
     {
-      name: 'applivre-bingos',
+      name: `${APP_SLUG}-bingos`,
       version: 1,
       storage: createJSONStorage(() => AsyncStorage),
     },

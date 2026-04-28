@@ -1,3 +1,4 @@
+import { APP_SLUG } from '@/constants/app';
 import { getSyncUserId } from '@/lib/sync/session';
 import { syncDeleteStreakDay, syncUpsertStreakDay } from '@/lib/sync/writers';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -32,7 +33,7 @@ export const useReadingStreak = create<StreakState>()(
       hasManualDay: (day) => get().manualDays.includes(day),
     }),
     {
-      name: 'applivre-streak',
+      name: `${APP_SLUG}-streak`,
       version: 1,
       storage: createJSONStorage(() => AsyncStorage),
     },

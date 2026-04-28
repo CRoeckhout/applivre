@@ -1,4 +1,4 @@
-# Applivre
+# Grimolia
 
 Un bullet journal pour livres — suivi de lecture, scan ISBN, prêts nommés, bingo perso, défis.
 

@@ -6,8 +6,8 @@ Ce document couvre l'environnement de dev local, les variants d'app, et le dépl
 
 | Environnement | Backend | Bundle ID iOS | Nom affiché | Build |
 |---|---|---|---|---|
-| **dev local** | Supabase local (Docker) | `com.corentin.applivre.dev` | Applivre Dev | Debug |
-| **prod** | Supabase hosted | `com.corentin.applivre` | applivre | Release |
+| **dev local** | Supabase local (Docker) | `com.corentin.grimolia.dev` | Grimolia Dev | Debug |
+| **prod** | Supabase hosted | `com.corentin.grimolia` | Grimolia | Release |
 
 Les deux apps coexistent sur le même device.
 
@@ -52,7 +52,7 @@ npm run ios              # Build Debug + lance sur simulateur iOS
 npm run android          # Build Debug + lance sur simulateur Android
 ```
 
-Variables injectées : `APP_VARIANT=development` → l'app est compilée avec le bundle ID `.dev` et le nom "Applivre Dev".
+Variables injectées : `APP_VARIANT=development` → l'app est compilée avec le bundle ID `.dev` et le nom "Grimolia Dev".
 
 Expo charge `.env.development.local` en priorité → backend Supabase local.
 

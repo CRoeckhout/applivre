@@ -1,4 +1,4 @@
--- Applivre — schéma initial
+-- Grimolia — schéma initial
 -- À appliquer via la CLI Supabase (`supabase db push`) ou copier-coller dans l'éditeur SQL.
 
 create extension if not exists "uuid-ossp";

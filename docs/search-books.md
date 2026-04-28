@@ -105,7 +105,7 @@ Prod :
 npx supabase functions deploy search-books
 ```
 
-Project linké : `nthmjgfqghznxqgidgdp` (applivre, Frankfurt).
+Project linké : `nthmjgfqghznxqgidgdp` (grimolia, Frankfurt).
 
 ## Test rapide
 

@@ -1,3 +1,4 @@
+import { APP_SLUG } from '@/constants/app';
 import { newId } from '@/lib/id';
 import { getSyncUserId } from '@/lib/sync/session';
 import { syncDeleteLoan, syncUpsertLoan } from '@/lib/sync/writers';
@@ -52,7 +53,7 @@ export const useLoans = create<LoansState>()(
       },
     }),
     {
-      name: 'applivre-loans',
+      name: `${APP_SLUG}-loans`,
       version: 1,
       storage: createJSONStorage(() => AsyncStorage),
     },

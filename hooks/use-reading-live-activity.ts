@@ -4,7 +4,7 @@ import {
   isLiveActivityAvailable,
   startReadingActivity,
   updateReadingActivity,
-} from 'applivre-live-activity';
+} from 'grimolia-live-activity';
 import { useBookshelf } from '@/store/bookshelf';
 import { useTimer } from '@/store/timer';
 import { useEffect, useRef } from 'react';

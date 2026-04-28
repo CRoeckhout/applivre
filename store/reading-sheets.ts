@@ -1,3 +1,4 @@
+import { APP_SLUG } from '@/constants/app';
 import { newId } from '@/lib/id';
 import { getSyncUserId } from '@/lib/sync/session';
 import { syncDeleteSheet, syncUpsertSheetDebounced } from '@/lib/sync/writers';
@@ -211,7 +212,7 @@ export const useReadingSheets = create<SheetsState>()(
       };
     },
     {
-      name: 'applivre-reading-sheets',
+      name: `${APP_SLUG}-reading-sheets`,
       version: 1,
       storage: createJSONStorage(() => AsyncStorage),
     },

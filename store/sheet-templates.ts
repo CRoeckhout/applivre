@@ -1,3 +1,4 @@
+import { APP_SLUG } from '@/constants/app';
 import { newId } from '@/lib/id';
 import { DEFAULT_APPEARANCE } from '@/lib/sheet-appearance';
 import type { SheetPreset } from '@/lib/sheet-presets';
@@ -49,7 +50,7 @@ export const useSheetTemplates = create<TemplateState>()(
         })),
     }),
     {
-      name: 'applivre-sheet-templates',
+      name: `${APP_SLUG}-sheet-templates`,
       version: 1,
       storage: createJSONStorage(() => AsyncStorage),
     },

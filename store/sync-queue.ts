@@ -1,3 +1,4 @@
+import { APP_SLUG } from '@/constants/app';
 import { newId } from '@/lib/id';
 import type { Challenge } from '@/store/challenges';
 import type { Preferences } from '@/store/preferences';
@@ -89,7 +90,7 @@ export const useSyncQueue = create<QueueState>()(
       clear: () => set({ ops: [] }),
     }),
     {
-      name: 'applivre-sync-queue',
+      name: `${APP_SLUG}-sync-queue`,
       version: 1,
       storage: createJSONStorage(() => AsyncStorage),
     },

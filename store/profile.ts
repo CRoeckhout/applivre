@@ -1,3 +1,4 @@
+import { APP_SLUG } from '@/constants/app';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
@@ -14,7 +15,7 @@ export const useProfile = create<ProfileState>()(
       setUsername: (name) => set({ username: name?.trim() || null }),
     }),
     {
-      name: 'applivre-profile',
+      name: `${APP_SLUG}-profile`,
       version: 1,
       storage: createJSONStorage(() => AsyncStorage),
     },

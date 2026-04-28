@@ -1,3 +1,4 @@
+import { APP_SLUG } from '@/constants/app';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
@@ -18,7 +19,7 @@ export const useDebug = create<DebugState>()(
       setPanelsEnabled: (value) => set({ panelsEnabled: value }),
     }),
     {
-      name: 'applivre-debug',
+      name: `${APP_SLUG}-debug`,
       storage: createJSONStorage(() => AsyncStorage),
     },
   ),

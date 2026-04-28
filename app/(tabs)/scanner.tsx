@@ -1,4 +1,5 @@
 import { SearchMode } from '@/components/search-mode';
+import { APP_NAME } from '@/constants/app';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
@@ -91,7 +92,7 @@ function NativeScanner() {
       <View className="flex-1 items-center justify-center px-8">
         <Text className="text-center font-display text-3xl text-ink">Accès à la caméra</Text>
         <Text className="mt-3 text-center text-ink-muted">
-          Applivre utilise la caméra pour scanner les codes-barres de tes livres.
+          {APP_NAME} utilise la caméra pour scanner les codes-barres de tes livres.
         </Text>
         <Pressable
           onPress={requestPermission}

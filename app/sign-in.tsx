@@ -1,3 +1,4 @@
+import { APP_NAME } from '@/constants/app';
 import { requestEmailOtp, verifyEmailOtp } from '@/hooks/use-auth';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -59,7 +60,7 @@ export default function SignInScreen() {
         style={{ flex: 1 }}>
         <View className="flex-1 justify-center px-8">
           <Animated.View entering={FadeInDown.duration(500)}>
-            <Text className="font-display text-5xl text-ink">Applivre</Text>
+            <Text className="font-display text-5xl text-ink">{APP_NAME}</Text>
             <Text className="mt-2 text-base text-ink-muted">
               Ta bibliothèque, tes lectures, dans ta poche.
             </Text>

@@ -1,3 +1,4 @@
+import { APP_SLUG } from '@/constants/app';
 import { getSyncUserId } from '@/lib/sync/session';
 import { syncDeleteChallenge, syncUpsertChallenge } from '@/lib/sync/writers';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -40,7 +41,7 @@ export const useChallenges = create<ChallengesState>()(
       },
     }),
     {
-      name: 'applivre-challenges',
+      name: `${APP_SLUG}-challenges`,
       version: 1,
       storage: createJSONStorage(() => AsyncStorage),
     },
