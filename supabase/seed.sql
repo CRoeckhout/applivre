@@ -1,9 +1,6 @@
--- 0022 — Seed dev admin user (local-only convenience)
--- Permet de retrouver le compte admin local après `db reset` sans devoir
--- ressigner et redéfinir is_admin manuellement. Le hash bcrypt provient
--- de la DB locale ; ne JAMAIS commiter ce fichier vers une DB partagée
--- ou la prod (la migration ne devrait pas y exister à terme — la garde
--- est l'absence de ce fichier dans les deploys distants).
+-- Seed dev admin user (local-only)
+-- Exécuté uniquement par `supabase db reset` (cf. config.toml [db.seed]).
+-- N'est jamais inclus dans `supabase db push` vers prod.
 --
 -- Mot de passe : inchangé depuis le signup local. Si tu veux le changer,
 -- recalcule le hash via `crypt('newpass', gen_salt('bf'))` et remplace.
