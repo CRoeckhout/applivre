@@ -8,7 +8,7 @@ import { SheetCard } from "@/components/sheet-card";
 import { formatDurationHuman } from "@/hooks/use-elapsed-time";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { fetchBook } from "@/lib/books";
-import { categorySuggestions, displayGenres } from "@/lib/genre";
+import { categorySuggestions, displayGenres, normalizeCategory } from "@/lib/genre";
 import { newId } from "@/lib/id";
 import { isCustomAppearance, mergeAppearance } from "@/lib/sheet-appearance";
 import { useBookshelf } from "@/store/bookshelf";
@@ -243,8 +243,10 @@ export default function BookDetailScreen() {
           entering={FadeInDown.duration(400).delay(200)}
           className="mt-10"
         >
-          {existing && (
+          {existing ? (
             <GenreRow ub={existing} onEdit={() => setGenreModalOpen(true)} />
+          ) : (
+            <CatalogGenreRow categories={data.categories} />
           )}
           {existing && <SheetPreview userBook={existing} />}
 
@@ -851,6 +853,42 @@ function DebugBookPanel({
       >
         {JSON.stringify(payload, null, 2)}
       </Text>
+    </View>
+  );
+}
+
+function CatalogGenreRow({ categories }: { categories?: string[] }) {
+  const genres = useMemo(() => {
+    const raw = categories ?? [];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const c of raw) {
+      const norm = normalizeCategory(c);
+      const key = norm.toLocaleLowerCase("fr");
+      if (norm.length === 0 || seen.has(key)) continue;
+      seen.add(key);
+      out.push(norm);
+    }
+    return out;
+  }, [categories]);
+
+  if (genres.length === 0) return null;
+
+  return (
+    <View className="mt-6">
+      <View className="mb-2 flex-row items-baseline gap-2">
+        <Text className="font-display text-lg text-ink">Genres</Text>
+        <Text className="text-xs text-ink-muted">depuis catalogue</Text>
+      </View>
+      <View className="rounded-2xl bg-paper-warm p-4">
+        <View className="flex-row flex-wrap gap-2">
+          {genres.map((g) => (
+            <View key={g} className="rounded-full bg-paper px-3 py-1">
+              <Text className="text-sm text-ink">{g}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
     </View>
   );
 }
