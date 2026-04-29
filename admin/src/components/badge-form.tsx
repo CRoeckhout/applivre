@@ -385,7 +385,7 @@ export function BadgeForm({ initial, onSaved, onDeleted }: Props) {
 
         <div style={{ position: 'sticky', top: 24 }}>
           <h3 style={{ marginTop: 0 }}>Preview</h3>
-          <div style={{ background: 'white', borderRadius: 12, border: '1px solid var(--line)', padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--line)', padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
             <BadgeGraphicWeb kind={graphicKind} payload={graphicPayload} tokens={parsedTokens} size={140} />
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
               <BadgeGraphicWeb kind={graphicKind} payload={graphicPayload} tokens={parsedTokens} size={32} />

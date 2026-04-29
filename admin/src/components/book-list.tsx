@@ -78,8 +78,8 @@ export function BookList({
   }, [hasMore, loadingMore, onLoadMore]);
 
   return (
-    <aside ref={scrollerRef} style={{ width: 360, borderRight: '1px solid var(--line)', overflow: 'auto', background: 'white' }}>
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: 'white', zIndex: 1 }}>
+    <aside ref={scrollerRef} style={{ width: 360, borderRight: '1px solid var(--line)', overflow: 'auto', background: 'var(--surface)' }}>
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
         <input
           type="search"
           placeholder="ISBN, titre, auteur…"
@@ -103,7 +103,7 @@ export function BookList({
                   borderRadius: 999,
                   border: '1px solid',
                   borderColor: active ? 'var(--accent)' : 'var(--line)',
-                  background: active ? 'var(--accent)' : 'white',
+                  background: active ? 'var(--accent)' : 'var(--surface)',
                   color: active ? 'white' : 'var(--ink)',
                   fontSize: 11,
                   fontWeight: 600,
@@ -117,7 +117,7 @@ export function BookList({
                     minWidth: 18,
                     padding: '0 5px',
                     borderRadius: 999,
-                    background: active ? 'rgba(255,255,255,0.25)' : '#eee',
+                    background: active ? 'var(--count-bg-active)' : 'var(--count-bg)',
                     color: active ? 'white' : 'var(--ink-muted)',
                     fontSize: 10,
                     fontWeight: 700,
@@ -147,7 +147,7 @@ export function BookList({
                 gap: 12,
                 padding: '10px 16px',
                 cursor: 'pointer',
-                background: selected ? '#f5f0ea' : 'transparent',
+                background: selected ? 'var(--surface-2)' : 'transparent',
                 borderBottom: '1px solid var(--line)',
               }}>
               <div
@@ -156,7 +156,7 @@ export function BookList({
                   height: 56,
                   borderRadius: 4,
                   border: '1px solid var(--line)',
-                  background: '#faf6f0',
+                  background: 'var(--surface-3)',
                   overflow: 'hidden',
                   display: 'flex',
                   alignItems: 'center',

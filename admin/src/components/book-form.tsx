@@ -282,7 +282,7 @@ export function BookForm({ initial, onSaved, onDeleted }: Props) {
 
         <div style={{ position: 'sticky', top: 24 }}>
           <h3 style={{ marginTop: 0 }}>Aperçu</h3>
-          <div style={{ background: 'white', borderRadius: 12, border: '1px solid var(--line)', padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--line)', padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
             {coverUrl ? (
               <img
                 src={coverUrl}

@@ -53,7 +53,7 @@ export function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
         maxWidth: 420,
         margin: '80px auto',
         padding: 24,
-        background: 'white',
+        background: 'var(--surface)',
         borderRadius: 12,
         border: '1px solid var(--line)',
       }}>

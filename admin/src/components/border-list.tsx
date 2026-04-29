@@ -30,8 +30,8 @@ export function BorderList({
   });
 
   return (
-    <aside style={{ width: 320, borderRight: '1px solid var(--line)', overflow: 'auto', background: 'white' }}>
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: 'white', zIndex: 1 }}>
+    <aside style={{ width: 320, borderRight: '1px solid var(--line)', overflow: 'auto', background: 'var(--surface)' }}>
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
           <button className="btn btn-primary" onClick={onNew}>+ Nouveau</button>
         </div>
@@ -64,7 +64,7 @@ export function BorderList({
                 gap: 12,
                 padding: '12px 16px',
                 cursor: 'pointer',
-                background: selected ? '#f5f0ea' : 'transparent',
+                background: selected ? 'var(--surface-2)' : 'transparent',
                 borderBottom: '1px solid var(--line)',
                 opacity: isRetired ? 0.6 : 1,
               }}>
@@ -74,7 +74,7 @@ export function BorderList({
                   height: 40,
                   borderRadius: 6,
                   border: '1px solid var(--line)',
-                  background: '#faf6f0',
+                  background: 'var(--surface-3)',
                   overflow: 'hidden',
                   display: 'flex',
                   alignItems: 'center',

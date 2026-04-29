@@ -12,9 +12,21 @@ type AuthState =
   | { kind: "admin" };
 
 type Tab = "badges" | "borders" | "books";
+type Theme = "light" | "dark";
 
 const TABS: Tab[] = ["badges", "borders", "books"];
 const DEFAULT_TAB: Tab = "badges";
+const THEME_KEY = "admin-theme";
+
+function readInitialTheme(): Theme {
+  const saved = localStorage.getItem(THEME_KEY);
+  if (saved === "light" || saved === "dark") return saved;
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function applyTheme(theme: Theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+}
 
 type Route = { tab: Tab; itemId: string | null };
 
@@ -43,6 +55,18 @@ function buildHash(tab: Tab, itemId: string | null): string {
 export function App() {
   const [auth, setAuth] = useState<AuthState>({ kind: "loading" });
   const [route, setRoute] = useState<Route>(() => readRouteFromHash());
+  const [theme, setTheme] = useState<Theme>(() => {
+    const initial = readInitialTheme();
+    applyTheme(initial);
+    return initial;
+  });
+
+  function toggleTheme() {
+    const next: Theme = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    applyTheme(next);
+    localStorage.setItem(THEME_KEY, next);
+  }
 
   useEffect(() => {
     void resolveAuth();
@@ -107,7 +131,7 @@ export function App() {
           maxWidth: 480,
           margin: "80px auto",
           padding: 24,
-          background: "white",
+          background: "var(--surface)",
           borderRadius: 12,
           border: "1px solid var(--line)",
         }}
@@ -132,7 +156,7 @@ export function App() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          background: "white",
+          background: "var(--surface)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
@@ -143,9 +167,19 @@ export function App() {
             <TabButton label="Livres" active={route.tab === "books"} onClick={() => selectTab("books")} />
           </nav>
         </div>
-        <button className="btn" onClick={() => supabase.auth.signOut()}>
-          Se déconnecter
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            className="btn"
+            onClick={toggleTheme}
+            title={theme === "dark" ? "Passer en clair" : "Passer en sombre"}
+            aria-label="Basculer le thème"
+          >
+            {theme === "dark" ? "☀︎" : "☾"}
+          </button>
+          <button className="btn" onClick={() => supabase.auth.signOut()}>
+            Se déconnecter
+          </button>
+        </div>
       </header>
 
       <div style={{ flex: 1, minHeight: 0 }}>
@@ -180,7 +214,7 @@ function TabButton({
         borderRadius: 8,
         border: "1px solid",
         borderColor: active ? "var(--accent)" : "var(--line)",
-        background: active ? "var(--accent)" : "white",
+        background: active ? "var(--accent)" : "var(--surface)",
         color: active ? "white" : "var(--ink)",
         fontWeight: 600,
         fontSize: 13,

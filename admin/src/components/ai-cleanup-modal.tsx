@@ -45,7 +45,7 @@ export function AiCleanupModal({ current, proposed, model, onApply, onClose }: P
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0,0,0,0.4)',
+        background: 'var(--modal-overlay)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -55,13 +55,13 @@ export function AiCleanupModal({ current, proposed, model, onApply, onClose }: P
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: 'white',
+          background: 'var(--surface)',
           borderRadius: 12,
           maxWidth: 720,
           width: '90%',
           maxHeight: '85vh',
           overflow: 'auto',
-          boxShadow: '0 20px 50px rgba(0,0,0,0.2)',
+          boxShadow: 'var(--modal-shadow)',
         }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)' }}>
           <h3 style={{ margin: 0 }}>Proposition IA</h3>
