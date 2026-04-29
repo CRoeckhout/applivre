@@ -5,7 +5,10 @@
 //
 // Le prompt système est tenu ici pour rester aligné entre les deux flows.
 
-export const GROQ_MODEL = 'llama-3.1-8b-instant';
+// Modèle 70B versatile : qualité supérieure pour les règles complexes du
+// prompt (titres FR, casse, glossaire EN→FR). Plus lent que 8B-instant
+// (~1-2s vs ~300ms) mais respecte mieux les instructions sur ce schéma.
+export const GROQ_MODEL = 'llama-3.3-70b-versatile';
 export const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 
 export type GroqCleanInput = {
@@ -41,7 +44,7 @@ Tu retournes STRICTEMENT un JSON avec ce schéma :
 {
   "title": string,         // titre canonique du livre. Voir règles ci-dessous.
   "authors": string[],     // auteurs principaux uniquement, "Prénom Nom" propre. Exclure traducteurs, illustrateurs, préfaciers, éditeurs.
-  "categories": string[],  // genres normalisés en français, courts (1-3 mots), max 5 entrées. Pas de doublons sémantiques. Si une catégorie contient " & " ou " and ", scinde-la en plusieurs entrées indépendantes (ex: "Literature & Fiction" → ["Littérature","Fiction"]).
+  "categories": string[],  // genres EN FRANÇAIS UNIQUEMENT, jamais en anglais. Courts (1-3 mots), max 5 entrées. Pas de doublons sémantiques. Si une catégorie contient " & " ou " and ", scinde-la en plusieurs entrées indépendantes (ex: "Literature & Fiction" → ["Littérature","Fiction"]). Glossaire EN→FR à appliquer obligatoirement : Magic→Magie, Mystery→Mystère, Horror→Horreur, Adventure→Aventure, Children→Jeunesse, Self-help→Développement personnel, Crime→Polar, Comics→Bande dessinée, Graphic novel→Bande dessinée, Cookbook→Cuisine, Travel→Voyage, History→Histoire, Biography→Biographie, Memoir→Mémoires, Drama→Drame, Comedy→Comédie, Poetry→Poésie, Religion→Religion, Philosophy→Philosophie, Politics→Politique, Health→Santé, Business→Économie, Art→Art, Music→Musique, Sports→Sport, Literature→Littérature, Fiction→Fiction, Non-fiction→Documentaire, Romance→Romance, Thriller→Thriller, Western→Western, Fantasy→Fantasy, Science fiction→Science-fiction, Young adult→Young Adult.
   "confidence": number     // 0..1 — ta confiance dans le résultat global.
 }
 

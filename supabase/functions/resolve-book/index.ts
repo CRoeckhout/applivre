@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
     return json({ error: 'method_not_allowed' }, 405);
   }
 
-  let body: { isbn?: string };
+  let body: { isbn?: string; force?: boolean };
   try {
     body = await req.json();
   } catch {
@@ -64,16 +64,23 @@ Deno.serve(async (req) => {
   }
   const isbn = normalizeIsbn(body.isbn);
   if (!isbn) return json({ error: 'missing_isbn' }, 400);
+  // `force=true` : skip le cache, refetch toutes les sources, ré-applique
+  // Groq, et upsert. Utilisé par le script de backfill pour re-résoudre les
+  // livres anciens (source != 'isbndb') avec ISBN-DB comme top priorité +
+  // cleanup IA frais. Le client mobile ne l'utilise jamais.
+  const force = body.force === true;
 
   const db = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-  // Cache hit ? Si `books` déjà présent, on renvoie tel quel.
+  // Cache hit ? Si `books` déjà présent et pas de `force`, on renvoie tel quel.
   // TTL à implémenter plus tard (cached_at vs now).
-  const { data: cached } = await db
-    .from('books')
-    .select('*')
-    .eq('isbn', isbn)
-    .maybeSingle();
+  const { data: cached } = force
+    ? { data: null }
+    : await db
+        .from('books')
+        .select('*')
+        .eq('isbn', isbn)
+        .maybeSingle();
 
   if (cached) {
     return json({ book: toBook(cached), source: 'cache' });
@@ -113,14 +120,16 @@ Deno.serve(async (req) => {
   // — l'utilisateur reçoit toujours un Book.
   const polished = await polishWithGroq(merged);
   const aiCleanedAt = polished ? new Date().toISOString() : null;
-  let finalBook = polished ?? merged;
+  // Pass deterministe post-Groq : llama 8B / 70B respectent imparfaitement
+  // les règles "no edition suffix / FR uniquement" → on enforce idiomatic
+  // après le polish (ou sur le merge brut si polish skip).
+  let finalBook = sanitizeBook(polished ?? merged);
 
   // ─── Placeholder ISBN-DB ───
   // ISBN-DB renvoie une cover URL même quand l'éditeur n'a pas fourni
   // d'image — l'URL diffère par ISBN mais sert toujours le même placeholder.
-  // On compare par hash SHA-256 du body (HEAD-first sur la taille pour skip
-  // les vraies covers ≥ 16KB) et on drop la cover si match, pour que
-  // `cover_url IS NULL` reflète vraiment l'absence visuelle.
+  // On compare par hash SHA-256 du body et on drop la cover si match, pour
+  // que `cover_url IS NULL` reflète vraiment l'absence visuelle.
   if (finalBook.coverUrl && (await isIsbnDbPlaceholder(finalBook.coverUrl))) {
     finalBook = { ...finalBook, coverUrl: undefined };
   }
@@ -320,9 +329,12 @@ async function fetchIsbnDb(isbn: string): Promise<Book | null> {
   const extracted = v.isbn13 ?? v.isbn;
   const year = v.date_published?.match(/\d{4}/)?.[0];
   const cleanedSubjects = filterIsbnDbSubjects(v.subjects ?? []);
+  // Préfère `title` (court, propre) à `title_long` (souvent verbeux avec
+  // sous-titres marketing, ex: "Tremblez ! Crimes au Japon. 8 histoires
+  // criminelles..."). On garde `title_long` en fallback si `title` absent.
   return {
     isbn: extracted ?? isbn,
-    title: v.title_long ?? v.title ?? 'Titre inconnu',
+    title: v.title ?? v.title_long ?? 'Titre inconnu',
     authors: v.authors ?? [],
     pages: typeof v.pages === 'number' && v.pages > 0 ? v.pages : undefined,
     publishedAt: year ?? v.date_published,
@@ -480,4 +492,216 @@ async function fetchBnf(isbn: string): Promise<Book | null> {
     authors: creator ? [creator.split('.')[0].trim()] : [],
     publishedAt: year,
   };
+}
+
+// ─── Sanitizers idiomatiques (post-Groq) ───
+// Le polish LLM laisse passer des résidus récurrents (suffixes "roman",
+// "édition collector", catégories en anglais). Ces helpers s'exécutent
+// inconditionnellement avant l'upsert pour garantir un état canonique
+// même si Groq est skippé (timeout, low conf, key absente).
+
+function sanitizeBook(b: Book): Book {
+  return {
+    ...b,
+    title: sanitizeTitle(b.title),
+    categories: b.categories ? sanitizeCategories(b.categories) : b.categories,
+  };
+}
+
+function sanitizeTitle(raw: string): string {
+  let s = raw.trim();
+  // Strip suffixes "roman", "nouvelle", "récit" (avec/sans " : " séparateur)
+  s = s.replace(/\s*[:,–—-]?\s*(?:roman|nouvelle|récit)\s*$/iu, '');
+  // Strip mentions d'édition trailing (avec/sans parenthèses, accents
+  // facultatifs). Couvre : "édition reliée", "Edition collector", "édition
+  // Jaspage", "édition originale", "édition spéciale", "édition limitée",
+  // "édition illustrée", "édition de poche", "version X", "ebook".
+  s = s.replace(
+    /\s*[\.,]?\s*\(?\s*(?:[ée]dition|version)\s+[a-zàâäéèêëîïôöùûüç\-]+(?:\s+[a-zàâäéèêëîïôöùûüç\-]+)?\s*\)?\s*$/iu,
+    '',
+  );
+  s = s.replace(/\s*[\.,]?\s*\(?\s*collector\s*\)?\s*$/iu, '');
+  s = s.replace(/\s*[\.,]?\s*\(?\s*ebook\s*\)?\s*$/iu, '');
+  // Strip chiffre orphelin entre parenthèses en queue : "Foo (2)" → "Foo".
+  s = s.replace(/\s*\(\s*\d+\s*\)\s*$/u, '');
+  // Strip points isolés et séparateurs orphelins en queue.
+  s = s.replace(/\s*[\.,;:\-–—/]\s*$/u, '');
+  // Normalise les espaces multiples.
+  s = s.replace(/\s+/g, ' ').trim();
+  return s.length > 0 ? s : raw;
+}
+
+// Map EN→FR forcée. Lookup case-insensitive sur le libellé complet (lowercased).
+// Si la catégorie contient `/` (composite Amazon BSR : "JUVENILE FICTION /
+// Love & Romance") ou matche la DROP_LIST, on l'élimine.
+const FR_CATEGORY_MAP: Record<string, string> = {
+  'literature': 'Littérature',
+  'fiction': 'Fiction',
+  "children's books": 'Jeunesse',
+  'children': 'Jeunesse',
+  'juvenile fiction': 'Jeunesse',
+  'fiction pour jeunes': 'Jeunesse',
+  'roman de jeunesse': 'Jeunesse',
+  'fiction jeunesse': 'Jeunesse',
+  'contes pour enfants': 'Jeunesse',
+  'jeune adulte': 'Young Adult',
+  'teen': 'Young Adult',
+  'young adult': 'Young Adult',
+  'young adult fiction': 'Young Adult',
+  'science fiction': 'Science-fiction',
+  'science-fiction': 'Science-fiction',
+  'sci-fi': 'Science-fiction',
+  'fantasy': 'Fantasy',
+  'fantasie': 'Fantasy',
+  'fantastique': 'Fantastique',
+  'mystery': 'Mystère',
+  'mystère': 'Mystère',
+  'thriller': 'Thriller',
+  'thrillers': 'Thriller',
+  'suspense': 'Suspense',
+  'horror': 'Horreur',
+  'horreur': 'Horreur',
+  'romance': 'Romance',
+  'romantic suspense': 'Romance',
+  'romantasy': 'Romantasy',
+  'comics': 'Bande dessinée',
+  'graphic novels': 'Bande dessinée',
+  'graphic novel': 'Bande dessinée',
+  'comics & graphic novels': 'Bande dessinée',
+  'bande dessinée': 'Bande dessinée',
+  'bande bessinée': 'Bande dessinée',
+  'manga': 'Manga',
+  'crime': 'Polar',
+  'true crime': 'Polar',
+  'polar': 'Polar',
+  'biography': 'Biographie',
+  'biographies': 'Biographie',
+  'biographie': 'Biographie',
+  'memoirs': 'Mémoires',
+  'memoir': 'Mémoires',
+  'mémoires': 'Mémoires',
+  'politics': 'Politique',
+  'politique': 'Politique',
+  'social sciences': 'Sciences sociales',
+  'criminology': 'Criminologie',
+  'criminologie': 'Criminologie',
+  'religion': 'Religion',
+  'history': 'Histoire',
+  'histoire': 'Histoire',
+  'philosophy': 'Philosophie',
+  'philosophie': 'Philosophie',
+  'health': 'Santé',
+  'santé': 'Santé',
+  'business': 'Économie',
+  'économie': 'Économie',
+  'art': 'Art',
+  'music': 'Musique',
+  'musique': 'Musique',
+  'sports': 'Sport',
+  'sport': 'Sport',
+  'travel': 'Voyage',
+  'voyage': 'Voyage',
+  'cookbook': 'Cuisine',
+  'cookbooks': 'Cuisine',
+  'cuisine': 'Cuisine',
+  'self-help': 'Développement personnel',
+  'développement personnel': 'Développement personnel',
+  'magic': 'Magie',
+  'magie': 'Magie',
+  'adventure': 'Aventure',
+  'aventure': 'Aventure',
+  'action': 'Action',
+  'paranormal': 'Paranormal',
+  'literary': 'Littéraire',
+  'littéraire': 'Littéraire',
+  'contemporary': 'Contemporain',
+  'contemporain': 'Contemporain',
+  'world literature': 'Littérature étrangère',
+  'european': 'Littérature européenne',
+  'shifters': 'Métamorphes',
+  'polyamory': 'Polyamour',
+  'survival': 'Survie',
+  'survie': 'Survie',
+  'dystopian': 'Dystopie',
+  'dystopia': 'Dystopie',
+  'dystopie': 'Dystopie',
+  'drama': 'Drame',
+  'drame': 'Drame',
+  'comedy': 'Comédie',
+  'comédie': 'Comédie',
+  'poetry': 'Poésie',
+  'poésie': 'Poésie',
+  'science': 'Science',
+  'love': 'Amour',
+  'amour': 'Amour',
+  'family': 'Famille',
+  'famille': 'Famille',
+  'friendship': 'Amitié',
+  'photography': 'Photographie',
+  'photographie': 'Photographie',
+  'jeunesse': 'Jeunesse',
+  'romans, nouvelles': 'Littérature',
+  'histoires d\'amour': 'Romance',
+};
+
+// Catégories génériques / Amazon BSR / non-genre à éliminer après lookup.
+// Lowercased pour comparaison.
+const CATEGORY_DROP = new Set<string>([
+  'general',
+  'subjects',
+  'reference',
+  'research',
+  'publishing guides',
+  'christian books',
+  'bibles',
+  'urban',
+  'romantic',
+  'contests',
+  'princes',
+  'marriage',
+  'love & romance',
+  'girls & women',
+  'rettung', // observé en prod, allemand "sauvetage" — pas un genre
+  'jeu',
+  'jeux',
+  'stratégie',
+  'critique',
+  'thèmes',
+  'technologie',
+  'rencontres avec les extraterrestres',
+  'invasions biologiques',
+  'possession par les esprits',
+  'possesion par les esprits',
+  'esprit et corps',
+  'spirit possession',
+  'biological invasions',
+  'human-alien encounters',
+  'romance fiction',
+  'identité',
+  'biologie',
+  'astronomie',
+  'informatique',
+  'psychologie',
+  'roman',
+]);
+
+function sanitizeCategories(raw: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const c of raw) {
+    const trimmed = c.trim();
+    if (trimmed.length === 0) continue;
+    // Composites Amazon BSR : "JUVENILE FICTION / Love & Romance" → drop.
+    if (trimmed.includes('/')) continue;
+    // Lookup case-insensitive.
+    const lower = trimmed.toLowerCase();
+    if (CATEGORY_DROP.has(lower)) continue;
+    const mapped = FR_CATEGORY_MAP[lower] ?? trimmed;
+    const key = mapped.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(mapped);
+  }
+  // Cap à 5 entrées (cohérent avec le prompt Groq).
+  return out.slice(0, 5);
 }
