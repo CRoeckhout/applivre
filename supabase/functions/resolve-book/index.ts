@@ -17,6 +17,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { cleanWithGroq } from '../_shared/groq-cleanup.ts';
+import { isIsbnDbPlaceholder } from '../_shared/isbndb-placeholder.ts';
 
 type Book = {
   isbn: string;
@@ -112,7 +113,17 @@ Deno.serve(async (req) => {
   // — l'utilisateur reçoit toujours un Book.
   const polished = await polishWithGroq(merged);
   const aiCleanedAt = polished ? new Date().toISOString() : null;
-  const finalBook = polished ?? merged;
+  let finalBook = polished ?? merged;
+
+  // ─── Placeholder ISBN-DB ───
+  // ISBN-DB renvoie une cover URL même quand l'éditeur n'a pas fourni
+  // d'image — l'URL diffère par ISBN mais sert toujours le même placeholder.
+  // On compare par hash SHA-256 du body (HEAD-first sur la taille pour skip
+  // les vraies covers ≥ 16KB) et on drop la cover si match, pour que
+  // `cover_url IS NULL` reflète vraiment l'absence visuelle.
+  if (finalBook.coverUrl && (await isIsbnDbPlaceholder(finalBook.coverUrl))) {
+    finalBook = { ...finalBook, coverUrl: undefined };
+  }
 
   // Upsert en cache.
   const { error: upsertErr } = await db
