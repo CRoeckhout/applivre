@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { BookCatalogRow } from '../lib/types';
 
 export type QuickFilter =
@@ -30,11 +31,19 @@ type Props = {
   onQueryChange: (q: string) => void;
   onSelect: (isbn: string) => void;
   loading: boolean;
+  loadingMore: boolean;
   total: number;
   activeFilters: Set<QuickFilter>;
   filterCounts: Record<QuickFilter, number>;
   onToggleFilter: (f: QuickFilter) => void;
+  onLoadMore: () => void;
+  hasMore: boolean;
 };
+
+// Distance en pixels avant le bas du scroll à laquelle on déclenche le
+// chargement de la page suivante. Un seuil > 0 évite de devoir toucher le
+// fond exact pour fetcher la suite.
+const LOAD_MORE_THRESHOLD_PX = 200;
 
 export function BookList({
   books,
@@ -43,13 +52,33 @@ export function BookList({
   onQueryChange,
   onSelect,
   loading,
+  loadingMore,
   total,
   activeFilters,
   filterCounts,
   onToggleFilter,
+  onLoadMore,
+  hasMore,
 }: Props) {
+  const scrollerRef = useRef<HTMLElement | null>(null);
+
+  // Scroll handler : déclenche `onLoadMore` quand on approche du fond.
+  // Re-attaché à chaque changement de hasMore/loadingMore — sinon le handler
+  // capture des valeurs périmées et fire en boucle ou pas du tout.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    function onScroll() {
+      if (!el || !hasMore || loadingMore) return;
+      const remaining = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (remaining < LOAD_MORE_THRESHOLD_PX) onLoadMore();
+    }
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [hasMore, loadingMore, onLoadMore]);
+
   return (
-    <aside style={{ width: 360, borderRight: '1px solid var(--line)', overflow: 'auto', background: 'white' }}>
+    <aside ref={scrollerRef} style={{ width: 360, borderRight: '1px solid var(--line)', overflow: 'auto', background: 'white' }}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: 'white', zIndex: 1 }}>
         <input
           type="search"
@@ -154,6 +183,16 @@ export function BookList({
         })}
         {!loading && books.length === 0 && (
           <li style={{ padding: 24, textAlign: 'center' }} className="muted">Aucun livre</li>
+        )}
+        {books.length > 0 && hasMore && (
+          <li style={{ padding: 12, textAlign: 'center', fontSize: 11 }} className="muted">
+            {loadingMore ? 'Chargement…' : `${books.length} / ${total}`}
+          </li>
+        )}
+        {books.length > 0 && !hasMore && (
+          <li style={{ padding: 12, textAlign: 'center', fontSize: 11 }} className="muted">
+            Fin · {total} livre{total > 1 ? 's' : ''}
+          </li>
         )}
       </ul>
     </aside>

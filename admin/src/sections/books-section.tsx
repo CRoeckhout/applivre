@@ -30,9 +30,13 @@ export function BooksSection({ itemId, onItemChange }: Props) {
   const [activeFilters, setActiveFilters] = useState<Set<QuickFilter>>(new Set());
   const [filterCounts, setFilterCounts] = useState<FilterCounts>(ZERO_COUNTS);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const queryTimer = useRef<number | null>(null);
+  // Mémorise le dernier appel `load` pour ignorer les réponses obsolètes
+  // quand la query/les filtres changent en plein vol.
+  const loadIdRef = useRef(0);
 
   useEffect(() => {
     if (queryTimer.current) window.clearTimeout(queryTimer.current);
@@ -45,7 +49,7 @@ export function BooksSection({ itemId, onItemChange }: Props) {
   }, [query]);
 
   useEffect(() => {
-    void load(debouncedQuery, activeFilters);
+    void load(debouncedQuery, activeFilters, false);
   }, [debouncedQuery, activeFilters]);
 
   useEffect(() => {
@@ -83,6 +87,7 @@ export function BooksSection({ itemId, onItemChange }: Props) {
       eq: (col: string, val: unknown) => T;
       like: (col: string, val: string) => T;
       filter: (col: string, op: string, val: string) => T;
+      or: (filters: string) => T;
     },
     f: QuickFilter,
   ): T {
@@ -102,41 +107,59 @@ export function BooksSection({ itemId, onItemChange }: Props) {
     }
   }
 
-  async function load(q: string, filters: Set<QuickFilter>) {
-    setLoading(true);
+  async function load(q: string, filters: Set<QuickFilter>, append: boolean) {
+    if (append) setLoadingMore(true);
+    else setLoading(true);
     setLoadError(null);
-    let req = supabase
+
+    const myId = ++loadIdRef.current;
+
+    // Pagination par range : append fetch à partir de books.length, sinon 0.
+    // `range` est inclusif des deux côtés ; PAGE_SIZE rows par appel.
+    const start = append ? books.length : 0;
+    const end = start + PAGE_SIZE - 1;
+
+    const req = supabase
       .from('books')
       .select('*', { count: 'exact' })
-      .order('cached_at', { ascending: false })
-      .limit(PAGE_SIZE);
+      .order('cached_at', { ascending: false });
 
+    // Postgrest builders mutent et renvoient `this` ; on ignore la valeur de
+    // retour. Cast `as any` au call site pour empêcher TS d'instancier en
+    // chaîne le générique d'applyQuickFilter (sinon : "Type instantiation is
+    // excessively deep") quand le builder est sans `.limit()` initial.
     for (const f of filters) {
-      req = applyQuickFilter(req, f);
+      applyQuickFilter(req as never, f);
     }
 
     if (q.length > 0) {
       const escaped = q.replace(/[%_,]/g, (c) => `\\${c}`);
       const pattern = `%${escaped}%`;
-      req = req.or(`isbn.ilike.${pattern},title.ilike.${pattern}`);
+      req.or(`isbn.ilike.${pattern},title.ilike.${pattern}`);
     }
 
-    const { data, error, count } = await req;
-    setLoading(false);
+    // `range` chaîné en dernier (et non ré-affecté) : évite l'explosion de
+    // type generic instantiation quand on combine range + applyQuickFilter.
+    const { data, error, count } = await req.range(start, end);
+    if (myId !== loadIdRef.current) return; // résultat obsolète, drop
+    if (append) setLoadingMore(false);
+    else setLoading(false);
     if (error) {
       setLoadError(error.message);
       return;
     }
 
     let rows = (data ?? []) as BookCatalogRow[];
-    // Fallback recherche auteur (PostgREST ilike pas sur array).
-    // Skip si filtres actifs — on chainerait des filtres en mémoire, pas le but.
-    if (q.length > 0 && rows.length === 0 && filters.size === 0) {
+    // Fallback recherche auteur (PostgREST ilike pas sur array). Uniquement
+    // au premier load (pas append) et si résultat principal vide. Skip si
+    // filtres actifs — on chainerait des filtres en mémoire, pas le but.
+    if (!append && q.length > 0 && rows.length === 0 && filters.size === 0) {
       const fallback = await supabase
         .from('books')
         .select('*', { count: 'exact' })
         .order('cached_at', { ascending: false })
         .limit(500);
+      if (myId !== loadIdRef.current) return;
       if (!fallback.error) {
         const needle = q.toLowerCase();
         rows = ((fallback.data ?? []) as BookCatalogRow[]).filter((b) =>
@@ -145,17 +168,23 @@ export function BooksSection({ itemId, onItemChange }: Props) {
       }
     }
 
-    setBooks(rows);
+    setBooks((prev) => (append ? [...prev, ...rows] : rows));
     setTotal(count ?? 0);
+  }
+
+  function loadMore() {
+    if (loading || loadingMore) return;
+    if (books.length >= total) return;
+    void load(debouncedQuery, activeFilters, true);
   }
 
   async function loadCounts() {
     const entries = await Promise.all(
       QUICK_FILTERS.map(async (f) => {
-        let req = supabase
+        const req = supabase
           .from('books')
           .select('isbn', { count: 'exact', head: true });
-        req = applyQuickFilter(req, f);
+        applyQuickFilter(req as never, f);
         const { count } = await req;
         return [f, count ?? 0] as const;
       }),
@@ -208,10 +237,13 @@ export function BooksSection({ itemId, onItemChange }: Props) {
         onQueryChange={setQuery}
         onSelect={onItemChange}
         loading={loading}
+        loadingMore={loadingMore}
         total={total}
         activeFilters={activeFilters}
         filterCounts={filterCounts}
         onToggleFilter={toggleFilter}
+        onLoadMore={loadMore}
+        hasMore={books.length < total}
       />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         {loadError && (
