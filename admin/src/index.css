@@ -110,11 +110,16 @@ input, select, textarea {
   cursor: not-allowed;
 }
 
+fieldset {
+  min-width: 0;
+}
+
 .field {
   display: flex;
   flex-direction: column;
   gap: 4px;
   margin-bottom: 12px;
+  min-width: 0;
 }
 
 .field label {
@@ -133,6 +138,8 @@ input, select, textarea {
   padding: 8px 10px;
   background: var(--surface);
   color: var(--ink);
+  width: 100%;
+  min-width: 0;
 }
 
 .field textarea {
