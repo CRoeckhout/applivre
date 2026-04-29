@@ -23,7 +23,6 @@ export const AVAILABLE_HOME_CARDS: HomeCardId[] = ['library', 'sheets', 'defi'];
 export type Preferences = {
   dailyReadingGoalMinutes: number;
   homeCardOrder: HomeCardId[];
-  avatarUrl: string | null;
   themeId: string;
   fontId: FontId;
   colorPrimary: string;
@@ -38,7 +37,6 @@ const papier = getTheme(DEFAULT_THEME_ID);
 export const DEFAULT_PREFERENCES: Preferences = {
   dailyReadingGoalMinutes: 10,
   homeCardOrder: [...AVAILABLE_HOME_CARDS],
-  avatarUrl: null,
   themeId: papier.id,
   fontId: DEFAULT_FONT_ID,
   colorPrimary: papier.primary,
@@ -51,7 +49,6 @@ export const DEFAULT_PREFERENCES: Preferences = {
 type PreferencesState = Preferences & {
   setDailyReadingGoalMinutes: (minutes: number) => void;
   setHomeCardOrder: (order: HomeCardId[]) => void;
-  setAvatarUrl: (url: string | null) => void;
   applyTheme: (themeId: string) => void;
   setFontId: (fontId: FontId) => void;
   setColorPrimary: (hex: string) => void;
@@ -77,7 +74,6 @@ function pushFullPrefs(state: Preferences): void {
   void syncUpsertPreferences(userId, {
     dailyReadingGoalMinutes: state.dailyReadingGoalMinutes,
     homeCardOrder: state.homeCardOrder,
-    avatarUrl: state.avatarUrl,
     themeId: state.themeId,
     fontId: state.fontId,
     colorPrimary: state.colorPrimary,
@@ -105,10 +101,6 @@ export const usePreferences = create<PreferencesState>()(
         const missing = AVAILABLE_HOME_CARDS.filter((id) => !known.includes(id));
         const safe = [...known, ...missing];
         set({ homeCardOrder: safe });
-        pushFullPrefs(get());
-      },
-      setAvatarUrl: (url) => {
-        set({ avatarUrl: url });
         pushFullPrefs(get());
       },
       applyTheme: (themeId) => {
@@ -190,12 +182,14 @@ export const usePreferences = create<PreferencesState>()(
     }),
     {
       name: `${APP_SLUG}-preferences`,
-      version: 6,
+      version: 7,
       storage: createJSONStorage(() => AsyncStorage),
       migrate: (persisted: unknown, version: number) => {
         // Toute version antérieure → merge avec defaults : ajoute les champs
         // manquants (theme/font/colors, customThemes) sans perdre l'existant.
-        const prev = (persisted ?? {}) as Partial<Preferences>;
+        const prev = (persisted ?? {}) as Partial<Preferences> & {
+          avatarUrl?: string | null;
+        };
         const merged = { ...DEFAULT_PREFERENCES, ...prev };
         // v5 utilisait '' comme sentinel auto-default. v6 abandonne cette
         // sémantique : les cadres "default" sont maintenant ceux dispo pour
@@ -203,6 +197,11 @@ export const usePreferences = create<PreferencesState>()(
         // 'none' (pas de cadre) ; user re-pick s'il veut un cadre.
         if (version < 6 && merged.borderId === '') {
           merged.borderId = 'none';
+        }
+        // v7 : avatarUrl déménage vers useProfile (SSOT = profiles.avatar_url
+        // côté DB). On strip la clé du blob persisté ici.
+        if (version < 7) {
+          delete (merged as Record<string, unknown>).avatarUrl;
         }
         return merged;
       },

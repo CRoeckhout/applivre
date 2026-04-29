@@ -17,6 +17,7 @@ import {
   internalUpsertChallenge,
   internalUpsertCycle,
   internalUpsertLoan,
+  internalUpsertAvatarUrl,
   internalUpsertPreferences,
   internalUpsertSheet,
   internalUpsertStreakDay,
@@ -63,6 +64,8 @@ export async function executeEntry(entry: QueueEntry): Promise<void> {
       return internalUpsertPreferences(entry.payload.userId, entry.payload.prefs);
     case 'upsertUsername':
       return internalUpsertUsername(entry.payload.userId, entry.payload.username);
+    case 'upsertAvatarUrl':
+      return internalUpsertAvatarUrl(entry.payload.userId, entry.payload.avatarUrl);
     case 'upsertBingo':
       return internalUpsertBingo(entry.payload.bingo);
     case 'deleteBingo':

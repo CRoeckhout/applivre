@@ -266,6 +266,20 @@ export async function internalUpsertPreferences(
   );
 }
 
+// Avatar URL : colonne séparée sur profiles (lue par l'admin et d'autres
+// consommateurs sans plonger dans le JSONB). SSOT côté DB.
+export async function internalUpsertAvatarUrl(
+  userId: string,
+  avatarUrl: string | null,
+): Promise<void> {
+  await throwIfError(
+    supabase.from('profiles').upsert(
+      { id: userId, avatar_url: avatarUrl },
+      { onConflict: 'id' },
+    ),
+  );
+}
+
 // Bingos
 export async function internalUpsertBingo(b: Bingo): Promise<void> {
   await throwIfError(

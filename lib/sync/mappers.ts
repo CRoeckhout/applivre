@@ -424,13 +424,20 @@ export function pillToDb(p: BingoPill): Omit<DbBingoPill, 'created_at'> {
 // ═══════════════ Profile / Preferences ═══════════════
 
 // La colonne JSONB stocke les préférences user en camelCase (pas de transform).
+// `avatar_url` vit sur sa propre colonne (SSOT) — pas dans `preferences`.
 export type DbProfile = {
   id: string;
-  preferences: Partial<import('@/store/preferences').Preferences> | null;
+  preferences:
+    | (Partial<import('@/store/preferences').Preferences> & { avatarUrl?: string | null })
+    | null;
 };
 
 export function preferencesFromDb(
   row: DbProfile,
 ): Partial<import('@/store/preferences').Preferences> {
-  return row.preferences ?? {};
+  if (!row.preferences) return {};
+  // Strip la clé legacy `avatarUrl` qui pourrait traîner dans le JSONB
+  // d'anciens profils — le store useProfile est désormais la seule source.
+  const { avatarUrl: _legacy, ...rest } = row.preferences;
+  return rest;
 }

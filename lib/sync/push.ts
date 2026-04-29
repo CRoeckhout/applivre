@@ -136,12 +136,13 @@ export async function pushLocalData(userId: string): Promise<PushSummary> {
     summary.streakDays = streakDays.length;
   }
 
-  // 8. Profile row (préférences + username) — un seul upsert pour merge
-  const { dailyReadingGoalMinutes, homeCardOrder, avatarUrl } = usePreferences.getState();
-  const { username } = useProfile.getState();
+  // 8. Profile row (préférences + username + avatar_url) — un seul upsert pour merge
+  const { dailyReadingGoalMinutes, homeCardOrder } = usePreferences.getState();
+  const { username, avatarUrl } = useProfile.getState();
   const profileRow: Record<string, unknown> = {
     id: userId,
-    preferences: { dailyReadingGoalMinutes, homeCardOrder, avatarUrl },
+    preferences: { dailyReadingGoalMinutes, homeCardOrder },
+    avatar_url: avatarUrl,
   };
   if (username) profileRow.username = username;
   const { error: prefErr } = await supabase

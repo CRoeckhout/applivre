@@ -18,7 +18,7 @@ export function resetAllStores(): void {
   useChallenges.setState({ challenges: {} });
   useReadingStreak.setState({ manualDays: [] });
   usePreferences.setState({ ...DEFAULT_PREFERENCES });
-  useProfile.setState({ username: null });
+  useProfile.setState({ username: null, avatarUrl: null });
   useSyncQueue.setState({ ops: [] });
   useBadges.setState({ earned: {} });
   useBadgeCatalog.getState().reset();

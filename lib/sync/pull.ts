@@ -70,7 +70,7 @@ export async function pullUserData(userId: string): Promise<void> {
     supabase.from('reading_streak_days').select('*'),
     supabase
       .from('profiles')
-      .select('id, username, preferences')
+      .select('id, username, avatar_url, preferences')
       .eq('id', userId)
       .maybeSingle(),
     supabase.from('read_cycles').select('*'),
@@ -123,9 +123,12 @@ export async function pullUserData(userId: string): Promise<void> {
 
   const manualDays = ((streakRes.data as DbStreakDay[]) ?? []).map(streakDayFromDb);
 
-  const profileRow = profileRes.data as (DbProfile & { username: string | null }) | null;
+  const profileRow = profileRes.data as
+    | (DbProfile & { username: string | null; avatar_url: string | null })
+    | null;
   const prefs = profileRow ? preferencesFromDb(profileRow) : {};
   const username = profileRow?.username ?? null;
+  const avatarUrl = profileRow?.avatar_url ?? null;
 
   const bingos = ((bingoRes.data as DbBingo[]) ?? []).map(bingoFromDb);
   const completions: Record<string, BingoCompletion[]> = {};
@@ -153,7 +156,7 @@ export async function pullUserData(userId: string): Promise<void> {
   useChallenges.setState({ challenges });
   useReadingStreak.setState({ manualDays });
   usePreferences.setState({ ...DEFAULT_PREFERENCES, ...prefs });
-  useProfile.setState({ username });
+  useProfile.setState({ username, avatarUrl });
   useBingos.setState({ bingos, completions, pills });
   useBadges.setState({ earned });
   useBadgeCatalog.getState().setAll(catalogList);

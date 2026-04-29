@@ -18,6 +18,7 @@ import {
   internalUpsertChallenge,
   internalUpsertCycle,
   internalUpsertLoan,
+  internalUpsertAvatarUrl,
   internalUpsertPreferences,
   internalUpsertSheet,
   internalUpsertStreakDay,
@@ -219,6 +220,16 @@ export function syncUpsertUsername(userId: string, username: string): Promise<vo
   return runOrQueue(
     () => internalUpsertUsername(userId, username),
     () => ({ kind: 'upsertUsername', payload: { userId, username } }),
+  );
+}
+
+export function syncUpsertAvatarUrl(
+  userId: string,
+  avatarUrl: string | null,
+): Promise<void> {
+  return runOrQueue(
+    () => internalUpsertAvatarUrl(userId, avatarUrl),
+    () => ({ kind: 'upsertAvatarUrl', payload: { userId, avatarUrl } }),
   );
 }
 

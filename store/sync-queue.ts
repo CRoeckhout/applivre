@@ -37,6 +37,10 @@ export type QueuedOp =
       kind: 'upsertUsername';
       payload: { userId: string; username: string };
     }
+  | {
+      kind: 'upsertAvatarUrl';
+      payload: { userId: string; avatarUrl: string | null };
+    }
   | { kind: 'upsertBingo'; payload: { bingo: Bingo } }
   | { kind: 'deleteBingo'; payload: { id: string } }
   | {

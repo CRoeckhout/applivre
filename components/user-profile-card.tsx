@@ -1,7 +1,6 @@
 import { useCardFrame } from "@/components/card-frame-context";
 import { useAuth } from "@/hooks/use-auth";
 import { pickAndUploadAvatar } from "@/lib/avatar";
-import { usePreferences } from "@/store/preferences";
 import { useProfile } from "@/store/profile";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -11,8 +10,8 @@ import { BadgeStrip } from "./badges/badge-strip";
 
 export function UserProfileCard() {
   const { session } = useAuth();
-  const avatarUrl = usePreferences((s) => s.avatarUrl);
-  const setAvatarUrl = usePreferences((s) => s.setAvatarUrl);
+  const avatarUrl = useProfile((s) => s.avatarUrl);
+  const setAvatarUrl = useProfile((s) => s.setAvatarUrl);
   const username = useProfile((s) => s.username);
   const [uploading, setUploading] = useState(false);
   const { inFrame, padding: framedPadding } = useCardFrame();
