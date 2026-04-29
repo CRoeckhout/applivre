@@ -57,7 +57,11 @@ export async function executeEntry(entry: QueueEntry): Promise<void> {
     case 'deleteChallenge':
       return internalDeleteChallenge(entry.payload.year, entry.payload.userId);
     case 'upsertStreakDay':
-      return internalUpsertStreakDay(entry.payload.day, entry.payload.userId);
+      return internalUpsertStreakDay(
+        entry.payload.day,
+        entry.payload.userId,
+        entry.payload.goalMinutes,
+      );
     case 'deleteStreakDay':
       return internalDeleteStreakDay(entry.payload.day, entry.payload.userId);
     case 'upsertPreferences':

@@ -190,10 +190,14 @@ export function syncDeleteChallenge(year: number, userId: string): Promise<void>
 
 // ═══════════════ Reading streak days ═══════════════
 
-export function syncUpsertStreakDay(day: string, userId: string): Promise<void> {
+export function syncUpsertStreakDay(
+  day: string,
+  userId: string,
+  goalMinutes: number,
+): Promise<void> {
   return runOrQueue(
-    () => internalUpsertStreakDay(day, userId),
-    () => ({ kind: 'upsertStreakDay', payload: { day, userId } }),
+    () => internalUpsertStreakDay(day, userId, goalMinutes),
+    () => ({ kind: 'upsertStreakDay', payload: { day, userId, goalMinutes } }),
   );
 }
 

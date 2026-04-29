@@ -6,7 +6,7 @@ import {
   lastNDays,
   todayIso,
 } from "@/lib/date";
-import { usePreferences } from "@/store/preferences";
+import { MAX_DAILY_GOAL_MINUTES, usePreferences } from "@/store/preferences";
 import { useReadingStreak } from "@/store/reading-streak";
 import { useTimer } from "@/store/timer";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -69,6 +69,7 @@ export function StreakCard({
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const today = todayIso();
+  const yesterday = dayOffset(today, -1);
   const thresholdSec = goalMinutes * 60;
 
   const autoDays = useMemo(() => {
@@ -186,7 +187,9 @@ export function StreakCard({
             {strip.map((day) => {
               const done = completed.has(day);
               const isToday = day === today;
-              const canToggle = day <= today && !autoDays.has(day);
+              const canToggle =
+                (day === today || day === yesterday) && !autoDays.has(day);
+              const isPastMissed = day < yesterday && !done;
               return (
                 <Pressable
                   key={day}
@@ -205,11 +208,15 @@ export function StreakCard({
                         ? "bg-accent"
                         : isToday
                           ? "border-2 border-ink/40 bg-paper"
-                          : "bg-paper"
+                          : isPastMissed
+                            ? "bg-paper-shade"
+                            : "bg-paper"
                     }`}
                   >
                     {done ? (
                       <Text className="text-paper">✓</Text>
+                    ) : isPastMissed ? (
+                      <Text className="text-base">😔</Text>
                     ) : (
                       <Text className={isToday ? "text-ink" : "text-ink-muted"}>
                         {day.slice(8, 10)}
@@ -225,17 +232,25 @@ export function StreakCard({
 
           <View className="mt-5 flex-row gap-3">
             <View className="flex-1 items-center rounded-2xl bg-paper p-3">
-              <Text className="font-display text-2xl text-ink">
-                {stats.current}
-              </Text>
+              <View className="flex-row items-center gap-1">
+                <Text className="font-display text-2xl text-ink">
+                  {stats.current}
+                </Text>
+                {stats.current > 0 && stats.current === stats.best ? (
+                  <Text className="text-lg">🔥</Text>
+                ) : null}
+              </View>
               <Text className="mt-0.5 text-xs text-ink-muted">
                 Série actuelle
               </Text>
             </View>
             <View className="flex-1 items-center rounded-2xl bg-paper p-3">
-              <Text className="font-display text-2xl text-ink">
-                {stats.best}
-              </Text>
+              <View className="flex-row items-center gap-1">
+                <Text className="font-display text-2xl text-ink">
+                  {stats.best}
+                </Text>
+                {stats.best > 0 ? <Text className="text-lg">🔥</Text> : null}
+              </View>
               <Text className="mt-0.5 text-xs text-ink-muted">Record</Text>
             </View>
             <View className="flex-1 items-center rounded-2xl bg-paper p-3">
@@ -275,7 +290,9 @@ function StreakSettingsModal({
 
   const adjust = (delta: number) => {
     const n = parseInt(value, 10) || 0;
-    setValue(String(Math.max(1, n + delta)));
+    setValue(
+      String(Math.max(1, Math.min(MAX_DAILY_GOAL_MINUTES, n + delta))),
+    );
   };
 
   return (
@@ -307,8 +324,17 @@ function StreakSettingsModal({
             <View className="min-w-28 items-center rounded-2xl bg-paper-warm px-4 py-3">
               <TextInput
                 value={value}
-                onChangeText={setValue}
+                onChangeText={(t) => {
+                  const digits = t.replace(/[^0-9]/g, "");
+                  if (digits === "") {
+                    setValue("");
+                    return;
+                  }
+                  const n = parseInt(digits, 10);
+                  setValue(String(Math.min(MAX_DAILY_GOAL_MINUTES, n)));
+                }}
                 keyboardType="number-pad"
+                maxLength={4}
                 className="text-center font-display text-4xl text-ink"
                 style={{ fontVariant: ["tabular-nums"] }}
                 selectTextOnFocus

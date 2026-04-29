@@ -335,11 +335,18 @@ export async function internalDeleteBingoPill(id: string): Promise<void> {
 // qui valide les conditions côté DB. Voir migration 0017.
 
 // Reading streak days
-export async function internalUpsertStreakDay(day: string, userId: string): Promise<void> {
+export async function internalUpsertStreakDay(
+  day: string,
+  userId: string,
+  goalMinutes: number,
+): Promise<void> {
   await throwIfError(
     supabase
       .from('reading_streak_days')
-      .upsert({ user_id: userId, day }, { onConflict: 'user_id,day' }),
+      .upsert(
+        { user_id: userId, day, goal_minutes: goalMinutes },
+        { onConflict: 'user_id,day' },
+      ),
   );
 }
 

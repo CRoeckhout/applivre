@@ -27,7 +27,10 @@ export type QueuedOp =
   | { kind: 'deleteSheet'; payload: { userBookId: string } }
   | { kind: 'upsertChallenge'; payload: { challenge: Challenge; userId: string } }
   | { kind: 'deleteChallenge'; payload: { year: number; userId: string } }
-  | { kind: 'upsertStreakDay'; payload: { day: string; userId: string } }
+  | {
+      kind: 'upsertStreakDay';
+      payload: { day: string; userId: string; goalMinutes: number };
+    }
   | { kind: 'deleteStreakDay'; payload: { day: string; userId: string } }
   | {
       kind: 'upsertPreferences';

@@ -60,9 +60,11 @@ type PreferencesState = Preferences & {
   resetToDefaults: () => void;
 };
 
+export const MAX_DAILY_GOAL_MINUTES = 1440; // 24h
+
 function clampMinutes(n: number): number {
   if (!Number.isFinite(n)) return DEFAULT_PREFERENCES.dailyReadingGoalMinutes;
-  return Math.max(1, Math.min(180, Math.floor(n)));
+  return Math.max(1, Math.min(MAX_DAILY_GOAL_MINUTES, Math.floor(n)));
 }
 
 // Supabase.upsert sur la colonne JSONB `preferences` remplace la valeur entière.
