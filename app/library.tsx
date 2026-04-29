@@ -20,6 +20,7 @@ type SectionDef = {
 const SECTIONS: SectionDef[] = [
   { status: 'wishlist', label: 'Wishlist' },
   { status: 'reading', label: 'En cours' },
+  { status: 'paused', label: 'En pause' },
   { status: 'to_read', label: 'À lire' },
   { status: 'read', label: 'Terminés' },
   { status: 'abandoned', label: 'Abandonnés' },
@@ -63,6 +64,7 @@ const STATUS_OPTIONS: { value: ReadingStatus; label: string }[] = [
   { value: 'wishlist', label: 'Wishlist' },
   { value: 'to_read', label: 'À lire' },
   { value: 'reading', label: 'En cours' },
+  { value: 'paused', label: 'En pause' },
   { value: 'read', label: 'Lu' },
   { value: 'abandoned', label: 'Abandonné' },
 ];
@@ -217,6 +219,7 @@ export default function LibraryScreen() {
     const byStatus: Record<ReadingStatus, UserBook[]> = {
       wishlist: [],
       reading: [],
+      paused: [],
       to_read: [],
       read: [],
       abandoned: [],
@@ -396,6 +399,8 @@ function statusLabel(s: ReadingStatus): string {
       return 'À lire';
     case 'reading':
       return 'En cours';
+    case 'paused':
+      return 'En pause';
     case 'read':
       return 'Lu';
     case 'abandoned':
@@ -737,6 +742,7 @@ const SELECTION_STATUS: {
   { value: 'wishlist', label: 'Wishlist', icon: 'bookmark-border', color: '#d4a017' },
   { value: 'to_read', label: 'À lire', icon: 'schedule', color: '#4a90c2' },
   { value: 'reading', label: 'En cours', icon: 'auto-stories', color: '#8e5dc8' },
+  { value: 'paused', label: 'En pause', icon: 'pause-circle-filled', color: '#8e5dc8' },
   { value: 'read', label: 'Lu', icon: 'check-circle', color: '#5fa84d' },
   { value: 'abandoned', label: 'Abandonné', icon: 'cancel', color: '#1f1a16' },
 ];

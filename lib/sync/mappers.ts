@@ -58,12 +58,14 @@ export type DbUserBook = {
   id: string;
   user_id: string;
   book_isbn: string;
-  status: 'wishlist' | 'to_read' | 'reading' | 'read' | 'abandoned';
+  status: 'wishlist' | 'to_read' | 'reading' | 'paused' | 'read' | 'abandoned';
   rating: number | null;
   favorite: boolean;
   started_at: string | null;
   finished_at: string | null;
   genres: string[];
+  paused_page: number | null;
+  paused_summary: string | null;
   created_at?: string | null;
 };
 
@@ -80,6 +82,8 @@ export function userBookFromDb(row: DbUserBook, book: Book): UserBook {
     finishedAt: row.finished_at ?? undefined,
     genres,
     addedAt: row.created_at ?? undefined,
+    pausedPage: row.paused_page ?? undefined,
+    pausedSummary: row.paused_summary ?? undefined,
   };
 }
 
@@ -102,6 +106,8 @@ export function userBookToDb(ub: UserBook, userId: string): DbUserBook {
     started_at: startedAt,
     finished_at: finishedAt,
     genres: ub.genres ?? [],
+    paused_page: ub.pausedPage ?? null,
+    paused_summary: ub.pausedSummary ?? null,
   };
 }
 

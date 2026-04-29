@@ -15,7 +15,11 @@ type BookshelfState = {
   books: UserBook[];
   addBook: (book: UserBook) => void;
   removeBook: (id: string) => void;
-  updateStatus: (id: string, status: ReadingStatus) => void;
+  updateStatus: (
+    id: string,
+    status: ReadingStatus,
+    pauseData?: { page?: number; summary?: string },
+  ) => void;
   toggleFavorite: (id: string) => void;
   setGenres: (id: string, genres: string[]) => void;
   hasBook: (isbn: string) => boolean;
@@ -42,7 +46,7 @@ export const useBookshelf = create<BookshelfState>()(
         set((state) => ({ books: state.books.filter((b) => b.id !== id) }));
         if (getSyncUserId()) void syncDeleteUserBook(id);
       },
-      updateStatus: (id, status) => {
+      updateStatus: (id, status, pauseData) => {
         let updated: UserBook | undefined;
         set((state) => ({
           books: state.books.map((b) => {
@@ -54,6 +58,20 @@ export const useBookshelf = create<BookshelfState>()(
               // Nouveau cycle ouvert : on efface l'éventuel finished_at antérieur
               // pour préserver la contrainte finished_at >= started_at.
               next.finishedAt = undefined;
+              // Reprise depuis pause : on efface le snapshot.
+              next.pausedPage = undefined;
+              next.pausedSummary = undefined;
+            }
+            if (status === 'paused') {
+              // Snapshot saisi via la modale ; les undefined sont conservés tels
+              // quels (l'utilisateur n'est pas obligé de remplir la page).
+              next.pausedPage = pauseData?.page;
+              next.pausedSummary = pauseData?.summary;
+            }
+            // Toute sortie vers un statut non-pause/non-reading purge le snapshot.
+            if (status !== 'reading' && status !== 'paused') {
+              next.pausedPage = undefined;
+              next.pausedSummary = undefined;
             }
             if (status === 'read' && !b.finishedAt) next.finishedAt = now;
             // Garde-fou : si les deux dates existent et sont incohérentes,

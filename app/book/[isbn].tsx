@@ -2,6 +2,7 @@ import { BookCover } from "@/components/book-cover";
 import { BookStatusBar } from "@/components/book-status-bar";
 import { GenreEditorModal } from "@/components/genre-editor-modal";
 import { LoanTracker } from "@/components/loan-tracker";
+import { PauseBookModal } from "@/components/pause-book-modal";
 import { ReadingTimer } from "@/components/reading-timer";
 import { SheetCard } from "@/components/sheet-card";
 import { formatDurationHuman } from "@/hooks/use-elapsed-time";
@@ -49,6 +50,7 @@ export default function BookDetailScreen() {
   const sheets = useReadingSheets((s) => s.sheets);
   const [genreModalOpen, setGenreModalOpen] = useState(false);
   const [congratsOpen, setCongratsOpen] = useState(false);
+  const [pauseModalOpen, setPauseModalOpen] = useState(false);
   const [autoOpenFinish, setAutoOpenFinish] = useState(false);
   const debugOpen = useDebug((s) => s.panelsEnabled);
   const setDebugOpen = useDebug((s) => s.setPanelsEnabled);
@@ -140,6 +142,11 @@ export default function BookDetailScreen() {
   const onStatusPress = (status: ReadingStatus) => {
     const wasRead = existing?.status === "read";
     if (existing) {
+      // Pause : modale d'abord, l'enregistrement se fait au confirm.
+      if (status === "paused") {
+        setPauseModalOpen(true);
+        return;
+      }
       const finalStatus = status === "read" || status === "abandoned";
       if (finalStatus) {
         const timer = useTimer.getState();
@@ -173,6 +180,17 @@ export default function BookDetailScreen() {
     if (status === "read" && !wasRead) {
       setCongratsOpen(true);
     }
+  };
+
+  const onPauseConfirm = (page: number | undefined, summary: string | undefined) => {
+    if (!existing) return;
+    // Pas de finishCycle : la pause garde le cycle ouvert. Si une session
+    // timer est active sur ce livre, on la met aussi en pause.
+    const timer = useTimer.getState();
+    if (timer.active?.userBookId === existing.id && !timer.active.pausedAt) {
+      timer.pause();
+    }
+    updateStatus(existing.id, "paused", { page, summary });
   };
 
   return (
@@ -229,6 +247,14 @@ export default function BookDetailScreen() {
             <GenreRow ub={existing} onEdit={() => setGenreModalOpen(true)} />
           )}
           {existing && <SheetPreview userBook={existing} />}
+
+          {existing && existing.status === "paused" && (
+            <PausedInfo
+              page={existing.pausedPage}
+              summary={existing.pausedSummary}
+              onEdit={() => setPauseModalOpen(true)}
+            />
+          )}
 
           {existing && (
             <ReadingTimer
@@ -321,6 +347,23 @@ export default function BookDetailScreen() {
             router.push(`/sheet/${isbn}`);
           }}
         />
+
+        {existing && (
+          <PauseBookModal
+            open={pauseModalOpen}
+            totalPages={data.pages && data.pages > 0 ? data.pages : undefined}
+            initialPage={
+              existing.pausedPage ??
+              (() => {
+                const last = useTimer.getState().lastPageFor(existing.id);
+                return last > 0 ? last : undefined;
+              })()
+            }
+            initialSummary={existing.pausedSummary}
+            onClose={() => setPauseModalOpen(false)}
+            onConfirm={onPauseConfirm}
+          />
+        )}
       </ScrollView>
       <BookStatusBar
         existing={existing}
@@ -693,6 +736,46 @@ function Tag({ children }: { children: React.ReactNode }) {
     <View className="rounded-full bg-paper-warm px-3 py-1">
       <Text className="text-xs text-ink-soft">{children}</Text>
     </View>
+  );
+}
+
+function PausedInfo({
+  page,
+  summary,
+  onEdit,
+}: {
+  page?: number;
+  summary?: string;
+  onEdit: () => void;
+}) {
+  const hasPage = page != null && page > 0;
+  const hasSummary = !!summary && summary.trim().length > 0;
+  return (
+    <Pressable
+      onPress={onEdit}
+      className="mt-8 overflow-hidden rounded-3xl bg-paper-warm p-5 active:opacity-80"
+    >
+      <View className="flex-row items-center gap-3">
+        <View
+          className="h-10 w-10 items-center justify-center rounded-full"
+          style={{ backgroundColor: "#f4e8c4" }}
+        >
+          <MaterialIcons name="pause-circle-filled" size={22} color="#8e5dc8" />
+        </View>
+        <View className="flex-1">
+          <Text className="text-xs uppercase tracking-wide text-ink-muted">
+            En pause
+          </Text>
+          <Text className="font-display text-lg text-ink">
+            {hasPage ? `Page ${page}` : "Page non renseignée"}
+          </Text>
+        </View>
+        <MaterialIcons name="edit" size={18} color="#6b6259" />
+      </View>
+      {hasSummary && (
+        <Text className="mt-3 text-sm leading-5 text-ink-soft">{summary}</Text>
+      )}
+    </Pressable>
   );
 }
 

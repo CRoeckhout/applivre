@@ -1,4 +1,4 @@
-export type ReadingStatus = 'wishlist' | 'to_read' | 'reading' | 'read' | 'abandoned';
+export type ReadingStatus = 'wishlist' | 'to_read' | 'reading' | 'paused' | 'read' | 'abandoned';
 
 export type BookSource = 'isbndb' | 'openlibrary' | 'googlebooks' | 'bnf' | 'manual';
 
@@ -25,6 +25,10 @@ export type UserBook = {
   // Override utilisateur des genres. Array vide ou absent → fallback book.categories.
   genres?: string[];
   addedAt?: string;
+  // Snapshot de pause : page atteinte + récap libre saisis dans la modale Pause.
+  // Effacés lors du retour en `reading` ou de la clôture du cycle.
+  pausedPage?: number;
+  pausedSummary?: string;
 };
 
 export type ReadCycleOutcome = 'read' | 'abandoned';
