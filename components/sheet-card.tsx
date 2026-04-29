@@ -22,6 +22,9 @@ type Props = {
   hideBookHeader?: boolean;
   // Si true, rend un container static (non pressable) mais conserve le style.
   readOnly?: boolean;
+  // Masque le contenu des sections : ne rend que le header (cover/titre/
+  // auteur/date). Utilisé dans la liste des fiches.
+  headerOnly?: boolean;
 };
 
 function timeAgo(iso: string): string {
@@ -43,6 +46,7 @@ export function SheetCard({
   onPress,
   hideBookHeader,
   readOnly,
+  headerOnly,
 }: Props) {
   const fontDef = getFont(appearance.fontId as any);
   const displayFont = fontDef.variants.display;
@@ -116,7 +120,7 @@ export function SheetCard({
         </View>
       )}
 
-      {sheet.sections.length > 0 ? (
+      {!headerOnly && sheet.sections.length > 0 ? (
         <View style={{ marginTop: hideBookHeader ? 0 : 10 }}>
           {sheet.sections.map((section, idx) => (
             <SectionContent

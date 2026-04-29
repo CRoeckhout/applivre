@@ -29,6 +29,10 @@ type BookPickerProps = {
   emptyTitle?: string;
   emptyBody?: string;
   header?: ReactNode; // bloc custom au-dessus de la liste (ex: item coché)
+  // Quand true et qu'aucune recherche n'est saisie, ne montre que les livres
+  // au statut `read`, triés par date de modification (finishedAt ?? addedAt)
+  // décroissante. Une recherche réintroduit tous les statuts.
+  restrictToRead?: boolean;
 };
 
 export function BookPicker({
@@ -41,6 +45,7 @@ export function BookPicker({
   emptyTitle = 'Bibliothèque vide',
   emptyBody = "Ajoute d'abord un livre à ta bibliothèque.",
   header,
+  restrictToRead = false,
 }: BookPickerProps) {
   const router = useRouter();
   const books = useBookshelf((s) => s.books);
@@ -51,13 +56,22 @@ export function BookPicker({
     const visible = excludedIds
       ? books.filter((b) => !excludedIds.has(b.id))
       : books;
-    if (!q) return visible;
-    return visible.filter(
-      (b) =>
-        b.book.title.toLowerCase().includes(q) ||
-        b.book.authors.some((a) => a.toLowerCase().includes(q)),
-    );
-  }, [books, query, excludedIds]);
+    if (q) {
+      return visible.filter(
+        (b) =>
+          b.book.title.toLowerCase().includes(q) ||
+          b.book.authors.some((a) => a.toLowerCase().includes(q)),
+      );
+    }
+    if (restrictToRead) {
+      const stamp = (b: UserBook) =>
+        Date.parse(b.finishedAt ?? b.addedAt ?? '') || 0;
+      return visible
+        .filter((b) => b.status === 'read')
+        .sort((a, b) => stamp(b) - stamp(a));
+    }
+    return visible;
+  }, [books, query, excludedIds, restrictToRead]);
 
   if (books.length === 0) {
     return (

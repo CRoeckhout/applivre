@@ -103,6 +103,7 @@ export default function SheetsScreen() {
                       sheet={e.sheet}
                       appearance={effective}
                       isCustom={isCustom}
+                      headerOnly
                       onPress={() => router.push(`/sheet/${e.userBook.book.isbn}`)}
                     />
                   </Swipeable>
