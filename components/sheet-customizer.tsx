@@ -1,9 +1,11 @@
 import { ColorPickerModal } from '@/components/color-picker-modal';
 import { IconPickerModal } from '@/components/icon-picker-modal';
+import { NineSliceFrame } from '@/components/nine-slice-frame';
 import { RatingIcon } from '@/components/rating-row';
 import { SheetSurface } from '@/components/sheet-surface';
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { PERSO_BORDER_ID, type BorderDef } from '@/lib/borders/catalog';
+import { applyBorderTokens } from '@/lib/borders/tokens';
 import { FONTS } from '@/lib/theme/fonts';
 import {
   DEFAULT_APPEARANCE,
@@ -46,6 +48,29 @@ type ColorTarget =
   | 'accent'
   | 'frame'
   | null;
+
+// Mapping nom de token SVG → label affiché à l'utilisateur. Les tokens
+// référencent soit une userPreference (3 couleurs brutes) soit un slot
+// dérivé du thème (paper / ink / accent). Le label décrit ce que l'utilisateur
+// voit dans l'app, pas le nom interne du slot.
+const TOKEN_LABELS: Record<string, string> = {
+  colorPrimary: 'Couleur principale',
+  colorSecondary: 'Couleur secondaire',
+  colorBg: 'Fond',
+  paper: 'Fond',
+  paperWarm: 'Fond chaud',
+  paperShade: 'Fond ombré',
+  ink: 'Texte',
+  inkSoft: 'Texte adouci',
+  inkMuted: 'Texte discret',
+  accent: 'Accent',
+  accentDeep: 'Accent foncé',
+  accentPale: 'Accent pâle',
+};
+
+function tokenLabel(name: string): string {
+  return TOKEN_LABELS[name] ?? name;
+}
 
 type PublicToggle = { value: boolean; onChange: (v: boolean) => void };
 
@@ -259,8 +284,8 @@ export function SheetCustomizer({
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
-              <FrameTypeChip
+              contentContainerStyle={{ gap: 10, paddingVertical: 4 }}>
+              <BorderTile
                 label="Perso"
                 active={isPerso}
                 onPress={() => updateFrame({ borderId: PERSO_BORDER_ID, colorOverrides: undefined })}
@@ -268,8 +293,9 @@ export function SheetCustomizer({
               {allBorders
                 .filter((b) => (b.source || b.svgXml) && b.imageSize && b.slice)
                 .map((b) => (
-                  <FrameTypeChip
+                  <BorderTile
                     key={b.id}
+                    def={b}
                     label={b.label}
                     active={draft.frame.borderId === b.id}
                     onPress={() => updateFrame({ borderId: b.id, colorOverrides: undefined })}
@@ -363,7 +389,9 @@ export function SheetCustomizer({
                             }}
                           />
                           <View className="flex-1">
-                            <Text className="font-sans-med text-sm text-ink">{tokenName}</Text>
+                            <Text className="font-sans-med text-sm text-ink">
+                              {tokenLabel(tokenName)}
+                            </Text>
                             <Text className="text-xs text-ink-muted">
                               {override ? 'Override' : 'Thème'}
                             </Text>
@@ -511,7 +539,7 @@ export function SheetCustomizer({
               draft.frame.colorOverrides?.[overrideTokenTarget]) ||
             '#000000'
           }
-          title={overrideTokenTarget ? `Override "${overrideTokenTarget}"` : ''}
+          title={overrideTokenTarget ? `Override "${tokenLabel(overrideTokenTarget)}"` : ''}
           onClose={() => setOverrideTokenTarget(null)}
           onChange={(hex) => {
             if (overrideTokenTarget) setColorOverride(overrideTokenTarget, hex);
@@ -726,36 +754,82 @@ function Chip({
   );
 }
 
-// Variante de Chip dédiée à la sélection de cadre. Bord plus marqué quand
-// actif pour matcher le pattern de sélection des borders ailleurs (perso).
-function FrameTypeChip({
+// Tuile de sélection de cadre — même layout que la personnalisation app
+// (96×96, NineSliceFrame en preview, fallback dashed pour "Perso").
+function BorderTile({
+  def,
   label,
   active,
   onPress,
 }: {
+  def?: BorderDef;
   label: string;
   active: boolean;
   onPress: () => void;
 }) {
+  const W = 96;
+  const H = 96;
+  const colorPrimary = usePreferences((s) => s.colorPrimary);
+  const colorSecondary = usePreferences((s) => s.colorSecondary);
+  const colorBg = usePreferences((s) => s.colorBg);
+  const theme = useThemeColors();
+  const themedSvgXml = useMemo(() => {
+    if (!def?.svgXml) return undefined;
+    return applyBorderTokens(
+      def.svgXml,
+      def.tokens,
+      { colorPrimary, colorSecondary, colorBg },
+      theme,
+    );
+  }, [def?.svgXml, def?.tokens, colorPrimary, colorSecondary, colorBg, theme]);
+
+  const hasNineSlice = def && (def.source || def.svgXml) && def.imageSize && def.slice;
+
   return (
     <Pressable
       onPress={onPress}
       style={{
-        borderRadius: 999,
+        width: W,
+        height: H,
         borderWidth: active ? 2 : 1,
         borderColor: active ? '#c27b52' : 'rgba(107,98,89,0.2)',
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        backgroundColor: active ? '#fff5ee' : 'transparent',
+        borderRadius: 14,
+        overflow: 'hidden',
+        backgroundColor: 'rgba(255,255,255,0.4)',
       }}>
-      <Text
-        style={{
-          color: active ? '#9b5a38' : 'rgb(58 50 43)',
-          fontSize: 13,
-          fontWeight: active ? '600' : '400',
-        }}>
-        {label}
-      </Text>
+      {hasNineSlice ? (
+        <NineSliceFrame
+          source={def!.source}
+          svgXml={themedSvgXml}
+          imageSize={def!.imageSize!}
+          slice={def!.slice!}
+          padding={{ top: 0, right: 0, bottom: 0, left: 0 }}
+          repeat={def!.repeat}
+          fillCenter={false}
+          style={{ flex: 1 }}>
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 10, color: 'rgb(107 98 89)' }}>{label}</Text>
+          </View>
+        </NineSliceFrame>
+      ) : (
+        <View
+          style={{
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderStyle: 'dashed',
+            borderWidth: 1,
+            borderColor: 'rgba(107,98,89,0.4)',
+            margin: 6,
+            borderRadius: 8,
+          }}>
+          <MaterialIcons name="tune" size={20} color="rgb(107 98 89)" />
+          <Text
+            style={{ fontSize: 10, color: 'rgb(107 98 89)', marginTop: 4, textAlign: 'center' }}>
+            {label}
+          </Text>
+        </View>
+      )}
     </Pressable>
   );
 }
