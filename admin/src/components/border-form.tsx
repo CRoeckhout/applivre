@@ -2,6 +2,24 @@ import { useEffect, useRef, useState } from 'react';
 import { SUPABASE_URL, supabase } from '../lib/supabase';
 import type { BorderCatalogRow, BorderKind, BorderRepeatMode } from '../lib/types';
 
+// Doit rester aligné avec `TOKEN_LABELS` côté app
+// (components/sheet-customizer.tsx). Si on ajoute un slot ici, mirror l'app —
+// sinon l'admin pourra créer un token que les users ne sauront pas nommer.
+const TOKEN_LABELS: { name: string; label: string }[] = [
+  { name: 'colorPrimary', label: 'Couleur principale' },
+  { name: 'colorSecondary', label: 'Couleur secondaire' },
+  { name: 'colorBg', label: 'Fond' },
+  { name: 'paper', label: 'Fond' },
+  { name: 'paperWarm', label: 'Fond chaud' },
+  { name: 'paperShade', label: 'Fond ombré' },
+  { name: 'ink', label: 'Texte' },
+  { name: 'inkSoft', label: 'Texte adouci' },
+  { name: 'inkMuted', label: 'Texte discret' },
+  { name: 'accent', label: 'Accent' },
+  { name: 'accentDeep', label: 'Accent foncé' },
+  { name: 'accentPale', label: 'Accent pâle' },
+];
+
 type Props = {
   initial: BorderCatalogRow | null;
   onSaved: (saved: BorderCatalogRow) => void;
@@ -66,6 +84,10 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
   // Preview size — local-only, ne touche pas la row.
   const [previewW, setPreviewW] = useState(240);
   const [previewH, setPreviewH] = useState(140);
+  // Override de couleurs pour la preview SVG : remap chaque sentinel hex
+  // (valeur du token dans `parsedTokens`) vers la couleur choisie ici. Local
+  // au form, jamais persisté — sert à mimer ce que l'app rendra avec un thème.
+  const [previewOverrides, setPreviewOverrides] = useState<Record<string, string>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -98,6 +120,7 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
     setPendingPayloadText(null);
     setError(null);
     setSuccess(null);
+    setPreviewOverrides({});
   }, [initial]);
 
   let parsedTokens: Record<string, string> = {};
@@ -305,12 +328,25 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
     onSaved(data as BorderCatalogRow);
   }
 
-  const previewSrc = pendingPreview
-    ? pendingPreview
-    : storagePath
-      ? `${SUPABASE_URL}/storage/v1/object/public/border-graphics/${storagePath}`
-      : payloadText
-        ? `data:image/svg+xml;utf8,${encodeURIComponent(payloadText)}`
+  // SVG : on remplace les sentinels hex par les overrides choisis dans la
+  // colonne couleur des pills. PNG : pas de tokens — on rend tel quel.
+  const isSvgKind = kind === 'svg_9slice';
+  const effectiveSvgText = isSvgKind
+    ? applySvgPreviewOverrides(
+        pendingPayloadText ?? payloadText,
+        parsedTokens,
+        previewOverrides,
+      )
+    : null;
+
+  const previewSrc = isSvgKind
+    ? effectiveSvgText
+      ? `data:image/svg+xml;utf8,${encodeURIComponent(effectiveSvgText)}`
+      : null
+    : pendingPreview
+      ? pendingPreview
+      : storagePath
+        ? `${SUPABASE_URL}/storage/v1/object/public/border-graphics/${storagePath}`
         : null;
 
   return (
@@ -506,6 +542,140 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
             </div>
             <div className="field">
               <label>Tokens (JSON)</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                {TOKEN_LABELS.map((t) => {
+                  const present = Object.prototype.hasOwnProperty.call(parsedTokens, t.name);
+                  const overrideHex = previewOverrides[t.name];
+                  return (
+                    <div
+                      key={t.name}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'stretch',
+                        borderRadius: 999,
+                        border: present
+                          ? '1px solid var(--accent, #c27b52)'
+                          : '1px solid var(--line)',
+                        background: present
+                          ? 'var(--accent-pale, #fff5ee)'
+                          : 'var(--surface)',
+                        opacity: tokensError ? 0.5 : 1,
+                        overflow: 'hidden',
+                      }}>
+                      <button
+                        type="button"
+                        disabled={!!tokensError}
+                        onClick={() => {
+                          const next = { ...parsedTokens };
+                          if (present) {
+                            delete next[t.name];
+                            setPreviewOverrides((prev) => {
+                              const copy = { ...prev };
+                              delete copy[t.name];
+                              return copy;
+                            });
+                          } else {
+                            next[t.name] = '#000000';
+                          }
+                          setTokensJson(JSON.stringify(next, null, 2));
+                        }}
+                        title={present ? `Retirer ${t.name}` : `Ajouter ${t.name}`}
+                        style={{
+                          fontSize: 11,
+                          padding: '3px 10px',
+                          border: 'none',
+                          background: 'transparent',
+                          color: present ? 'var(--accent-deep, #9b5a38)' : 'var(--ink)',
+                          cursor: tokensError ? 'default' : 'pointer',
+                        }}>
+                        {t.label}
+                        <span
+                          style={{
+                            marginLeft: 6,
+                            color: present ? 'var(--accent-deep, #9b5a38)' : 'var(--ink-muted)',
+                            fontSize: 10,
+                          }}>
+                          {t.name}
+                        </span>
+                      </button>
+                      {present && (
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '0 8px 0 6px',
+                            borderLeft: '1px solid var(--accent, #c27b52)',
+                          }}>
+                          <label
+                            title={
+                              overrideHex
+                                ? `Preview override : ${overrideHex}`
+                                : 'Choisir une couleur de preview'
+                            }
+                            style={{
+                              position: 'relative',
+                              width: 16,
+                              height: 16,
+                              borderRadius: '50%',
+                              overflow: 'hidden',
+                              border: '1px solid var(--line)',
+                              background: overrideHex ?? 'transparent',
+                              cursor: 'pointer',
+                              display: 'inline-block',
+                            }}>
+                            <input
+                              type="color"
+                              value={overrideHex ?? '#000000'}
+                              onChange={(e) =>
+                                setPreviewOverrides((prev) => ({
+                                  ...prev,
+                                  [t.name]: e.target.value,
+                                }))
+                              }
+                              style={{
+                                position: 'absolute',
+                                inset: 0,
+                                width: '100%',
+                                height: '100%',
+                                opacity: 0,
+                                border: 'none',
+                                padding: 0,
+                                margin: 0,
+                                cursor: 'pointer',
+                              }}
+                            />
+                          </label>
+                          {overrideHex && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setPreviewOverrides((prev) => {
+                                  const copy = { ...prev };
+                                  delete copy[t.name];
+                                  return copy;
+                                });
+                              }}
+                              title="Reset preview override"
+                              style={{
+                                fontSize: 10,
+                                lineHeight: 1,
+                                border: 'none',
+                                background: 'transparent',
+                                cursor: 'pointer',
+                                color: 'var(--ink)',
+                                padding: 0,
+                              }}>
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
               <textarea
                 rows={3}
                 value={tokensJson}
@@ -576,6 +746,28 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
       </div>
     </main>
   );
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Mirror minimal de `applyBorderTokens` côté app : remplace chaque sentinel
+// hex défini dans `tokens` par la couleur choisie dans `overrides`. Les tokens
+// sans override sont laissés tels quels (= sentinel d'origine du SVG).
+function applySvgPreviewOverrides(
+  svgText: string | null,
+  tokens: Record<string, string>,
+  overrides: Record<string, string>,
+): string | null {
+  if (!svgText) return null;
+  let out = svgText;
+  for (const [name, sentinel] of Object.entries(tokens)) {
+    const replacement = overrides[name];
+    if (!replacement || !sentinel) continue;
+    out = out.replace(new RegExp(escapeRegex(sentinel), 'gi'), replacement);
+  }
+  return out;
 }
 
 // Lit width/height intrinsèques d'un SVG : preference au viewBox (référence
