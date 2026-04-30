@@ -98,6 +98,15 @@ export type AiCleanedBook = {
 
 export const BOOK_SOURCES: BookSource[] = ['isbndb', 'openlibrary', 'googlebooks', 'bnf', 'manual'];
 
+// ═══════════════ Bingo pills (user-owned challenges) ═══════════════
+
+export type BingoPillRow = {
+  id: string;
+  user_id: string;
+  label: string;
+  created_at: string;
+};
+
 // ═══════════════ User card (identité réutilisable côté admin) ═══════════════
 
 export type UserCardData = {

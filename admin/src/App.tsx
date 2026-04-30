@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { BadgesSection } from "./sections/badges-section";
+import { BingoPillsSection } from "./sections/bingo-pills-section";
 import { BooksSection } from "./sections/books-section";
 import { BordersSection } from "./sections/borders-section";
 import { LoginForm } from "./components/login";
@@ -11,10 +12,10 @@ type AuthState =
   | { kind: "not_admin" }
   | { kind: "admin" };
 
-type Tab = "badges" | "borders" | "books";
+type Tab = "badges" | "borders" | "books" | "pills";
 type Theme = "light" | "dark";
 
-const TABS: Tab[] = ["badges", "borders", "books"];
+const TABS: Tab[] = ["badges", "borders", "books", "pills"];
 const DEFAULT_TAB: Tab = "badges";
 const THEME_KEY = "admin-theme";
 
@@ -165,6 +166,7 @@ export function App() {
             <TabButton label="Badges" active={route.tab === "badges"} onClick={() => selectTab("badges")} />
             <TabButton label="Cadres" active={route.tab === "borders"} onClick={() => selectTab("borders")} />
             <TabButton label="Livres" active={route.tab === "books"} onClick={() => selectTab("books")} />
+            <TabButton label="Défis bingo" active={route.tab === "pills"} onClick={() => selectTab("pills")} />
           </nav>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -191,6 +193,9 @@ export function App() {
         )}
         {route.tab === "books" && (
           <BooksSection itemId={route.itemId} onItemChange={selectItem} />
+        )}
+        {route.tab === "pills" && (
+          <BingoPillsSection itemId={route.itemId} onItemChange={selectItem} />
         )}
       </div>
     </div>
