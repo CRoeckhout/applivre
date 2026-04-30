@@ -5,6 +5,7 @@ import type {
   ReadCycleOutcome,
   ReadingSession,
   ReadingSheet,
+  SheetAppearance,
   SheetAppearanceOverride,
   SheetSection,
   UserBook,
@@ -333,8 +334,12 @@ export function badgeCatalogFromDb(row: DbBadgeCatalog): BadgeCatalogEntry {
 // ═══════════════ Bingo ═══════════════
 
 // Contenu du champ `grid` JSONB — items positionnés + métadonnées applicatives
-// qui n'ont pas besoin d'une colonne dédiée (savedAt).
-type DbBingoGrid = { items: BingoItem[]; savedAt?: string };
+// qui n'ont pas besoin d'une colonne dédiée (savedAt, appearance snapshot).
+type DbBingoGrid = {
+  items: BingoItem[];
+  savedAt?: string;
+  appearance?: SheetAppearance;
+};
 
 export type DbBingo = {
   id: string;
@@ -354,6 +359,7 @@ export function bingoFromDb(row: DbBingo): Bingo {
     createdAt: row.created_at,
     archivedAt: row.archived_at ?? undefined,
     savedAt: row.grid?.savedAt ?? undefined,
+    appearance: row.grid?.appearance,
   };
 }
 
@@ -362,7 +368,7 @@ export function bingoToDb(b: Bingo): Omit<DbBingo, 'created_at'> {
     id: b.id,
     user_id: b.userId,
     title: b.title,
-    grid: { items: b.items, savedAt: b.savedAt },
+    grid: { items: b.items, savedAt: b.savedAt, appearance: b.appearance },
     archived_at: b.archivedAt ?? null,
   };
 }

@@ -1,3 +1,5 @@
+import type { SheetAppearance } from '@/types/book';
+
 // Un item placé dans une grille bingo.
 // `position` 0..24 si sur la grille, `undefined` si dans le panel (pas utilisé
 // côté DB puisque seuls les items positionnés sont persistés dans `grid`).
@@ -19,6 +21,10 @@ export type Bingo = {
   // tap sur case ouvre le picker livre (sauf si ?edit=1 en param pour
   // rééditer une grille sans livres).
   savedAt?: string;
+  // Snapshot de l'appearance globale (template fiche) capturé à la création.
+  // Les changements ultérieurs du template global n'affectent pas cette grille.
+  // setAppearance(undefined) re-snapshot le global courant.
+  appearance?: SheetAppearance;
 };
 
 export type BingoCompletion = {

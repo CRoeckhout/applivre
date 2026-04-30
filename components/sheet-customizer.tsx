@@ -68,7 +68,7 @@ const TOKEN_LABELS: Record<string, string> = {
   accentPale: 'Accent pâle',
 };
 
-function tokenLabel(name: string): string {
+export function tokenLabel(name: string): string {
   return TOKEN_LABELS[name] ?? name;
 }
 
@@ -559,7 +559,7 @@ export function SheetCustomizer({
   );
 }
 
-function PresetCard({
+export function PresetCard({
   preset,
   isUser,
   onApply,
@@ -609,7 +609,7 @@ function PresetCard({
   );
 }
 
-function SavePresetCard({ onPress }: { onPress: () => void }) {
+export function SavePresetCard({ onPress }: { onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
@@ -633,7 +633,7 @@ function SavePresetCard({ onPress }: { onPress: () => void }) {
   );
 }
 
-function SavePresetModal({
+export function SavePresetModal({
   open,
   onClose,
   onSave,
@@ -704,7 +704,7 @@ function SavePresetModal({
   );
 }
 
-function borderLabel(s: SheetBorderStyle): string {
+export function borderLabel(s: SheetBorderStyle): string {
   switch (s) {
     case 'none':
       return 'Aucun';
@@ -719,7 +719,7 @@ function borderLabel(s: SheetBorderStyle): string {
   }
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+export function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View>
       <Text className="mb-2 font-display text-base text-ink">{title}</Text>
@@ -728,7 +728,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Label({ children, className }: { children: React.ReactNode; className?: string }) {
+export function Label({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <Text className={`text-xs uppercase tracking-wider text-ink-muted ${className ?? ''}`}>
       {children}
@@ -736,7 +736,7 @@ function Label({ children, className }: { children: React.ReactNode; className?:
   );
 }
 
-function Chip({
+export function Chip({
   label,
   active,
   onPress,
@@ -756,7 +756,7 @@ function Chip({
 
 // Tuile de sélection de cadre — même layout que la personnalisation app
 // (96×96, NineSliceFrame en preview, fallback dashed pour "Perso").
-function BorderTile({
+export function BorderTile({
   def,
   label,
   active,
@@ -834,7 +834,7 @@ function BorderTile({
   );
 }
 
-function Stepper({
+export function Stepper({
   value,
   min,
   max,
@@ -880,7 +880,7 @@ function Stepper({
   );
 }
 
-function ColorRow({
+export function ColorRow({
   hex,
   onPress,
   disabled,
@@ -910,7 +910,7 @@ function ColorRow({
   );
 }
 
-function ColorRowLabeled({
+export function ColorRowLabeled({
   label,
   hex,
   onPress,

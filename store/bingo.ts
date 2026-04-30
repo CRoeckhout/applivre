@@ -10,6 +10,8 @@ import {
   syncUpsertBingoCompletion,
   syncUpsertBingoPill,
 } from '@/lib/sync/writers';
+import { useSheetTemplates } from '@/store/sheet-templates';
+import type { SheetAppearance } from '@/types/book';
 import type { Bingo, BingoCompletion, BingoItem, BingoPill } from '@/types/bingo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
@@ -23,6 +25,7 @@ type BingoState = {
   createBingo: (title: string, items: BingoItem[]) => Bingo | null;
   updateBingoItems: (id: string, items: BingoItem[]) => void;
   updateBingoTitle: (id: string, title: string) => void;
+  setBingoAppearance: (id: string, next: SheetAppearance | undefined) => void;
   markBingoSaved: (id: string) => void;
   archiveBingo: (id: string) => void;
   deleteBingo: (id: string) => void;
@@ -32,6 +35,7 @@ type BingoState = {
   removeCompletionsForUserBook: (userBookId: string) => void;
 
   addPill: (label: string) => BingoPill | null;
+  renamePill: (id: string, label: string) => void;
   removePill: (id: string) => void;
 
   reset: () => void;
@@ -53,10 +57,24 @@ export const useBingos = create<BingoState>()(
           title: title.trim() || 'Nouveau bingo',
           items,
           createdAt: new Date().toISOString(),
+          appearance: useSheetTemplates.getState().global,
         };
         set((s) => ({ bingos: [bingo, ...s.bingos] }));
         void syncUpsertBingo(bingo);
         return bingo;
+      },
+
+      setBingoAppearance: (id, next) => {
+        const snapshot = next ?? useSheetTemplates.getState().global;
+        let updated: Bingo | undefined;
+        set((s) => ({
+          bingos: s.bingos.map((b) => {
+            if (b.id !== id) return b;
+            updated = { ...b, appearance: snapshot };
+            return updated;
+          }),
+        }));
+        if (updated) void syncUpsertBingo(updated);
       },
 
       updateBingoItems: (id, items) => {
@@ -191,6 +209,20 @@ export const useBingos = create<BingoState>()(
         set((s) => ({ pills: [pill, ...s.pills] }));
         void syncUpsertBingoPill(pill);
         return pill;
+      },
+
+      renamePill: (id, label) => {
+        const trimmed = label.trim();
+        if (!trimmed) return;
+        let updated: BingoPill | undefined;
+        set((s) => ({
+          pills: s.pills.map((p) => {
+            if (p.id !== id) return p;
+            updated = { ...p, label: trimmed };
+            return updated;
+          }),
+        }));
+        if (updated) void syncUpsertBingoPill(updated);
       },
 
       removePill: (id) => {
