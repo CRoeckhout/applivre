@@ -38,6 +38,7 @@ type Props = {
   onToggleFilter: (f: QuickFilter) => void;
   onLoadMore: () => void;
   hasMore: boolean;
+  onNew: () => void;
 };
 
 // Distance en pixels avant le bas du scroll à laquelle on déclenche le
@@ -59,6 +60,7 @@ export function BookList({
   onToggleFilter,
   onLoadMore,
   hasMore,
+  onNew,
 }: Props) {
   const scrollerRef = useRef<HTMLElement | null>(null);
 
@@ -80,6 +82,13 @@ export function BookList({
   return (
     <aside ref={scrollerRef} style={{ width: 360, borderRight: '1px solid var(--line)', overflow: 'auto', background: 'var(--surface)' }}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
+        <button
+          onClick={onNew}
+          className="btn btn-primary"
+          style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
+        >
+          + Nouveau livre
+        </button>
         <input
           type="search"
           placeholder="ISBN, titre, auteur…"

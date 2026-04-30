@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BookForm } from '../components/book-form';
 import { BookList, QUICK_FILTERS, type QuickFilter } from '../components/book-list';
+import { NewBookModal } from '../components/new-book-modal';
 import { supabase } from '../lib/supabase';
 import type { BookCatalogRow } from '../lib/types';
 
@@ -32,6 +33,7 @@ export function BooksSection({ itemId, onItemChange }: Props) {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [showNewModal, setShowNewModal] = useState(false);
 
   const queryTimer = useRef<number | null>(null);
   // Mémorise le dernier appel `load` pour ignorer les réponses obsolètes
@@ -224,6 +226,14 @@ export function BooksSection({ itemId, onItemChange }: Props) {
     void loadCounts();
   }
 
+  function onCreated(row: BookCatalogRow) {
+    setBooks((prev) => [row, ...prev.filter((b) => b.isbn !== row.isbn)]);
+    setTotal((t) => t + 1);
+    setShowNewModal(false);
+    onItemChange(row.isbn);
+    void loadCounts();
+  }
+
   const selected =
     (itemId ? books.find((b) => b.isbn === itemId) ?? null : null) ??
     (directFetched && directFetched.isbn === itemId ? directFetched : null);
@@ -244,6 +254,7 @@ export function BooksSection({ itemId, onItemChange }: Props) {
         onToggleFilter={toggleFilter}
         onLoadMore={loadMore}
         hasMore={books.length < total}
+        onNew={() => setShowNewModal(true)}
       />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         {loadError && (
@@ -259,6 +270,9 @@ export function BooksSection({ itemId, onItemChange }: Props) {
           </main>
         )}
       </div>
+      {showNewModal && (
+        <NewBookModal onCreated={onCreated} onClose={() => setShowNewModal(false)} />
+      )}
     </div>
   );
 }
