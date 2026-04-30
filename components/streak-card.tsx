@@ -10,9 +10,13 @@ import { MAX_DAILY_GOAL_MINUTES, usePreferences } from "@/store/preferences";
 import { useReadingStreak } from "@/store/reading-streak";
 import { useTimer } from "@/store/timer";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useAudioPlayer } from "expo-audio";
+import * as Haptics from "expo-haptics";
 import { useMemo, useState } from "react";
-import { Modal, Pressable, Text, TextInput, View } from "react-native";
+import { Modal, Platform, Pressable, Text, TextInput, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
+
+const CHIME_SOURCE = require("@/assets/sounds/chime.mp3");
 
 const PRESETS_MINUTES = [5, 10, 15, 30, 60];
 
@@ -65,6 +69,7 @@ export function StreakCard({
   const sessions = useTimer((s) => s.sessions);
   const goalMinutes = usePreferences((s) => s.dailyReadingGoalMinutes);
   const { inFrame, padding: framedPadding } = useCardFrame();
+  const chimePlayer = useAudioPlayer(CHIME_SOURCE);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -100,6 +105,23 @@ export function StreakCard({
   const todayManual = manualDays.includes(today);
   const strip = lastNDays(7, today);
 
+  const handleToggleDay = (day: string, wasDone: boolean) => {
+    if (Platform.OS !== "web") {
+      Haptics.notificationAsync(
+        wasDone
+          ? Haptics.NotificationFeedbackType.Warning
+          : Haptics.NotificationFeedbackType.Success,
+      );
+    }
+    if (!wasDone) {
+      try {
+        chimePlayer.seekTo(0);
+        chimePlayer.play();
+      } catch {}
+    }
+    toggleDay(day);
+  };
+
   const todayButton = () => {
     if (todayFromSession) {
       return (
@@ -114,7 +136,7 @@ export function StreakCard({
     if (todayManual) {
       return (
         <Pressable
-          onPress={() => toggleDay(today)}
+          onPress={() => handleToggleDay(today, true)}
           className="flex-row items-center justify-center gap-2 rounded-full bg-accent py-3 active:opacity-80"
         >
           <Text className="text-lg">🔥</Text>
@@ -124,7 +146,7 @@ export function StreakCard({
     }
     return (
       <Pressable
-        onPress={() => toggleDay(today)}
+        onPress={() => handleToggleDay(today, false)}
         className="rounded-full bg-ink py-3 active:opacity-80"
       >
         <Text className="text-center font-sans-med text-paper">
@@ -193,7 +215,7 @@ export function StreakCard({
               return (
                 <Pressable
                   key={day}
-                  onPress={() => canToggle && toggleDay(day)}
+                  onPress={() => canToggle && handleToggleDay(day, done)}
                   disabled={!canToggle}
                   className="items-center gap-1.5"
                 >

@@ -67,6 +67,7 @@
           "photosPermission": "Grimolia a besoin d'accéder à tes photos pour choisir ton avatar."
         }
       ],
+      "expo-audio",
       "@bacons/apple-targets"
     ],
     "experiments": {
