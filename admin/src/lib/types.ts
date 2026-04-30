@@ -97,3 +97,15 @@ export type AiCleanedBook = {
 };
 
 export const BOOK_SOURCES: BookSource[] = ['isbndb', 'openlibrary', 'googlebooks', 'bnf', 'manual'];
+
+// ═══════════════ User card (identité réutilisable côté admin) ═══════════════
+
+export type UserCardData = {
+  user_id: string;
+  email: string | null;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  account_created_at: string | null;
+};
+

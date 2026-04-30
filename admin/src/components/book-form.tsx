@@ -7,6 +7,7 @@ import {
   type BookSource,
 } from "../lib/types";
 import { AiCleanupModal } from "./ai-cleanup-modal";
+import { UserCard } from "./user-card";
 
 type Props = {
   initial: BookCatalogRow;
@@ -329,11 +330,49 @@ export function BookForm({ initial, onSaved, onDeleted }: Props) {
             )}
           </div>
 
-          <UploaderCard
-            loading={uploaderLoading}
-            error={uploaderError}
-            uploader={uploader}
-          />
+          <div style={{ marginBottom: 12 }}>
+            <UserCard
+              user={
+                uploader
+                  ? {
+                      user_id: uploader.user_id,
+                      email: uploader.email,
+                      username: uploader.username,
+                      display_name: uploader.display_name,
+                      avatar_url: uploader.avatar_url,
+                      account_created_at: uploader.account_created_at,
+                    }
+                  : null
+              }
+              loading={uploaderLoading}
+              error={uploaderError}
+              emptyLabel="Aucun utilisateur n'a encore ajouté ce livre."
+              stats={
+                uploader
+                  ? [
+                      {
+                        label: "Ajoutés au catalogue",
+                        value: uploader.added_count,
+                      },
+                      {
+                        label: "Bibliothèque",
+                        value: uploader.library_count,
+                      },
+                    ]
+                  : undefined
+              }
+              footer={
+                uploader && (
+                  <span className="muted">
+                    Livre ajouté le :{" "}
+                    <strong style={{ color: "var(--text)" }}>
+                      {new Date(uploader.added_at).toLocaleDateString()}
+                    </strong>
+                  </span>
+                )
+              }
+            />
+          </div>
 
           {error && (
             <div className="error" style={{ marginBottom: 12 }}>
@@ -432,175 +471,3 @@ export function BookForm({ initial, onSaved, onDeleted }: Props) {
   );
 }
 
-function UploaderCard({
-  loading,
-  error,
-  uploader,
-}: {
-  loading: boolean;
-  error: string | null;
-  uploader: Uploader | null;
-}) {
-  const cardStyle: React.CSSProperties = {
-    border: "1px solid var(--line)",
-    background: "var(--surface)",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-  };
-
-  if (loading) {
-    return (
-      <div style={cardStyle}>
-        <div className="muted" style={{ fontSize: 13 }}>
-          Chargement de l'uploader…
-        </div>
-      </div>
-    );
-  }
-  if (error) {
-    return (
-      <div style={cardStyle}>
-        <div className="error" style={{ fontSize: 13 }}>
-          Erreur : {error}
-        </div>
-      </div>
-    );
-  }
-  if (!uploader) {
-    return (
-      <div style={cardStyle}>
-        <div className="muted" style={{ fontSize: 13 }}>
-          Aucun utilisateur n'a encore ajouté ce livre.
-        </div>
-      </div>
-    );
-  }
-
-  const name =
-    uploader.display_name ||
-    uploader.username ||
-    uploader.email ||
-    "Utilisateur";
-  const initials =
-    name
-      .split(/[\s.@_-]+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((s) => s[0]?.toUpperCase() ?? "")
-      .join("") || "?";
-
-  return (
-    <div style={cardStyle}>
-      <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: "50%",
-            overflow: "hidden",
-            flexShrink: 0,
-            background: "var(--line)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontWeight: 600,
-            fontSize: 18,
-            color: "var(--text-muted, #888)",
-          }}
-        >
-          {uploader.avatar_url ? (
-            <img
-              src={uploader.avatar_url}
-              alt=""
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = "none";
-              }}
-            />
-          ) : (
-            initials
-          )}
-        </div>
-
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>
-            {uploader.username ?? uploader.display_name ?? "—"}
-          </div>
-          <div
-            className="muted"
-            style={{
-              fontSize: 12,
-              fontFamily: "monospace",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-            title={uploader.email ?? ""}
-          >
-            {uploader.email ?? "—"}
-          </div>
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 8,
-          marginTop: 12,
-        }}
-      >
-        <Stat label="Ajoutés au catalogue" value={uploader.added_count} />
-        <Stat label="Bibliothèque" value={uploader.library_count} />
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          marginTop: 10,
-          paddingTop: 10,
-          borderTop: "1px solid var(--line)",
-          fontSize: 12,
-        }}
-      >
-        <span className="muted">
-          Compte :{" "}
-          <strong style={{ color: "var(--text)" }}>
-            {uploader.account_created_at
-              ? new Date(uploader.account_created_at).toLocaleDateString()
-              : "—"}
-          </strong>
-        </span>
-        <span className="muted">
-          Livre ajouté le :{" "}
-          <strong style={{ color: "var(--text)" }}>
-            {new Date(uploader.added_at).toLocaleDateString()}
-          </strong>
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div
-      style={{
-        background: "var(--bg, transparent)",
-        border: "1px solid var(--line)",
-        borderRadius: 8,
-        padding: "8px 10px",
-        textAlign: "center",
-      }}
-    >
-      <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.1 }}>
-        {value}
-      </div>
-      <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
-        {label}
-      </div>
-    </div>
-  );
-}
