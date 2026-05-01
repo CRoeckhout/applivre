@@ -11,6 +11,7 @@ import { resetAllStores } from "@/lib/sync/reset";
 import { setSyncUserId } from "@/lib/sync/session";
 import { hexToRgb, relativeLuminance } from "@/lib/theme/colors";
 import { useBorderCatalog } from "@/store/border-catalog";
+import { useFondCatalog } from "@/store/fond-catalog";
 import { useDebug } from "@/store/debug";
 import { usePreferences } from "@/store/preferences";
 import { useProfile } from "@/store/profile";
@@ -148,11 +149,12 @@ function AuthGate() {
   // Surveillance online/offline (une fois, au mount)
   useEffect(() => initNetworkWatcher(), []);
 
-  // Fetch catalog cadres : default-pour-tous + unlocks du user courant.
-  // Re-fetch quand le user change pour récupérer ses unlocks.
+  // Fetch catalogs cadres et fonds : default-pour-tous + unlocks du user
+  // courant. Re-fetch quand le user change pour récupérer ses unlocks.
   useEffect(() => {
     const userId = session?.user.id ?? null;
     void useBorderCatalog.getState().fetch(userId);
+    void useFondCatalog.getState().fetch(userId);
   }, [session]);
 
   // Pilote la Live Activity iOS depuis le store timer (no-op en Expo Go).

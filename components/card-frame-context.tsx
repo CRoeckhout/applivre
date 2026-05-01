@@ -1,17 +1,21 @@
 import { createContext, useContext } from 'react';
 
-// Context fourni par `CardFrame` quand un cadre custom est actif. Permet
-// aux card components consommateurs de neutraliser leur padding hardcodé
-// (p-5 / p-6) au profit de la valeur définie par le cadre. Sans cadre
-// actif (ou `borderId='none'`), le context reste à sa valeur default
-// `inFrame=false` — les cards rendent comme aujourd'hui.
+// Context fourni par `CardFrame` quand une décoration custom (cadre OU fond)
+// est active. Permet aux card components consommateurs de neutraliser leur
+// styling hardcodé (padding p-5/p-6, background bg-paper-warm) au profit
+// du visuel apporté par la décoration. Sans décoration active, le context
+// reste à sa valeur default `inFrame=false` — les cards rendent comme
+// aujourd'hui (padding + bg).
 
 export type CardFrameContextValue = {
-  // True quand un cadre custom enveloppe les enfants. Les cards utilisent
-  // ce flag pour override leur padding interne.
+  // True quand une décoration custom (cadre catalog ou fond) enveloppe les
+  // enfants. Les cards utilisent ce flag pour override leur padding interne
+  // ET leur background — le bg-paper-warm hardcodé masquerait sinon le fond
+  // image rendu derrière par CardFrame.
   inFrame: boolean;
   // Valeur de padding (px) à appliquer dans la card en mode framed. 0 par
-  // default ; configurable via `border_catalog.card_padding` (admin).
+  // default ; configurable via `border_catalog.card_padding` (admin). Pour
+  // les fonds seuls (sans cadre), reste à 0.
   padding: number;
 };
 

@@ -1,12 +1,13 @@
 import { CardFrameProvider } from '@/components/card-frame-context';
+import { FondLayer } from '@/components/fond-layer';
 import { NineSliceFrame } from '@/components/nine-slice-frame';
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { BORDERS, type BorderDef } from '@/lib/borders/catalog';
-import { applyBorderTokens } from '@/lib/borders/tokens';
+import { applyTokens } from '@/lib/decorations/tokens';
 import { useBorderCatalog } from '@/store/border-catalog';
 import { usePreferences } from '@/store/preferences';
 import { ReactNode, useMemo } from 'react';
-import { StyleProp, ViewStyle } from 'react-native';
+import { StyleProp, View, ViewStyle } from 'react-native';
 
 type Props = {
   children: ReactNode;
@@ -19,6 +20,12 @@ type Props = {
   // Color overrides à appliquer à la résolution des tokens SVG (priorité
   // sur userPrefs et theme). Permet une override per-instance.
   colorOverrides?: Record<string, string>;
+  // Override le fondId courant (preferences.fondId par défaut). 'none' /
+  // absent ⇒ pas de fond image, seul `innerBackgroundColor` est rendu.
+  fondId?: string;
+  // Color overrides per-instance pour les SVG du fond (mêmes règles que
+  // `colorOverrides`). Indépendant des overrides cadre.
+  fondColorOverrides?: Record<string, string>;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -30,9 +37,12 @@ export function CardFrame({
   borderId,
   innerBackgroundColor,
   colorOverrides,
+  fondId,
+  fondColorOverrides,
   style,
 }: Props) {
   const fromPrefs = usePreferences((s) => s.borderId);
+  const fondFromPrefs = usePreferences((s) => s.fondId);
   const colorPrimary = usePreferences((s) => s.colorPrimary);
   const colorSecondary = usePreferences((s) => s.colorSecondary);
   const colorBg = usePreferences((s) => s.colorBg);
@@ -41,6 +51,9 @@ export function CardFrame({
 
   const id = borderId ?? fromPrefs;
   const def: BorderDef | undefined = [...BORDERS, ...remote].find((b) => b.id === id);
+  const effectiveFondId = fondId ?? fondFromPrefs;
+  const bgColor = innerBackgroundColor ?? theme.paperWarm;
+  const hasFond = !!effectiveFondId && effectiveFondId !== 'none';
 
   // Pour les cadres SVG : tokens DB = map `prefKey → sentinelHex`. Le SVG
   // contient les hex sentinelles literal (export Illustrator brut). Au
@@ -49,7 +62,7 @@ export function CardFrame({
   // utiles uniquement.
   const themedSvgXml = useMemo(() => {
     if (!def?.svgXml) return undefined;
-    return applyBorderTokens(
+    return applyTokens(
       def.svgXml,
       def.tokens,
       { colorPrimary, colorSecondary, colorBg },
@@ -66,8 +79,25 @@ export function CardFrame({
     colorOverrides,
   ]);
 
+  // Pas de cadre catalog → soit un fond seul (View overflow:hidden + FondLayer
+  // + children), soit passthrough complet si pas de fond non plus.
   if (!def || (!def.source && !def.svgXml) || !def.imageSize || !def.slice) {
-    return <>{children}</>;
+    if (!hasFond) return <>{children}</>;
+    // FondLayer remplit le wrapper (absolute fill). Children par-dessus via
+    // un sibling — le wrapper doit clipper. On signale `inFrame=true` aux
+    // cards pour qu'elles neutralisent leur bg-paper-warm hardcodé (sinon
+    // il masquerait le fond) ; padding=0 car pas de cadre qui dicte.
+    const fondCtx = { inFrame: true, padding: 0 };
+    return (
+      <View style={[{ overflow: 'hidden' }, style]}>
+        <FondLayer
+          bgColor={bgColor}
+          fondId={effectiveFondId}
+          colorOverrides={fondColorOverrides}
+        />
+        <CardFrameProvider value={fondCtx}>{children}</CardFrameProvider>
+      </View>
+    );
   }
 
   // Cadre actif : on signale aux cards via context qu'elles doivent
@@ -85,7 +115,16 @@ export function CardFrame({
       bgInsets={def.bgInsets}
       repeat={def.repeat}
       fillCenter={false}
-      innerBackgroundColor={innerBackgroundColor ?? theme.paperWarm}
+      innerBackgroundColor={hasFond ? undefined : bgColor}
+      innerBackground={
+        hasFond ? (
+          <FondLayer
+            bgColor={bgColor}
+            fondId={effectiveFondId}
+            colorOverrides={fondColorOverrides}
+          />
+        ) : undefined
+      }
       style={style}>
       <CardFrameProvider value={ctx}>{children}</CardFrameProvider>
     </NineSliceFrame>

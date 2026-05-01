@@ -1,3 +1,4 @@
+import type { TextStyle } from 'react-native';
 import type {
   SheetAppearance,
   SheetAppearanceOverride,
@@ -75,6 +76,16 @@ export function shiftTowardsPaper(hex: string): string {
   return `#${to(mr)}${to(mg)}${to(mb)}`;
 }
 
+// Ombre subtile appliquée à tout texte d'une fiche de lecture. Aide à
+// dissocier le texte du fond image quand un fond catalog est actif —
+// reste invisible / quasi-invisible quand la fiche utilise une bgColor
+// uniforme.
+export const SHEET_TEXT_SHADOW: TextStyle = {
+  textShadowColor: 'rgba(0, 0, 0, 0.18)',
+  textShadowOffset: { width: 0, height: 1 },
+  textShadowRadius: 2,
+};
+
 export function hexWithAlpha(hex: string, alpha: number): string {
   const m = hex.replace('#', '');
   if (!/^[0-9a-fA-F]{6}$/.test(m)) return hex;
@@ -134,6 +145,7 @@ export function mergeAppearance(
   if (!override) return base;
   return {
     frame: override.frame ?? base.frame,
+    fond: override.fond ?? base.fond,
     fontId: override.fontId ?? base.fontId,
     bgColor: override.bgColor ?? base.bgColor,
     textColor: override.textColor ?? base.textColor,

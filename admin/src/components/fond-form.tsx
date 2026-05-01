@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { SUPABASE_URL, supabase } from '../lib/supabase';
-import type { BorderCatalogRow, BorderRepeatMode } from '../lib/types';
+import type { FondCatalogRow, FondRepeatMode } from '../lib/types';
 import {
   KindFileFieldset,
   PeriodFieldset,
@@ -8,51 +8,29 @@ import {
   TokensField,
   VisibilityFieldset,
   applySvgPreviewOverrides,
-  parseOptInt,
   type DecorationKind,
 } from './decoration-fields';
 
 type Props = {
-  initial: BorderCatalogRow | null;
-  onSaved: (saved: BorderCatalogRow) => void;
+  initial: FondCatalogRow | null;
+  onSaved: (saved: FondCatalogRow) => void;
   onDeleted: (key: string) => void;
 };
 
-export function BorderForm({ initial, onSaved, onDeleted }: Props) {
+export function FondForm({ initial, onSaved, onDeleted }: Props) {
   const isNew = initial === null;
-  const [borderKey, setBorderKey] = useState(initial?.border_key ?? '');
+  const [fondKey, setFondKey] = useState(initial?.fond_key ?? '');
   const [title, setTitle] = useState(initial?.title ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [kind, setKind] = useState<DecorationKind>(initial?.kind ?? 'png_9slice');
   const [imageWidth, setImageWidth] = useState<string>(
-    initial ? String(initial.image_width) : '32',
+    initial ? String(initial.image_width) : '128',
   );
   const [imageHeight, setImageHeight] = useState<string>(
-    initial ? String(initial.image_height) : '32',
+    initial ? String(initial.image_height) : '128',
   );
-  const [sliceTop, setSliceTop] = useState<string>(initial ? String(initial.slice_top) : '8');
-  const [sliceRight, setSliceRight] = useState<string>(initial ? String(initial.slice_right) : '8');
-  const [sliceBottom, setSliceBottom] = useState<string>(
-    initial ? String(initial.slice_bottom) : '8',
-  );
-  const [sliceLeft, setSliceLeft] = useState<string>(initial ? String(initial.slice_left) : '8');
-  const [bgInsetTop, setBgInsetTop] = useState<string>(
-    initial?.bg_inset_top != null ? String(initial.bg_inset_top) : '',
-  );
-  const [bgInsetRight, setBgInsetRight] = useState<string>(
-    initial?.bg_inset_right != null ? String(initial.bg_inset_right) : '',
-  );
-  const [bgInsetBottom, setBgInsetBottom] = useState<string>(
-    initial?.bg_inset_bottom != null ? String(initial.bg_inset_bottom) : '',
-  );
-  const [bgInsetLeft, setBgInsetLeft] = useState<string>(
-    initial?.bg_inset_left != null ? String(initial.bg_inset_left) : '',
-  );
-  const [repeatMode, setRepeatMode] = useState<BorderRepeatMode>(
-    initial?.repeat_mode ?? 'stretch',
-  );
-  const [cardPadding, setCardPadding] = useState<string>(
-    initial ? String(initial.card_padding) : '0',
+  const [repeatMode, setRepeatMode] = useState<FondRepeatMode>(
+    initial?.repeat_mode ?? 'cover',
   );
   const [tokensJson, setTokensJson] = useState(
     JSON.stringify(initial?.tokens ?? {}, null, 2),
@@ -77,22 +55,13 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
   const [previewOverrides, setPreviewOverrides] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    setBorderKey(initial?.border_key ?? '');
+    setFondKey(initial?.fond_key ?? '');
     setTitle(initial?.title ?? '');
     setDescription(initial?.description ?? '');
     setKind(initial?.kind ?? 'png_9slice');
-    setImageWidth(initial ? String(initial.image_width) : '32');
-    setImageHeight(initial ? String(initial.image_height) : '32');
-    setSliceTop(initial ? String(initial.slice_top) : '8');
-    setSliceRight(initial ? String(initial.slice_right) : '8');
-    setSliceBottom(initial ? String(initial.slice_bottom) : '8');
-    setSliceLeft(initial ? String(initial.slice_left) : '8');
-    setBgInsetTop(initial?.bg_inset_top != null ? String(initial.bg_inset_top) : '');
-    setBgInsetRight(initial?.bg_inset_right != null ? String(initial.bg_inset_right) : '');
-    setBgInsetBottom(initial?.bg_inset_bottom != null ? String(initial.bg_inset_bottom) : '');
-    setBgInsetLeft(initial?.bg_inset_left != null ? String(initial.bg_inset_left) : '');
-    setRepeatMode(initial?.repeat_mode ?? 'stretch');
-    setCardPadding(initial ? String(initial.card_padding) : '0');
+    setImageWidth(initial ? String(initial.image_width) : '128');
+    setImageHeight(initial ? String(initial.image_height) : '128');
+    setRepeatMode(initial?.repeat_mode ?? 'cover');
     setTokensJson(JSON.stringify(initial?.tokens ?? {}, null, 2));
     setIsDefault(initial?.is_default ?? false);
     setActiveFrom(initial?.active_from?.slice(0, 16) ?? '');
@@ -133,9 +102,9 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
   async function uploadFileIfPending(): Promise<string | null> {
     if (!pendingFile) return storagePath;
     const ext = pendingFile.name.split('.').pop()?.toLowerCase() ?? 'png';
-    const path = `${borderKey}/${Date.now()}.${ext}`;
+    const path = `${fondKey}/${Date.now()}.${ext}`;
     const { error: upErr } = await supabase.storage
-      .from('border-graphics')
+      .from('fond-graphics')
       .upload(path, pendingFile, {
         upsert: true,
         contentType: pendingFile.type || 'image/png',
@@ -148,8 +117,8 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
     setError(null);
     setSuccess(null);
 
-    if (!borderKey || !title) {
-      setError('border_key et titre requis');
+    if (!fondKey || !title) {
+      setError('fond_key et titre requis');
       return;
     }
     if (tokensError) {
@@ -159,16 +128,8 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
 
     const iw = Number.parseInt(imageWidth, 10);
     const ih = Number.parseInt(imageHeight, 10);
-    const st = Number.parseInt(sliceTop, 10);
-    const sr = Number.parseInt(sliceRight, 10);
-    const sb = Number.parseInt(sliceBottom, 10);
-    const sl = Number.parseInt(sliceLeft, 10);
-    if (![iw, ih, st, sr, sb, sl].every((n) => Number.isFinite(n) && n >= 0)) {
-      setError('Dimensions et slices doivent être des entiers >= 0');
-      return;
-    }
-    if (sl + sr > iw || st + sb > ih) {
-      setError("Slices dépassent les dimensions de l'image");
+    if (![iw, ih].every((n) => Number.isFinite(n) && n > 0)) {
+      setError('Dimensions doivent être des entiers > 0');
       return;
     }
     if (kind === 'png_9slice' && !pendingFile && !storagePath) {
@@ -187,7 +148,7 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
       const finalPayload = isSvg ? (pendingPayloadText ?? payloadText) : null;
 
       const row = {
-        border_key: borderKey,
+        fond_key: fondKey,
         title,
         description: description || null,
         kind,
@@ -195,16 +156,7 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
         payload: finalPayload,
         image_width: iw,
         image_height: ih,
-        slice_top: st,
-        slice_right: sr,
-        slice_bottom: sb,
-        slice_left: sl,
-        bg_inset_top: parseOptInt(bgInsetTop),
-        bg_inset_right: parseOptInt(bgInsetRight),
-        bg_inset_bottom: parseOptInt(bgInsetBottom),
-        bg_inset_left: parseOptInt(bgInsetLeft),
         repeat_mode: repeatMode,
-        card_padding: Math.max(0, Number.parseInt(cardPadding, 10) || 0),
         tokens: parsedTokens,
         is_default: isDefault,
         active_from: activeFrom ? new Date(activeFrom).toISOString() : null,
@@ -212,8 +164,8 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
         retired_at: retiredAt ? new Date(retiredAt).toISOString() : null,
       };
       const { data, error: upErr } = await supabase
-        .from('border_catalog')
-        .upsert(row, { onConflict: 'border_key' })
+        .from('fond_catalog')
+        .upsert(row, { onConflict: 'fond_key' })
         .select()
         .single();
       if (upErr) {
@@ -224,7 +176,7 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
       setPayloadText(finalPayload);
       clearPendingFile();
       setSuccess('Enregistré.');
-      onSaved(data as BorderCatalogRow);
+      onSaved(data as FondCatalogRow);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur inconnue');
     } finally {
@@ -234,19 +186,19 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
 
   async function retire() {
     if (!initial) return;
-    if (!confirm(`Retirer le cadre "${initial.title}" ?`)) return;
+    if (!confirm(`Retirer le fond "${initial.title}" ?`)) return;
     setSubmitting(true);
     setError(null);
     const { error: err } = await supabase
-      .from('border_catalog')
+      .from('fond_catalog')
       .update({ retired_at: new Date().toISOString() })
-      .eq('border_key', initial.border_key);
+      .eq('fond_key', initial.fond_key);
     setSubmitting(false);
     if (err) {
       setError(err.message);
       return;
     }
-    onDeleted(initial.border_key);
+    onDeleted(initial.fond_key);
   }
 
   async function unretire() {
@@ -254,9 +206,9 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
     setSubmitting(true);
     setError(null);
     const { data, error: err } = await supabase
-      .from('border_catalog')
+      .from('fond_catalog')
       .update({ retired_at: null })
-      .eq('border_key', initial.border_key)
+      .eq('fond_key', initial.fond_key)
       .select()
       .single();
     setSubmitting(false);
@@ -264,7 +216,7 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
       setError(err.message);
       return;
     }
-    onSaved(data as BorderCatalogRow);
+    onSaved(data as FondCatalogRow);
   }
 
   const isSvgKind = kind === 'svg_9slice';
@@ -283,7 +235,7 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
     : pendingPreview
       ? pendingPreview
       : storagePath
-        ? `${SUPABASE_URL}/storage/v1/object/public/border-graphics/${storagePath}`
+        ? `${SUPABASE_URL}/storage/v1/object/public/fond-graphics/${storagePath}`
         : null;
 
   return (
@@ -303,16 +255,8 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
           <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--line)', padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
             {previewSrc ? (
               <>
-                <PreviewFrame
+                <PreviewFond
                   src={previewSrc}
-                  sliceTop={Number.parseInt(sliceTop, 10) || 0}
-                  sliceRight={Number.parseInt(sliceRight, 10) || 0}
-                  sliceBottom={Number.parseInt(sliceBottom, 10) || 0}
-                  sliceLeft={Number.parseInt(sliceLeft, 10) || 0}
-                  bgInsetTop={resolveInset(bgInsetTop, sliceTop)}
-                  bgInsetRight={resolveInset(bgInsetRight, sliceRight)}
-                  bgInsetBottom={resolveInset(bgInsetBottom, sliceBottom)}
-                  bgInsetLeft={resolveInset(bgInsetLeft, sliceLeft)}
                   repeatMode={repeatMode}
                   outerWidth={previewW}
                   outerHeight={previewH}
@@ -322,25 +266,25 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
                   <SizeSlider label="H" value={previewH} min={60} max={600} onChange={setPreviewH} />
                 </div>
                 <div className="muted" style={{ fontSize: 11, textAlign: 'center' }}>
-                  {previewW}×{previewH} — bg rouge = zone du bg appliqué dans l&apos;app
+                  {previewW}×{previewH} — rendu {repeatMode === 'cover' ? 'crop center sans déformation' : 'tile (count entier)'}
                 </div>
               </>
             ) : (
-              <div className="muted" style={{ fontSize: 12, padding: 24 }}>Sélectionne un PNG.</div>
+              <div className="muted" style={{ fontSize: 12, padding: 24 }}>Sélectionne un fichier.</div>
             )}
           </div>
         </div>
 
         <div>
-          <h2 style={{ marginTop: 0 }}>{isNew ? 'Nouveau cadre' : borderKey}</h2>
+          <h2 style={{ marginTop: 0 }}>{isNew ? 'Nouveau fond' : fondKey}</h2>
 
           <div className="field">
-            <label>border_key</label>
+            <label>fond_key</label>
             <input
-              value={borderKey}
-              onChange={(e) => setBorderKey(e.target.value)}
+              value={fondKey}
+              onChange={(e) => setFondKey(e.target.value)}
               disabled={!isNew}
-              placeholder="ex: parchment_v1"
+              placeholder="ex: linen_v1"
             />
             {!isNew && <div className="muted" style={{ fontSize: 12 }}>Non modifiable après création.</div>}
           </div>
@@ -386,71 +330,17 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
                 <input type="number" min={1} value={imageHeight} onChange={(e) => setImageHeight(e.target.value)} />
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <div className="field" style={{ flex: 1 }}>
-                <label>Slice top</label>
-                <input type="number" min={0} value={sliceTop} onChange={(e) => setSliceTop(e.target.value)} />
-              </div>
-              <div className="field" style={{ flex: 1 }}>
-                <label>Slice right</label>
-                <input type="number" min={0} value={sliceRight} onChange={(e) => setSliceRight(e.target.value)} />
-              </div>
-              <div className="field" style={{ flex: 1 }}>
-                <label>Slice bottom</label>
-                <input type="number" min={0} value={sliceBottom} onChange={(e) => setSliceBottom(e.target.value)} />
-              </div>
-              <div className="field" style={{ flex: 1 }}>
-                <label>Slice left</label>
-                <input type="number" min={0} value={sliceLeft} onChange={(e) => setSliceLeft(e.target.value)} />
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <div className="field" style={{ flex: 1 }}>
-                <label>Bg inset top</label>
-                <input type="number" min={0} placeholder="auto" value={bgInsetTop} onChange={(e) => setBgInsetTop(e.target.value)} />
-              </div>
-              <div className="field" style={{ flex: 1 }}>
-                <label>Bg inset right</label>
-                <input type="number" min={0} placeholder="auto" value={bgInsetRight} onChange={(e) => setBgInsetRight(e.target.value)} />
-              </div>
-              <div className="field" style={{ flex: 1 }}>
-                <label>Bg inset bottom</label>
-                <input type="number" min={0} placeholder="auto" value={bgInsetBottom} onChange={(e) => setBgInsetBottom(e.target.value)} />
-              </div>
-              <div className="field" style={{ flex: 1 }}>
-                <label>Bg inset left</label>
-                <input type="number" min={0} placeholder="auto" value={bgInsetLeft} onChange={(e) => setBgInsetLeft(e.target.value)} />
-              </div>
-            </div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
-              Distance depuis chaque bord externe vers l&apos;intérieur où démarre le bg coloré (rouge dans la preview).
-              Vide = auto (slice/2). À ajuster pour aligner le bg sur la position réelle de l&apos;encre.
-            </div>
             <div className="field">
               <label>Repeat</label>
               <select
                 value={repeatMode}
-                onChange={(e) => setRepeatMode(e.target.value as BorderRepeatMode)}>
-                <option value="stretch">stretch — étire le slice</option>
-                <option value="round">round — tile (count entier scalé)</option>
+                onChange={(e) => setRepeatMode(e.target.value as FondRepeatMode)}>
+                <option value="cover">cover — étire en couvrant la surface (crop center)</option>
+                <option value="tile">tile — répète le motif (count entier)</option>
               </select>
               <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                Comportement des bandes edges/center. `round` pour les motifs répétitifs
-                (chaînettes, guirlandes) ; `stretch` pour les bordures peintes uniques.
-              </div>
-            </div>
-            <div className="field">
-              <label>Card padding (px)</label>
-              <input
-                type="number"
-                min={0}
-                value={cardPadding}
-                onChange={(e) => setCardPadding(e.target.value)}
-              />
-              <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                Padding interne appliqué à la card quand ce cadre est actif (override les
-                paddings hardcodés p-5/p-6 des composants). 0 = contenu collé aux edges
-                intérieurs du frame.
+                `cover` pour une photo/illustration plein cadre (crop centré sans déformation
+                si l&apos;AR diffère). `tile` pour un motif répétable (papier, texture, pattern).
               </div>
             </div>
             <TokensField
@@ -466,7 +356,7 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
           <VisibilityFieldset
             isDefault={isDefault}
             setIsDefault={setIsDefault}
-            helper="Coché : visible et sélectionnable par tous les users sans unlock préalable. Décoché : verrouillé — le user doit débloquer le cadre (table user_borders) pour le voir apparaître dans le perso."
+            helper="Coché : visible et sélectionnable par tous les users sans unlock préalable. Décoché : verrouillé — le user doit débloquer le fond (table user_fonds) pour le voir apparaître dans le perso."
           />
 
           <PeriodFieldset
@@ -507,76 +397,36 @@ export function BorderForm({ initial, onSaved, onDeleted }: Props) {
   );
 }
 
-// `resolveInset` calcule la valeur effective d'un bg inset : input vide ⇒
-// auto = slice/2 (default app-side). Spécifique au cadre, pas factorisé.
-function resolveInset(value: string, sliceFallback: string): number {
-  const t = value.trim();
-  if (t === '') {
-    const s = Number.parseInt(sliceFallback, 10);
-    if (!Number.isFinite(s)) return 0;
-    return Math.round(s / 2);
-  }
-  const n = Number.parseInt(t, 10);
-  return Number.isFinite(n) && n >= 0 ? n : 0;
-}
-
-// Preview web : layer rouge en absolu (= bg app rendu derrière) + slices PNG
-// par-dessus via border-image. Le rouge n'est visible que là où le PNG est
-// transparent ET où les bg insets le permettent — exactement comme dans l'app.
-function PreviewFrame({
+// Preview web : approxime le rendering app. `cover` ⇒ background-size:cover
+// (crop center sans déformation). `tile` ⇒ background-repeat:round (count
+// entier scalé pour rentrer pile, équivalent du tile-mode app).
+function PreviewFond({
   src,
-  sliceTop,
-  sliceRight,
-  sliceBottom,
-  sliceLeft,
-  bgInsetTop,
-  bgInsetRight,
-  bgInsetBottom,
-  bgInsetLeft,
   repeatMode,
   outerWidth,
   outerHeight,
 }: {
   src: string;
-  sliceTop: number;
-  sliceRight: number;
-  sliceBottom: number;
-  sliceLeft: number;
-  bgInsetTop: number;
-  bgInsetRight: number;
-  bgInsetBottom: number;
-  bgInsetLeft: number;
-  repeatMode: BorderRepeatMode;
+  repeatMode: FondRepeatMode;
   outerWidth: number;
   outerHeight: number;
 }) {
-  return (
-    <div style={{ position: 'relative', width: outerWidth, height: outerHeight }}>
-      <div
-        style={{
-          position: 'absolute',
-          top: bgInsetTop,
-          right: bgInsetRight,
-          bottom: bgInsetBottom,
-          left: bgInsetLeft,
-          backgroundColor: '#ff0000',
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          boxSizing: 'border-box',
-          borderStyle: 'solid',
-          borderColor: 'transparent',
-          borderTopWidth: sliceTop,
-          borderRightWidth: sliceRight,
-          borderBottomWidth: sliceBottom,
-          borderLeftWidth: sliceLeft,
-          borderImage: `url(${src}) ${sliceTop} ${sliceRight} ${sliceBottom} ${sliceLeft} fill / ${sliceTop}px ${sliceRight}px ${sliceBottom}px ${sliceLeft}px ${repeatMode}`,
-          imageRendering: 'pixelated',
-        }}
-      />
-    </div>
-  );
+  const style: React.CSSProperties = {
+    width: outerWidth,
+    height: outerHeight,
+    backgroundImage: `url(${src})`,
+    backgroundColor: '#f4efe6',
+    border: '1px dashed rgba(107,98,89,0.4)',
+    borderRadius: 8,
+  };
+  if (repeatMode === 'cover') {
+    style.backgroundSize = 'cover';
+    style.backgroundPosition = 'center';
+    style.backgroundRepeat = 'no-repeat';
+  } else {
+    // `round` ≈ tile-mode app (count entier scalé sans clipping). Browser
+    // support large mais inégal — fallback sur `repeat` via la spec.
+    style.backgroundRepeat = 'round';
+  }
+  return <div style={style} />;
 }

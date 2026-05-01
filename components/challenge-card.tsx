@@ -1,3 +1,4 @@
+import { useCardFrame } from '@/components/card-frame-context';
 import { useBookshelf } from '@/store/bookshelf';
 import { useChallenges } from '@/store/challenges';
 import { useMemo, useState } from 'react';
@@ -19,6 +20,7 @@ export function ChallengeCard() {
   const year = new Date().getFullYear();
   const challenge = useChallenges((s) => s.challenges[year]);
   const books = useBookshelf((s) => s.books);
+  const { inFrame, padding: framedPadding } = useCardFrame();
 
   const finishedCount = useMemo(
     () =>
@@ -34,7 +36,10 @@ export function ChallengeCard() {
   if (!challenge) {
     return (
       <>
-        <Animated.View entering={FadeIn.duration(400)} className="rounded-3xl bg-paper-warm p-6">
+        <Animated.View
+          entering={FadeIn.duration(400)}
+          className={`rounded-3xl ${inFrame ? '' : 'bg-paper-warm p-6'}`}
+          style={inFrame ? { padding: framedPadding } : undefined}>
           <Text className="font-display text-xl text-ink">Défi de lecture {year}</Text>
           <Text className="mt-2 text-ink-muted">
             Fixe un objectif de livres pour l&apos;année. On suivra ta progression auto.
@@ -81,7 +86,10 @@ export function ChallengeCard() {
   return (
     <>
       <Pressable onPress={() => setEditOpen(true)} className="active:opacity-90">
-        <Animated.View entering={FadeIn.duration(400)} className="rounded-3xl bg-paper-warm p-6">
+        <Animated.View
+          entering={FadeIn.duration(400)}
+          className={`rounded-3xl ${inFrame ? '' : 'bg-paper-warm p-6'}`}
+          style={inFrame ? { padding: framedPadding } : undefined}>
           <View className="flex-row items-baseline justify-between">
             <Text className="font-display text-xl text-ink">Défi {year}</Text>
             <Text className="text-xs uppercase tracking-wider text-ink-muted">

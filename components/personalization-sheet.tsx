@@ -1,11 +1,14 @@
 import { ColorPickerModal } from '@/components/color-picker-modal';
+import { FondLayer } from '@/components/fond-layer';
 import { NineSliceFrame } from '@/components/nine-slice-frame';
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { type BorderDef } from '@/lib/borders/catalog';
-import { applyBorderTokens } from '@/lib/borders/tokens';
+import { applyTokens } from '@/lib/decorations/tokens';
+import { type FondDef } from '@/lib/fonds/catalog';
 import { FONTS, type FontId } from '@/lib/theme/fonts';
 import { THEMES, customThemeId, type CustomTheme } from '@/lib/theme/themes';
 import { useAllBorders } from '@/store/border-catalog';
+import { useAllFonds } from '@/store/fond-catalog';
 import { usePersonalization } from '@/store/personalization';
 import { usePreferences } from '@/store/preferences';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -34,6 +37,8 @@ export function PersonalizationSheet() {
   const customThemes = usePreferences((s) => s.customThemes);
   const borderId = usePreferences((s) => s.borderId);
   const setBorderId = usePreferences((s) => s.setBorderId);
+  const fondId = usePreferences((s) => s.fondId);
+  const setFondId = usePreferences((s) => s.setFondId);
   const applyTheme = usePreferences((s) => s.applyTheme);
   const setFontId = usePreferences((s) => s.setFontId);
   const setPrimary = usePreferences((s) => s.setColorPrimary);
@@ -146,6 +151,9 @@ export function PersonalizationSheet() {
 
                 <SectionLabel>Cadres</SectionLabel>
                 <BordersRow borderId={borderId} setBorderId={setBorderId} />
+
+                <SectionLabel>Fonds</SectionLabel>
+                <FondsRow fondId={fondId} setFondId={setFondId} />
               </>
             )}
 
@@ -552,7 +560,7 @@ function BorderCard({
   const theme = useThemeColors();
   const themedSvgXml = useMemo(() => {
     if (!def.svgXml) return undefined;
-    return applyBorderTokens(
+    return applyTokens(
       def.svgXml,
       def.tokens,
       { colorPrimary, colorSecondary, colorBg },
@@ -600,6 +608,100 @@ function BorderCard({
           <MaterialIcons name="block" size={20} color="rgb(107 98 89)" />
           <Text
             style={{ fontSize: 10, color: 'rgb(107 98 89)', marginTop: 4, textAlign: 'center' }}>
+            {def.label}
+          </Text>
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
+function FondsRow({
+  fondId,
+  setFondId,
+}: {
+  fondId: string;
+  setFondId: (id: string) => void;
+}) {
+  const all = useAllFonds();
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
+      {all.map((f) => (
+        <FondCard
+          key={f.id}
+          def={f}
+          active={f.id === fondId}
+          onPress={() => setFondId(f.id)}
+        />
+      ))}
+    </ScrollView>
+  );
+}
+
+function FondCard({
+  def,
+  active,
+  onPress,
+}: {
+  def: FondDef;
+  active: boolean;
+  onPress: () => void;
+}) {
+  const W = 96;
+  const H = 96;
+  const colorBg = usePreferences((s) => s.colorBg);
+  const hasArt = !!(def.source || def.svgXml);
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        width: W,
+        height: H,
+        borderWidth: active ? 2 : 1,
+        borderColor: active ? '#c27b52' : 'rgba(107,98,89,0.2)',
+        borderRadius: 14,
+        overflow: 'hidden',
+        backgroundColor: 'rgba(255,255,255,0.4)',
+      }}>
+      {hasArt ? (
+        <FondLayer bgColor={colorBg} fondId={def.id} />
+      ) : (
+        <View
+          style={{
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderStyle: 'dashed',
+            borderWidth: 1,
+            borderColor: 'rgba(107,98,89,0.4)',
+            margin: 6,
+            borderRadius: 8,
+          }}>
+          <MaterialIcons name="block" size={20} color="rgb(107 98 89)" />
+          <Text
+            style={{ fontSize: 10, color: 'rgb(107 98 89)', marginTop: 4, textAlign: 'center' }}>
+            {def.label}
+          </Text>
+        </View>
+      )}
+      {hasArt && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            paddingVertical: 4,
+            paddingHorizontal: 6,
+            backgroundColor: 'rgba(255,255,255,0.85)',
+          }}>
+          <Text
+            numberOfLines={1}
+            style={{ fontSize: 10, color: 'rgb(58 50 43)', textAlign: 'center' }}>
             {def.label}
           </Text>
         </View>

@@ -1,5 +1,6 @@
 import { APP_SLUG } from '@/constants/app';
 import { DEFAULT_BORDER_ID } from '@/lib/borders/catalog';
+import { DEFAULT_FOND_ID } from '@/lib/fonds/catalog';
 import { newId } from '@/lib/id';
 import { DEFAULT_FONT_ID, type FontId } from '@/lib/theme/fonts';
 import {
@@ -30,6 +31,7 @@ export type Preferences = {
   colorBg: string;
   customThemes: CustomTheme[];
   borderId: string;
+  fondId: string;
 };
 
 const papier = getTheme(DEFAULT_THEME_ID);
@@ -44,6 +46,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   colorBg: papier.bg,
   customThemes: [],
   borderId: DEFAULT_BORDER_ID,
+  fondId: DEFAULT_FOND_ID,
 };
 
 type PreferencesState = Preferences & {
@@ -57,6 +60,7 @@ type PreferencesState = Preferences & {
   saveCurrentAsCustomTheme: (label: string) => CustomTheme;
   deleteCustomTheme: (id: string) => void;
   setBorderId: (id: string) => void;
+  setFondId: (id: string) => void;
   resetToDefaults: () => void;
 };
 
@@ -83,6 +87,7 @@ function pushFullPrefs(state: Preferences): void {
     colorBg: state.colorBg,
     customThemes: state.customThemes,
     borderId: state.borderId,
+    fondId: state.fondId,
   });
 }
 
@@ -166,6 +171,10 @@ export const usePreferences = create<PreferencesState>()(
         set({ borderId: id });
         pushFullPrefs(get());
       },
+      setFondId: (id) => {
+        set({ fondId: id });
+        pushFullPrefs(get());
+      },
       deleteCustomTheme: (id) => {
         const state = get();
         const next = state.customThemes.filter((t) => t.id !== id);
@@ -184,7 +193,7 @@ export const usePreferences = create<PreferencesState>()(
     }),
     {
       name: `${APP_SLUG}-preferences`,
-      version: 7,
+      version: 8,
       storage: createJSONStorage(() => AsyncStorage),
       migrate: (persisted: unknown, version: number) => {
         // Toute version antérieure → merge avec defaults : ajoute les champs
@@ -205,6 +214,8 @@ export const usePreferences = create<PreferencesState>()(
         if (version < 7) {
           delete (merged as Record<string, unknown>).avatarUrl;
         }
+        // v8 : ajout de fondId (default 'none'). Les versions <8 le récupèrent
+        // depuis DEFAULT_PREFERENCES via le merge ci-dessus, rien à forcer.
         return merged;
       },
     },

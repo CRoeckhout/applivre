@@ -10,6 +10,7 @@ import {
   isCustomAppearance,
   mergeAppearance,
   resolveSectionIcon,
+  SHEET_TEXT_SHADOW,
 } from "@/lib/sheet-appearance";
 import { getFont } from "@/lib/theme/fonts";
 import { useBookshelf } from "@/store/bookshelf";
@@ -290,14 +291,14 @@ export default function SheetScreen() {
                 />
                 <View className="flex-1">
                   <Text
-                    style={{ color: appearance.mutedColor }}
+                    style={[{ color: appearance.mutedColor }, SHEET_TEXT_SHADOW]}
                     className="text-xs uppercase tracking-wider"
                   >
                     Fiche de lecture
                   </Text>
                   <Text
                     numberOfLines={2}
-                    style={{ color: appearance.textColor, fontFamily }}
+                    style={[{ color: appearance.textColor, fontFamily }, SHEET_TEXT_SHADOW]}
                     className="text-xl"
                   >
                     {userBook.book.title}
@@ -310,7 +311,7 @@ export default function SheetScreen() {
                         color={appearance.mutedColor}
                       />
                       <Text
-                        style={{ color: appearance.mutedColor, fontSize: 11 }}
+                        style={[{ color: appearance.mutedColor, fontSize: 11 }, SHEET_TEXT_SHADOW]}
                       >
                         Personnalisée
                       </Text>
@@ -380,7 +381,7 @@ export default function SheetScreen() {
                   }}
                 >
                   <Text
-                    style={{ color: appearance.mutedColor }}
+                    style={[{ color: appearance.mutedColor }, SHEET_TEXT_SHADOW]}
                     className="mb-3 text-sm"
                   >
                     Ajouter une catégorie
@@ -411,7 +412,7 @@ export default function SheetScreen() {
                   className="mt-4 rounded-full py-3 active:opacity-70"
                 >
                   <Text
-                    style={{ color: appearance.mutedColor }}
+                    style={[{ color: appearance.mutedColor }, SHEET_TEXT_SHADOW]}
                     className="text-center"
                   >
                     + Section personnalisée
@@ -609,12 +610,15 @@ function EmptyState({
   return (
     <Animated.View entering={FadeIn.duration(500).delay(100)} className="mt-6">
       <Text
-        style={{ color: appearance.textColor, fontFamily }}
+        style={[{ color: appearance.textColor, fontFamily }, SHEET_TEXT_SHADOW]}
         className="text-2xl"
       >
         Crée ta fiche
       </Text>
-      <Text style={{ color: appearance.mutedColor }} className="mt-2">
+      <Text
+        style={[{ color: appearance.mutedColor }, SHEET_TEXT_SHADOW]}
+        className="mt-2"
+      >
         Note tes impressions sur ce livre. Ajoute les catégories qui
         t&apos;inspirent, crée les tiennes.
       </Text>
@@ -633,7 +637,10 @@ function EmptyState({
         style={{ backgroundColor: appearance.accentColor }}
         className="mt-4 rounded-full px-6 py-3 active:opacity-80"
       >
-        <Text className="text-center font-sans-med text-paper">
+        <Text
+          style={SHEET_TEXT_SHADOW}
+          className="text-center font-sans-med text-paper"
+        >
           + Section personnalisée
         </Text>
       </Pressable>
@@ -656,11 +663,16 @@ function SuggestionPill({
       style={{ borderColor: appearance.mutedColor, borderWidth: 1 }}
       className="flex-row items-center gap-1.5 rounded-full px-4 py-2 active:opacity-70"
     >
-      <Text style={{ color: appearance.textColor }} className="text-sm">
+      <Text
+        style={[{ color: appearance.textColor }, SHEET_TEXT_SHADOW]}
+        className="text-sm"
+      >
         + {category.title}
       </Text>
       {category.emoji ? (
-        <Text style={{ fontSize: 14 }}>{category.emoji}</Text>
+        <Text style={[{ fontSize: 14 }, SHEET_TEXT_SHADOW]}>
+          {category.emoji}
+        </Text>
       ) : category.materialIcon ? (
         <MaterialIcons
           name={category.materialIcon as keyof typeof MaterialIcons.glyphMap}
@@ -702,7 +714,10 @@ function SectionEditor({
           onChangeText={onUpdateTitle}
           placeholder="Titre de la catégorie"
           placeholderTextColor={appearance.mutedColor}
-          style={{ color: appearance.textColor, fontFamily, fontSize: 18 }}
+          style={[
+            { color: appearance.textColor, fontFamily, fontSize: 18 },
+            SHEET_TEXT_SHADOW,
+          ]}
           className="flex-1"
         />
         <Pressable
@@ -710,7 +725,10 @@ function SectionEditor({
           hitSlop={8}
           className="h-8 w-8 items-center justify-center rounded-full active:opacity-60"
         >
-          <Text style={{ color: appearance.mutedColor }} className="text-xl">
+          <Text
+            style={[{ color: appearance.mutedColor }, SHEET_TEXT_SHADOW]}
+            className="text-xl"
+          >
             ×
           </Text>
         </Pressable>
@@ -729,7 +747,9 @@ function SectionEditor({
                 style={{ opacity: filled ? 1 : 0.3 }}
               >
                 {resolvedIcon.emoji ? (
-                  <Text style={{ fontSize: 22 }}>{resolvedIcon.emoji}</Text>
+                  <Text style={[{ fontSize: 22 }, SHEET_TEXT_SHADOW]}>
+                    {resolvedIcon.emoji}
+                  </Text>
                 ) : (
                   <MaterialIcons
                     name={
@@ -754,7 +774,10 @@ function SectionEditor({
         placeholderTextColor={appearance.mutedColor}
         multiline
         textAlignVertical="top"
-        style={{ color: appearance.textColor, minHeight: 96, lineHeight: 22 }}
+        style={[
+          { color: appearance.textColor, minHeight: 96, lineHeight: 22 },
+          SHEET_TEXT_SHADOW,
+        ]}
         className="mt-3 text-base"
       />
     </View>

@@ -5,26 +5,31 @@ import {
   Chip,
   ColorRow,
   ColorRowLabeled,
+  FondTile,
   Label,
   PresetCard,
   SavePresetCard,
   SavePresetModal,
   Section,
   Stepper,
+  TokenOverridesEditor,
   borderLabel,
   tokenLabel,
 } from '@/components/sheet-customizer';
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { PERSO_BORDER_ID, type BorderDef } from '@/lib/borders/catalog';
+import { type FondDef } from '@/lib/fonds/catalog';
 import { DEFAULT_APPEARANCE } from '@/lib/sheet-appearance';
 import { BUILTIN_PRESETS } from '@/lib/sheet-presets';
 import { FONTS } from '@/lib/theme/fonts';
 import { useAllBorders } from '@/store/border-catalog';
+import { useAllFonds } from '@/store/fond-catalog';
 import { usePreferences } from '@/store/preferences';
 import { useSheetTemplates } from '@/store/sheet-templates';
 import {
   SHEET_BORDER_STYLES,
   type SheetAppearance,
+  type SheetFond,
   type SheetFrame,
 } from '@/types/book';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -40,6 +45,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type ColorTarget = 'bg' | 'text' | 'muted' | 'accent' | 'frame' | null;
+
+type TokenOverrideTarget = { kind: 'frame' | 'fond'; tokenName: string } | null;
 
 type Props = {
   open: boolean;
@@ -64,15 +71,15 @@ export function BingoCustomizer({
 }: Props) {
   const [draft, setDraft] = useState<SheetAppearance>(appearance);
   const [colorTarget, setColorTarget] = useState<ColorTarget>(null);
-  const [overrideTokenTarget, setOverrideTokenTarget] = useState<string | null>(
-    null,
-  );
+  const [overrideTokenTarget, setOverrideTokenTarget] =
+    useState<TokenOverrideTarget>(null);
   const [savePresetOpen, setSavePresetOpen] = useState(false);
 
   const userPresets = useSheetTemplates((s) => s.userPresets);
   const addUserPreset = useSheetTemplates((s) => s.addUserPreset);
   const deleteUserPreset = useSheetTemplates((s) => s.deleteUserPreset);
   const allBorders = useAllBorders();
+  const allFonds = useAllFonds();
   const theme = useThemeColors();
   const colorPrimary = usePreferences((s) => s.colorPrimary);
   const colorSecondary = usePreferences((s) => s.colorSecondary);
@@ -86,7 +93,16 @@ export function BingoCustomizer({
   const updateFrame = (partial: Partial<SheetFrame>) =>
     setDraft((d) => ({ ...d, frame: { ...d.frame, ...partial } }));
 
-  const setColorOverride = (tokenName: string, hex: string | null) =>
+  const updateFond = (partial: Partial<SheetFond>) =>
+    setDraft((d) => {
+      const next: SheetFond = { ...(d.fond ?? {}), ...partial };
+      const isEmpty =
+        (!next.fondId || next.fondId === 'none') &&
+        (!next.colorOverrides || Object.keys(next.colorOverrides).length === 0);
+      return { ...d, fond: isEmpty ? undefined : next };
+    });
+
+  const setFrameColorOverride = (tokenName: string, hex: string | null) =>
     setDraft((d) => {
       const next = { ...(d.frame.colorOverrides ?? {}) };
       if (hex === null) delete next[tokenName];
@@ -100,15 +116,37 @@ export function BingoCustomizer({
       };
     });
 
+  const setFondColorOverride = (tokenName: string, hex: string | null) =>
+    setDraft((d) => {
+      const next = { ...(d.fond?.colorOverrides ?? {}) };
+      if (hex === null) delete next[tokenName];
+      else next[tokenName] = hex;
+      const fond: SheetFond = {
+        ...(d.fond ?? {}),
+        colorOverrides: Object.keys(next).length > 0 ? next : undefined,
+      };
+      const isEmpty =
+        (!fond.fondId || fond.fondId === 'none') &&
+        (!fond.colorOverrides || Object.keys(fond.colorOverrides).length === 0);
+      return { ...d, fond: isEmpty ? undefined : fond };
+    });
+
   const selectedBorder: BorderDef | undefined = useMemo(() => {
     const id = draft.frame.borderId;
     if (!id || id === PERSO_BORDER_ID) return undefined;
     return allBorders.find((b) => b.id === id);
   }, [draft.frame.borderId, allBorders]);
 
+  const selectedFond: FondDef | undefined = useMemo(() => {
+    const id = draft.fond?.fondId;
+    if (!id || id === 'none') return undefined;
+    return allFonds.find((f) => f.id === id);
+  }, [draft.fond?.fondId, allFonds]);
+
   const isPerso = !draft.frame.borderId || draft.frame.borderId === PERSO_BORDER_ID;
   const isSvg = !!selectedBorder?.svgXml;
   const isPng = !!selectedBorder?.source;
+  const fondIsSvg = !!selectedFond?.svgXml;
 
   const pickerInitial =
     colorTarget === 'bg'
@@ -315,66 +353,54 @@ export function BingoCustomizer({
             )}
 
             {isSvg && selectedBorder?.tokens && (
-              <>
-                <Label className="mt-4">Couleurs du cadre</Label>
-                <Text className="mb-2 text-xs text-ink-muted">
-                  Par défaut le cadre utilise les couleurs du thème. Tu peux surcharger
-                  par grille.
-                </Text>
-                <View className="gap-2">
-                  {Object.keys(selectedBorder.tokens).map((tokenName) => {
-                    const override = draft.frame.colorOverrides?.[tokenName];
-                    const themed =
-                      ({ colorPrimary, colorSecondary, colorBg } as Record<string, string>)[
-                        tokenName
-                      ] ??
-                      (theme as unknown as Record<string, string>)[tokenName] ??
-                      selectedBorder.tokens?.[tokenName] ??
-                      '#000000';
-                    const effective = override ?? themed;
-                    return (
-                      <View
-                        key={tokenName}
-                        className="flex-row items-center justify-between rounded-2xl bg-paper-warm px-4 py-3">
-                        <Pressable
-                          onPress={() => setOverrideTokenTarget(tokenName)}
-                          className="flex-1 flex-row items-center gap-3 active:opacity-70">
-                          <View
-                            style={{
-                              width: 22,
-                              height: 22,
-                              borderRadius: 11,
-                              backgroundColor: effective,
-                              borderWidth: 1,
-                              borderColor: 'rgba(107,98,89,0.3)',
-                            }}
-                          />
-                          <View className="flex-1">
-                            <Text className="font-sans-med text-sm text-ink">
-                              {tokenLabel(tokenName)}
-                            </Text>
-                            <Text className="text-xs text-ink-muted">
-                              {override ? 'Override' : 'Thème'}
-                            </Text>
-                          </View>
-                        </Pressable>
-                        {override ? (
-                          <Pressable
-                            onPress={() => setColorOverride(tokenName, null)}
-                            hitSlop={6}
-                            className="ml-2 px-2 py-1 active:opacity-60">
-                            <MaterialIcons
-                              name="restart-alt"
-                              size={18}
-                              color="rgb(107 98 89)"
-                            />
-                          </Pressable>
-                        ) : null}
-                      </View>
-                    );
-                  })}
-                </View>
-              </>
+              <TokenOverridesEditor
+                tokens={selectedBorder.tokens}
+                overrides={draft.frame.colorOverrides}
+                onOpenPicker={(name) => setOverrideTokenTarget({ kind: 'frame', tokenName: name })}
+                onClear={(name) => setFrameColorOverride(name, null)}
+                themeMap={theme as unknown as Record<string, string>}
+                prefMap={{ colorPrimary, colorSecondary, colorBg }}
+                title="Couleurs du cadre"
+                helper="Par défaut le cadre utilise les couleurs du thème. Tu peux surcharger par grille."
+              />
+            )}
+          </Section>
+
+          <Section title="Fond">
+            <Label>Type</Label>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 10, paddingVertical: 4 }}>
+              <FondTile
+                label="Aucun"
+                active={!draft.fond?.fondId || draft.fond.fondId === 'none'}
+                onPress={() => updateFond({ fondId: 'none', colorOverrides: undefined })}
+              />
+              {allFonds
+                .filter((f) => f.source || f.svgXml)
+                .map((f) => (
+                  <FondTile
+                    key={f.id}
+                    def={f}
+                    label={f.label}
+                    active={draft.fond?.fondId === f.id}
+                    onPress={() => updateFond({ fondId: f.id, colorOverrides: undefined })}
+                  />
+                ))}
+            </ScrollView>
+
+            {fondIsSvg && selectedFond?.tokens && (
+              <TokenOverridesEditor
+                tokens={selectedFond.tokens}
+                overrides={draft.fond?.colorOverrides}
+                onOpenPicker={(name) => setOverrideTokenTarget({ kind: 'fond', tokenName: name })}
+                onClear={(name) => setFondColorOverride(name, null)}
+                themeMap={theme as unknown as Record<string, string>}
+                prefMap={{ colorPrimary, colorSecondary, colorBg }}
+                title="Couleurs du fond"
+                helper="Par défaut le fond utilise les couleurs du thème. Tu peux surcharger par grille."
+              />
             )}
           </Section>
 
@@ -463,15 +489,24 @@ export function BingoCustomizer({
           open={overrideTokenTarget !== null}
           initial={
             (overrideTokenTarget &&
-              draft.frame.colorOverrides?.[overrideTokenTarget]) ||
+              (overrideTokenTarget.kind === 'frame'
+                ? draft.frame.colorOverrides?.[overrideTokenTarget.tokenName]
+                : draft.fond?.colorOverrides?.[overrideTokenTarget.tokenName])) ||
             '#000000'
           }
           title={
-            overrideTokenTarget ? `Override "${tokenLabel(overrideTokenTarget)}"` : ''
+            overrideTokenTarget
+              ? `Override "${tokenLabel(overrideTokenTarget.tokenName)}"`
+              : ''
           }
           onClose={() => setOverrideTokenTarget(null)}
           onChange={(hex) => {
-            if (overrideTokenTarget) setColorOverride(overrideTokenTarget, hex);
+            if (!overrideTokenTarget) return;
+            if (overrideTokenTarget.kind === 'frame') {
+              setFrameColorOverride(overrideTokenTarget.tokenName, hex);
+            } else {
+              setFondColorOverride(overrideTokenTarget.tokenName, hex);
+            }
           }}
         />
 

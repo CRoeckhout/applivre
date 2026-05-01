@@ -40,7 +40,7 @@ export function UserProfileCard() {
 
   return (
     <View
-      className={`flex-row items-center gap-4 rounded-3xl bg-paper-warm ${inFrame ? "" : "p-5"}`}
+      className={`flex-row items-center gap-4 rounded-3xl ${inFrame ? "" : "bg-paper-warm p-5"}`}
       style={inFrame ? { padding: framedPadding } : undefined}
     >
       <Pressable

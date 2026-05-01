@@ -72,6 +72,35 @@ export type BorderCatalogRow = {
   updated_at: string;
 };
 
+// ═══════════════ Fonds ═══════════════
+
+// Fond rendu cover/tile en arrière-plan des cards/fiches/bingos. Suit la
+// même convention de tokens et de lifecycle que les cadres ; n'a pas de
+// slice/bg_inset/card_padding (rendering plein cadre, pas 9-slice).
+
+export type FondKind = 'png_9slice' | 'svg_9slice' | 'lottie_9slice';
+
+export type FondRepeatMode = 'cover' | 'tile';
+
+export type FondCatalogRow = {
+  fond_key: string;
+  title: string;
+  description: string | null;
+  kind: FondKind;
+  storage_path: string | null;
+  payload: string | null;
+  image_width: number;
+  image_height: number;
+  repeat_mode: FondRepeatMode;
+  tokens: Record<string, string>;
+  is_default: boolean;
+  active_from: string | null;
+  active_until: string | null;
+  retired_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 // ═══════════════ Books (catalog public) ═══════════════
 
 export type BookSource = 'isbndb' | 'openlibrary' | 'googlebooks' | 'bnf' | 'manual';

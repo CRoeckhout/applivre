@@ -165,7 +165,7 @@ export function StreakCard({
       >
         <Animated.View
           entering={FadeIn.duration(400)}
-          className={`rounded-3xl bg-paper-warm ${inFrame ? '' : 'p-6'}`}
+          className={`rounded-3xl ${inFrame ? '' : 'bg-paper-warm p-6'}`}
           style={[
             inFrame ? { padding: framedPadding } : null,
             isDragging

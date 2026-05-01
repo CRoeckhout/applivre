@@ -1,11 +1,13 @@
 import { ColorPickerModal } from '@/components/color-picker-modal';
+import { FondLayer } from '@/components/fond-layer';
 import { IconPickerModal } from '@/components/icon-picker-modal';
 import { NineSliceFrame } from '@/components/nine-slice-frame';
 import { RatingIcon } from '@/components/rating-row';
 import { SheetSurface } from '@/components/sheet-surface';
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { PERSO_BORDER_ID, type BorderDef } from '@/lib/borders/catalog';
-import { applyBorderTokens } from '@/lib/borders/tokens';
+import { applyTokens } from '@/lib/decorations/tokens';
+import { type FondDef } from '@/lib/fonds/catalog';
 import { FONTS } from '@/lib/theme/fonts';
 import {
   DEFAULT_APPEARANCE,
@@ -16,6 +18,7 @@ import {
 } from '@/lib/sheet-appearance';
 import { BUILTIN_PRESETS, type SheetPreset } from '@/lib/sheet-presets';
 import { useAllBorders } from '@/store/border-catalog';
+import { useAllFonds } from '@/store/fond-catalog';
 import { usePreferences } from '@/store/preferences';
 import { useSheetTemplates } from '@/store/sheet-templates';
 import { Alert } from 'react-native';
@@ -25,6 +28,7 @@ import {
   type SheetAppearance,
   type SheetBorderStyle,
   type SheetDefaultCategory,
+  type SheetFond,
   type SheetFrame,
   type SheetRatingIconConfig,
 } from '@/types/book';
@@ -48,6 +52,10 @@ type ColorTarget =
   | 'accent'
   | 'frame'
   | null;
+
+// Override d'un token SVG : peut venir d'un cadre ou d'un fond. On distingue
+// la cible pour router vers `frame.colorOverrides` ou `fond.colorOverrides`.
+type TokenOverrideTarget = { kind: 'frame' | 'fond'; tokenName: string } | null;
 
 // Mapping nom de token SVG → label affiché à l'utilisateur. Les tokens
 // référencent soit une userPreference (3 couleurs brutes) soit un slot
@@ -99,15 +107,17 @@ export function SheetCustomizer({
 }: Props) {
   const [draft, setDraft] = useState<SheetAppearance>(appearance);
   const [colorTarget, setColorTarget] = useState<ColorTarget>(null);
-  // Quand on édite un override de couleur d'un token SVG : nom du token
-  // ouvert dans le picker. `null` = pas d'édition d'override en cours.
-  const [overrideTokenTarget, setOverrideTokenTarget] = useState<string | null>(null);
+  // Quand on édite un override de couleur d'un token SVG : `kind` distingue
+  // cadre (frame.colorOverrides) et fond (fond.colorOverrides) ; `tokenName`
+  // identifie le token. `null` = pas d'édition d'override en cours.
+  const [overrideTokenTarget, setOverrideTokenTarget] = useState<TokenOverrideTarget>(null);
   const [savePresetOpen, setSavePresetOpen] = useState(false);
 
   const userPresets = useSheetTemplates((s) => s.userPresets);
   const addUserPreset = useSheetTemplates((s) => s.addUserPreset);
   const deleteUserPreset = useSheetTemplates((s) => s.deleteUserPreset);
   const allBorders = useAllBorders();
+  const allFonds = useAllFonds();
   const theme = useThemeColors();
   const colorPrimary = usePreferences((s) => s.colorPrimary);
   const colorSecondary = usePreferences((s) => s.colorSecondary);
@@ -120,7 +130,18 @@ export function SheetCustomizer({
   const updateFrame = (partial: Partial<SheetFrame>) =>
     setDraft((d) => ({ ...d, frame: { ...d.frame, ...partial } }));
 
-  const setColorOverride = (tokenName: string, hex: string | null) =>
+  const updateFond = (partial: Partial<SheetFond>) =>
+    setDraft((d) => {
+      const next: SheetFond = { ...(d.fond ?? {}), ...partial };
+      // Normalisation : un fond vide / 'none' ⇒ supprime la clé pour rester
+      // proche du shape minimal et ne pas polluer le JSONB persisté.
+      const isEmpty =
+        (!next.fondId || next.fondId === 'none') &&
+        (!next.colorOverrides || Object.keys(next.colorOverrides).length === 0);
+      return { ...d, fond: isEmpty ? undefined : next };
+    });
+
+  const setFrameColorOverride = (tokenName: string, hex: string | null) =>
     setDraft((d) => {
       const next = { ...(d.frame.colorOverrides ?? {}) };
       if (hex === null) {
@@ -137,15 +158,40 @@ export function SheetCustomizer({
       };
     });
 
+  const setFondColorOverride = (tokenName: string, hex: string | null) =>
+    setDraft((d) => {
+      const next = { ...(d.fond?.colorOverrides ?? {}) };
+      if (hex === null) {
+        delete next[tokenName];
+      } else {
+        next[tokenName] = hex;
+      }
+      const fond: SheetFond = {
+        ...(d.fond ?? {}),
+        colorOverrides: Object.keys(next).length > 0 ? next : undefined,
+      };
+      const isEmpty =
+        (!fond.fondId || fond.fondId === 'none') &&
+        (!fond.colorOverrides || Object.keys(fond.colorOverrides).length === 0);
+      return { ...d, fond: isEmpty ? undefined : fond };
+    });
+
   const selectedBorder: BorderDef | undefined = useMemo(() => {
     const id = draft.frame.borderId;
     if (!id || id === PERSO_BORDER_ID) return undefined;
     return allBorders.find((b) => b.id === id);
   }, [draft.frame.borderId, allBorders]);
 
+  const selectedFond: FondDef | undefined = useMemo(() => {
+    const id = draft.fond?.fondId;
+    if (!id || id === 'none') return undefined;
+    return allFonds.find((f) => f.id === id);
+  }, [draft.fond?.fondId, allFonds]);
+
   const isPerso = !draft.frame.borderId || draft.frame.borderId === PERSO_BORDER_ID;
   const isSvg = !!selectedBorder?.svgXml;
   const isPng = !!selectedBorder?.source;
+  const fondIsSvg = !!selectedFond?.svgXml;
 
   const pickerInitial =
     colorTarget === 'bg'
@@ -354,62 +400,54 @@ export function SheetCustomizer({
             )}
 
             {isSvg && selectedBorder?.tokens && (
-              <>
-                <Label className="mt-4">Couleurs du cadre</Label>
-                <Text className="mb-2 text-xs text-ink-muted">
-                  Par défaut le cadre utilise les couleurs du thème. Tu peux surcharger
-                  par fiche.
-                </Text>
-                <View className="gap-2">
-                  {Object.keys(selectedBorder.tokens).map((tokenName) => {
-                    const override = draft.frame.colorOverrides?.[tokenName];
-                    const themed =
-                      ({ colorPrimary, colorSecondary, colorBg } as Record<string, string>)[
-                        tokenName
-                      ] ??
-                      (theme as unknown as Record<string, string>)[tokenName] ??
-                      selectedBorder.tokens?.[tokenName] ??
-                      '#000000';
-                    const effective = override ?? themed;
-                    return (
-                      <View
-                        key={tokenName}
-                        className="flex-row items-center justify-between rounded-2xl bg-paper-warm px-4 py-3">
-                        <Pressable
-                          onPress={() => setOverrideTokenTarget(tokenName)}
-                          className="flex-1 flex-row items-center gap-3 active:opacity-70">
-                          <View
-                            style={{
-                              width: 22,
-                              height: 22,
-                              borderRadius: 11,
-                              backgroundColor: effective,
-                              borderWidth: 1,
-                              borderColor: 'rgba(107,98,89,0.3)',
-                            }}
-                          />
-                          <View className="flex-1">
-                            <Text className="font-sans-med text-sm text-ink">
-                              {tokenLabel(tokenName)}
-                            </Text>
-                            <Text className="text-xs text-ink-muted">
-                              {override ? 'Override' : 'Thème'}
-                            </Text>
-                          </View>
-                        </Pressable>
-                        {override ? (
-                          <Pressable
-                            onPress={() => setColorOverride(tokenName, null)}
-                            hitSlop={6}
-                            className="ml-2 px-2 py-1 active:opacity-60">
-                            <MaterialIcons name="restart-alt" size={18} color="rgb(107 98 89)" />
-                          </Pressable>
-                        ) : null}
-                      </View>
-                    );
-                  })}
-                </View>
-              </>
+              <TokenOverridesEditor
+                tokens={selectedBorder.tokens}
+                overrides={draft.frame.colorOverrides}
+                onOpenPicker={(name) => setOverrideTokenTarget({ kind: 'frame', tokenName: name })}
+                onClear={(name) => setFrameColorOverride(name, null)}
+                themeMap={theme as unknown as Record<string, string>}
+                prefMap={{ colorPrimary, colorSecondary, colorBg }}
+                title="Couleurs du cadre"
+                helper="Par défaut le cadre utilise les couleurs du thème. Tu peux surcharger par fiche."
+              />
+            )}
+          </Section>
+
+          <Section title="Fond">
+            <Label>Type</Label>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 10, paddingVertical: 4 }}>
+              <FondTile
+                label="Aucun"
+                active={!draft.fond?.fondId || draft.fond.fondId === 'none'}
+                onPress={() => updateFond({ fondId: 'none', colorOverrides: undefined })}
+              />
+              {allFonds
+                .filter((f) => f.source || f.svgXml)
+                .map((f) => (
+                  <FondTile
+                    key={f.id}
+                    def={f}
+                    label={f.label}
+                    active={draft.fond?.fondId === f.id}
+                    onPress={() => updateFond({ fondId: f.id, colorOverrides: undefined })}
+                  />
+                ))}
+            </ScrollView>
+
+            {fondIsSvg && selectedFond?.tokens && (
+              <TokenOverridesEditor
+                tokens={selectedFond.tokens}
+                overrides={draft.fond?.colorOverrides}
+                onOpenPicker={(name) => setOverrideTokenTarget({ kind: 'fond', tokenName: name })}
+                onClear={(name) => setFondColorOverride(name, null)}
+                themeMap={theme as unknown as Record<string, string>}
+                prefMap={{ colorPrimary, colorSecondary, colorBg }}
+                title="Couleurs du fond"
+                helper="Par défaut le fond utilise les couleurs du thème. Tu peux surcharger par fiche."
+              />
             )}
           </Section>
 
@@ -536,13 +574,24 @@ export function SheetCustomizer({
           open={overrideTokenTarget !== null}
           initial={
             (overrideTokenTarget &&
-              draft.frame.colorOverrides?.[overrideTokenTarget]) ||
+              (overrideTokenTarget.kind === 'frame'
+                ? draft.frame.colorOverrides?.[overrideTokenTarget.tokenName]
+                : draft.fond?.colorOverrides?.[overrideTokenTarget.tokenName])) ||
             '#000000'
           }
-          title={overrideTokenTarget ? `Override "${tokenLabel(overrideTokenTarget)}"` : ''}
+          title={
+            overrideTokenTarget
+              ? `Override "${tokenLabel(overrideTokenTarget.tokenName)}"`
+              : ''
+          }
           onClose={() => setOverrideTokenTarget(null)}
           onChange={(hex) => {
-            if (overrideTokenTarget) setColorOverride(overrideTokenTarget, hex);
+            if (!overrideTokenTarget) return;
+            if (overrideTokenTarget.kind === 'frame') {
+              setFrameColorOverride(overrideTokenTarget.tokenName, hex);
+            } else {
+              setFondColorOverride(overrideTokenTarget.tokenName, hex);
+            }
           }}
         />
 
@@ -754,6 +803,154 @@ export function Chip({
   );
 }
 
+// Tuile de sélection de fond — même layout que BorderTile (96×96), preview
+// via FondLayer (rendu cover/tile direct, pas de 9-slice). Fallback dashed
+// pour l'option "Aucun".
+export function FondTile({
+  def,
+  label,
+  active,
+  onPress,
+}: {
+  def?: FondDef;
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  const W = 96;
+  const H = 96;
+  const colorBg = usePreferences((s) => s.colorBg);
+  const hasArt = !!(def && (def.source || def.svgXml));
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        width: W,
+        height: H,
+        borderWidth: active ? 2 : 1,
+        borderColor: active ? '#c27b52' : 'rgba(107,98,89,0.2)',
+        borderRadius: 14,
+        overflow: 'hidden',
+        backgroundColor: 'rgba(255,255,255,0.4)',
+      }}>
+      {hasArt ? (
+        <FondLayer bgColor={colorBg} fondId={def!.id} />
+      ) : (
+        <View
+          style={{
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderStyle: 'dashed',
+            borderWidth: 1,
+            borderColor: 'rgba(107,98,89,0.4)',
+            margin: 6,
+            borderRadius: 8,
+          }}>
+          <MaterialIcons name="block" size={20} color="rgb(107 98 89)" />
+          <Text
+            style={{ fontSize: 10, color: 'rgb(107 98 89)', marginTop: 4, textAlign: 'center' }}>
+            {label}
+          </Text>
+        </View>
+      )}
+      {hasArt && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            paddingVertical: 4,
+            paddingHorizontal: 6,
+            backgroundColor: 'rgba(255,255,255,0.85)',
+          }}>
+          <Text
+            numberOfLines={1}
+            style={{ fontSize: 10, color: 'rgb(58 50 43)', textAlign: 'center' }}>
+            {label}
+          </Text>
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
+// Liste éditable d'overrides de couleurs pour les tokens d'un cadre OU d'un
+// fond SVG. Identique pour les deux : on passe les tokens, l'état courant des
+// overrides, et les callbacks pour ouvrir le picker / clear un override.
+export function TokenOverridesEditor({
+  tokens,
+  overrides,
+  onOpenPicker,
+  onClear,
+  themeMap,
+  prefMap,
+  title,
+  helper,
+}: {
+  tokens: Record<string, string>;
+  overrides: Record<string, string> | undefined;
+  onOpenPicker: (tokenName: string) => void;
+  onClear: (tokenName: string) => void;
+  themeMap: Record<string, string>;
+  prefMap: Record<string, string>;
+  title: string;
+  helper: string;
+}) {
+  return (
+    <>
+      <Label className="mt-4">{title}</Label>
+      <Text className="mb-2 text-xs text-ink-muted">{helper}</Text>
+      <View className="gap-2">
+        {Object.keys(tokens).map((tokenName) => {
+          const override = overrides?.[tokenName];
+          const themed =
+            prefMap[tokenName] ?? themeMap[tokenName] ?? tokens[tokenName] ?? '#000000';
+          const effective = override ?? themed;
+          return (
+            <View
+              key={tokenName}
+              className="flex-row items-center justify-between rounded-2xl bg-paper-warm px-4 py-3">
+              <Pressable
+                onPress={() => onOpenPicker(tokenName)}
+                className="flex-1 flex-row items-center gap-3 active:opacity-70">
+                <View
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: 11,
+                    backgroundColor: effective,
+                    borderWidth: 1,
+                    borderColor: 'rgba(107,98,89,0.3)',
+                  }}
+                />
+                <View className="flex-1">
+                  <Text className="font-sans-med text-sm text-ink">
+                    {tokenLabel(tokenName)}
+                  </Text>
+                  <Text className="text-xs text-ink-muted">
+                    {override ? 'Override' : 'Thème'}
+                  </Text>
+                </View>
+              </Pressable>
+              {override ? (
+                <Pressable
+                  onPress={() => onClear(tokenName)}
+                  hitSlop={6}
+                  className="ml-2 px-2 py-1 active:opacity-60">
+                  <MaterialIcons name="restart-alt" size={18} color="rgb(107 98 89)" />
+                </Pressable>
+              ) : null}
+            </View>
+          );
+        })}
+      </View>
+    </>
+  );
+}
+
 // Tuile de sélection de cadre — même layout que la personnalisation app
 // (96×96, NineSliceFrame en preview, fallback dashed pour "Perso").
 export function BorderTile({
@@ -775,7 +972,7 @@ export function BorderTile({
   const theme = useThemeColors();
   const themedSvgXml = useMemo(() => {
     if (!def?.svgXml) return undefined;
-    return applyBorderTokens(
+    return applyTokens(
       def.svgXml,
       def.tokens,
       { colorPrimary, colorSecondary, colorBg },

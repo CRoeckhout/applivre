@@ -105,6 +105,16 @@ export type SheetFrame = {
   radius: number;
 };
 
+export type SheetFond = {
+  // Sélection du fond. `undefined` ou `'none'` ⇒ pas de fond image, seul
+  // `bgColor` est rendu. Toute autre valeur ⇒ id d'une row du fond_catalog
+  // rendue (cover/tile) sous le contenu, par-dessus `bgColor`.
+  fondId?: string;
+  // Color overrides per-instance pour les fonds SVG (mêmes règles que
+  // SheetFrame.colorOverrides).
+  colorOverrides?: Record<string, string>;
+};
+
 export type SheetRatingIconConfig = {
   kind: RatingIconKind;
   label: string;
@@ -128,6 +138,9 @@ export type SheetDefaultCategory = {
 // par-fiche ; le template global remplit les valeurs manquantes.
 export type SheetAppearance = {
   frame: SheetFrame;
+  // Optionnel pour rester ascendant-compatible avec les fiches/grilles
+  // persistées avant l'introduction du fond (absent ⇒ pas de fond rendu).
+  fond?: SheetFond;
   fontId: string;
   bgColor: string;
   textColor: string;

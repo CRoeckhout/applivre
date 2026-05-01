@@ -1,4 +1,5 @@
 import { BingoGrid } from "@/components/bingo-grid";
+import { useCardFrame } from "@/components/card-frame-context";
 import { pickInitialPresetLabels } from "@/lib/bingo-presets";
 import { countCompletedLines } from "@/lib/bingo-win";
 import { newId } from "@/lib/id";
@@ -17,6 +18,7 @@ export function BingoCard() {
   const completions = useBingos((s) => s.completions);
   const books = useBookshelf((s) => s.books);
   const createBingo = useBingos((s) => s.createBingo);
+  const { inFrame, padding: framedPadding } = useCardFrame();
 
   const active = useMemo(() => bingos.filter((b) => !b.archivedAt), [bingos]);
 
@@ -113,7 +115,8 @@ export function BingoCard() {
     >
       <Animated.View
         entering={FadeIn.duration(400)}
-        className="rounded-3xl bg-paper-warm p-6"
+        className={`rounded-3xl ${inFrame ? '' : 'bg-paper-warm p-6'}`}
+        style={inFrame ? { padding: framedPadding } : undefined}
       >
         <View className="flex-row items-baseline justify-between">
           <Text className="font-display text-xl text-ink">Bingo</Text>

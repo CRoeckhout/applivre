@@ -88,7 +88,13 @@ export function LibraryRowCard({ books, onPress, onLongPress, isDragging = false
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={280}
-      className={`rounded-3xl ${inFrame ? '' : 'p-5'} ${isDragging ? 'bg-accent-pale' : 'bg-paper-warm active:bg-paper-shade'}`}
+      className={`rounded-3xl ${inFrame ? '' : 'p-5'} ${
+        isDragging
+          ? 'bg-accent-pale'
+          : inFrame
+            ? 'active:opacity-80'
+            : 'bg-paper-warm active:bg-paper-shade'
+      }`}
       style={[
         inFrame ? { padding: framedPadding } : null,
         isDragging

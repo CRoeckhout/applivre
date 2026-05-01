@@ -28,7 +28,11 @@ export function ShortcutCard({
       onLongPress={onLongPress}
       delayLongPress={280}
       className={`flex-row items-center gap-3 rounded-3xl ${inFrame ? '' : 'p-5'} ${
-        isDragging ? 'bg-accent-pale' : 'bg-paper-warm active:bg-paper-shade'
+        isDragging
+          ? 'bg-accent-pale'
+          : inFrame
+            ? 'active:opacity-80'
+            : 'bg-paper-warm active:bg-paper-shade'
       }`}
       style={[
         inFrame ? { padding: framedPadding } : null,

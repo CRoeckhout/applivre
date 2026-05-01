@@ -1,5 +1,6 @@
 import { CardFrame } from '@/components/card-frame';
 import { useCardFrame } from '@/components/card-frame-context';
+import { FondLayer } from '@/components/fond-layer';
 import { PERSO_BORDER_ID } from '@/lib/borders/catalog';
 import { outerCardStyle } from '@/lib/sheet-appearance';
 import type { SheetAppearance } from '@/types/book';
@@ -22,9 +23,14 @@ type Props = {
 //   absent ;
 // - rendu via CardFrame (cadre PNG ou SVG du catalog server) sinon — les
 //   couleurs SVG sont surchargeables per-fiche via `frame.colorOverrides`.
+//
+// Un fond image (`appearance.fond`) est rendu en couche absolue derrière
+// le contenu, dans la zone bgInsets quand un cadre catalog est actif.
 export function SheetSurface({ appearance, padding = 20, style, children }: Props) {
-  const { frame, bgColor, textColor, mutedColor, accentColor } = appearance;
+  const { frame, fond, bgColor, textColor, mutedColor, accentColor } = appearance;
   const isPerso = !frame.borderId || frame.borderId === PERSO_BORDER_ID;
+  const fondId = fond?.fondId;
+  const hasFond = !!fondId && fondId !== 'none';
 
   // Mappe les 4 couleurs snapshotées de l'appearance sur les noms de tokens
   // les plus communs côté cadres (slots de theme + names de userPref). Ainsi
@@ -61,7 +67,26 @@ export function SheetSurface({ appearance, padding = 20, style, children }: Prop
   );
 
   if (isPerso) {
-    return <View style={[outerCardStyle(appearance, padding), style]}>{children}</View>;
+    // Mode perso : on garde le style CSS legacy (border + radius) sur le
+    // wrapper. Le `backgroundColor: bgColor` issu d'`outerCardStyle` est
+    // désactivé quand un fond image est actif — la surface est alors
+    // entièrement définie par le fond. `overflow:hidden` est requis pour
+    // clipper le fond au radius.
+    const baseStyle = outerCardStyle(appearance, padding);
+    if (!hasFond) {
+      return <View style={[baseStyle, style]}>{children}</View>;
+    }
+    return (
+      <View
+        style={[baseStyle, { backgroundColor: undefined, overflow: 'hidden' }, style]}>
+        <FondLayer
+          bgColor={bgColor}
+          fondId={fondId}
+          colorOverrides={fond?.colorOverrides}
+        />
+        {children}
+      </View>
+    );
   }
 
   // Pas de `backgroundColor` sur le wrapper externe : toute zone transparente
@@ -78,6 +103,8 @@ export function SheetSurface({ appearance, padding = 20, style, children }: Prop
       borderId={frame.borderId}
       innerBackgroundColor={bgColor}
       colorOverrides={mergedOverrides}
+      fondId={fondId}
+      fondColorOverrides={fond?.colorOverrides}
       style={style}>
       <FramedSheetContent>{children}</FramedSheetContent>
     </CardFrame>

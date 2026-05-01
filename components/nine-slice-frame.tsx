@@ -27,8 +27,13 @@ type Props = {
   fillCenter?: boolean;
   // Couleur de fond rendue en layer absolu sous les slices, bornée par
   // `bgInsets`. Slices PNG/SVG s'affichent par-dessus → leurs bits transparents
-  // laissent voir ce fond.
+  // laissent voir ce fond. Ignorée si `innerBackground` est fourni.
   innerBackgroundColor?: string;
+  // Override complet de la couche de fond interne : ReactNode rendu en
+  // absolute fill dans la zone bornée par `bgInsets`. Permet d'injecter un
+  // fond image (FondLayer) au lieu d'une simple solid color. Substitue
+  // `innerBackgroundColor` si fourni.
+  innerBackground?: ReactNode;
   // Distance depuis chaque bord externe vers l'intérieur où commence le bg.
   // Default = slice/2 : le bg pénètre à mi-distance dans les edges, ce qui
   // évite (a) le halo si on couvre tout le host (bg dépasse le visible)
@@ -62,6 +67,7 @@ export function NineSliceFrame({
   padding,
   fillCenter = true,
   innerBackgroundColor,
+  innerBackground,
   bgInsets,
   repeat = 'stretch',
   style,
@@ -130,7 +136,20 @@ export function NineSliceFrame({
 
   return (
     <View style={style}>
-      {innerBackgroundColor && (
+      {innerBackground ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: bgi.top,
+            right: bgi.right,
+            bottom: bgi.bottom,
+            left: bgi.left,
+            overflow: 'hidden',
+          }}>
+          {innerBackground}
+        </View>
+      ) : innerBackgroundColor ? (
         <View
           pointerEvents="none"
           style={{
@@ -142,7 +161,7 @@ export function NineSliceFrame({
             backgroundColor: innerBackgroundColor,
           }}
         />
-      )}
+      ) : null}
       <View style={{ flexDirection: 'row', height: T }}>
         <Slice painter={painter} iw={iw} ih={ih} sx={0} sy={0} sw={L} sh={T} kind="corner" w={L} h={T} repeat={repeat} />
         <Slice painter={painter} iw={iw} ih={ih} sx={L} sy={0} sw={mw} sh={T} kind="row" h={T} repeat={repeat} />

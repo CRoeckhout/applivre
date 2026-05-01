@@ -1,6 +1,10 @@
 import { BookCover } from "@/components/book-cover";
 import { SheetSurface } from "@/components/sheet-surface";
-import { hexWithAlpha, resolveSectionIcon } from "@/lib/sheet-appearance";
+import {
+  hexWithAlpha,
+  resolveSectionIcon,
+  SHEET_TEXT_SHADOW,
+} from "@/lib/sheet-appearance";
 import { getFont } from "@/lib/theme/fonts";
 import type {
   ReadingSheet,
@@ -74,23 +78,29 @@ export function SheetCard({
           <View style={{ flex: 1 }}>
             <Text
               numberOfLines={2}
-              style={{
-                color: textColor,
-                fontFamily: displayFont,
-                fontSize: 16,
-              }}
+              style={[
+                {
+                  color: textColor,
+                  fontFamily: displayFont,
+                  fontSize: 16,
+                },
+                SHEET_TEXT_SHADOW,
+              ]}
             >
               {userBook.book.title}
             </Text>
             {userBook.book.authors[0] ? (
               <Text
                 numberOfLines={1}
-                style={{
-                  color: mutedColor,
-                  fontFamily: sansFont,
-                  fontSize: 12,
-                  marginTop: 2,
-                }}
+                style={[
+                  {
+                    color: mutedColor,
+                    fontFamily: sansFont,
+                    fontSize: 12,
+                    marginTop: 2,
+                  },
+                  SHEET_TEXT_SHADOW,
+                ]}
               >
                 {userBook.book.authors[0]}
               </Text>
@@ -107,11 +117,14 @@ export function SheetCard({
                 <MaterialIcons name="palette" size={12} color={mutedColor} />
               ) : null}
               <Text
-                style={{
-                  color: mutedColor,
-                  fontFamily: sansFont,
-                  fontSize: 11,
-                }}
+                style={[
+                  {
+                    color: mutedColor,
+                    fontFamily: sansFont,
+                    fontSize: 11,
+                  },
+                  SHEET_TEXT_SHADOW,
+                ]}
               >
                 {timeAgo(sheet.updatedAt)}
               </Text>
@@ -187,7 +200,10 @@ function SectionContent({
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
         <Text
-          style={{ color: textColor, fontFamily: displayFont, fontSize: 14 }}
+          style={[
+            { color: textColor, fontFamily: displayFont, fontSize: 14 },
+            SHEET_TEXT_SHADOW,
+          ]}
         >
           {section.title || "Sans titre"}
         </Text>
@@ -199,7 +215,9 @@ function SectionContent({
             return (
               <View key={i} style={{ opacity: filled ? 1 : 0.3 }}>
                 {resolved.emoji ? (
-                  <Text style={{ fontSize: 13 }}>{resolved.emoji}</Text>
+                  <Text style={[{ fontSize: 13 }, SHEET_TEXT_SHADOW]}>
+                    {resolved.emoji}
+                  </Text>
                 ) : (
                   <MaterialIcons
                     name={
@@ -216,13 +234,16 @@ function SectionContent({
       ) : null}
       {section.body.trim() ? (
         <Text
-          style={{
-            color: textColor,
-            fontFamily: sansFont,
-            fontSize: 13,
-            lineHeight: 18,
-            marginTop: 3,
-          }}
+          style={[
+            {
+              color: textColor,
+              fontFamily: sansFont,
+              fontSize: 13,
+              lineHeight: 18,
+              marginTop: 3,
+            },
+            SHEET_TEXT_SHADOW,
+          ]}
         >
           {section.body.trim()}
         </Text>
