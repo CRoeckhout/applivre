@@ -1,7 +1,8 @@
 import { isLikelyIsbn, toIsbn10 } from '@/lib/isbn';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Text, View, type ImageStyle, type StyleProp } from 'react-native';
+import { StyleSheet, Text, View, type ImageStyle, type StyleProp } from 'react-native';
 
 type Props = {
   isbn: string;
@@ -63,15 +64,7 @@ export function BookCover({
   }, [candidates.length]);
 
   if (failed || candidates.length === 0) {
-    return (
-      <View
-        style={style}
-        className="items-center justify-center bg-paper-shade">
-        {placeholderText ? (
-          <Text className="px-2 text-center text-xs text-ink-muted">{placeholderText}</Text>
-        ) : null}
-      </View>
-    );
+    return <CoverPlaceholder style={style} placeholderText={placeholderText} />;
   }
 
   return (
@@ -89,5 +82,46 @@ export function BookCover({
         }
       }}
     />
+  );
+}
+
+// Fallback affiché à la place de l'image quand aucune cover n'est disponible
+// ou que tous les candidats ont échoué. La taille d'icône suit la plus petite
+// dimension mesurée du conteneur (utile quand `style` utilise des
+// pourcentages, ex: case du bingo en `100%`).
+function CoverPlaceholder({
+  style,
+  placeholderText,
+}: {
+  style?: StyleProp<ImageStyle>;
+  placeholderText?: string;
+}) {
+  const flat = StyleSheet.flatten(style) as
+    | { width?: number; height?: number }
+    | undefined;
+  const initial =
+    typeof flat?.width === 'number' && typeof flat?.height === 'number'
+      ? Math.min(flat.width, flat.height)
+      : typeof flat?.width === 'number'
+        ? flat.width
+        : typeof flat?.height === 'number'
+          ? flat.height
+          : 0;
+  const [minDim, setMinDim] = useState(initial);
+  const iconSize = Math.max(16, Math.round((minDim || 48) * 0.45));
+  return (
+    <View
+      style={style}
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout;
+        const next = Math.min(width, height);
+        if (Math.abs(next - minDim) > 1) setMinDim(next);
+      }}
+      className="items-center justify-center bg-paper-shade">
+      <MaterialIcons name="menu-book" size={iconSize} color="#9a8f82" />
+      {placeholderText ? (
+        <Text className="mt-1 px-2 text-center text-xs text-ink-muted">{placeholderText}</Text>
+      ) : null}
+    </View>
   );
 }

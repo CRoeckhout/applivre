@@ -19,6 +19,11 @@ type Props = {
   fondId?: string;
   // Color overrides per-instance pour SVG (priorité sur prefs et theme).
   colorOverrides?: Record<string, string>;
+  // Opacité 0..1 appliquée à toute la couche image. Quand < 1, le contenu
+  // sous-jacent (typt. `bgColor` de la fiche peint dans bgInsets/cover par
+  // le NineSliceFrame) transparaît proportionnellement. Pas appliqué au
+  // fallback `bgColor` de cette View — l'opacité ne sert que l'image.
+  opacity?: number;
 };
 
 // Layer absolu rempli sur tout le parent. Conçu pour être posé derrière le
@@ -29,7 +34,7 @@ type Props = {
 // entièrement déterminée par cette image (pas de bgColor en dessous — les
 // pixels transparents de l'image laissent voir le parent). bgColor n'est
 // utilisée qu'en fallback (catalog pas chargé / fondId orphelin).
-export function FondLayer({ bgColor, fondId, colorOverrides }: Props) {
+export function FondLayer({ bgColor, fondId, colorOverrides, opacity }: Props) {
   const remote = useFondCatalog((s) => s.remote);
   const colorPrimary = usePreferences((s) => s.colorPrimary);
   const colorSecondary = usePreferences((s) => s.colorSecondary);
@@ -62,6 +67,11 @@ export function FondLayer({ bgColor, fondId, colorOverrides }: Props) {
 
   const hasImage = !!(def && (def.source || def.svgXml));
 
+  // L'opacité ne s'applique qu'à la couche image — sinon baisser l'opacité
+  // d'un fond "Aucun" (juste un bgColor) ferait disparaître le bg de la
+  // card, ce qui n'a aucun sens UI.
+  const imageOpacity = hasImage && typeof opacity === 'number' ? opacity : undefined;
+
   return (
     <View
       pointerEvents="none"
@@ -70,6 +80,7 @@ export function FondLayer({ bgColor, fondId, colorOverrides }: Props) {
         // Fallback bgColor uniquement si pas d'image — sinon l'image est la
         // surface de référence et bgColor doit être ignorée (cf. politique).
         hasImage ? null : { backgroundColor: bgColor },
+        imageOpacity !== undefined ? { opacity: imageOpacity } : null,
       ]}>
       {hasImage ? <FondImage def={def!} themedSvgXml={themedSvgXml} /> : null}
     </View>

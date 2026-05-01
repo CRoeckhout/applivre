@@ -86,13 +86,43 @@ export const SHEET_TEXT_SHADOW: TextStyle = {
   textShadowRadius: 2,
 };
 
+// Surcharges typiques pour remapper les tokens "fond" d'un cadre SVG vers
+// la couleur d'environnement immédiate (et non l'`appearance.bgColor`
+// snapshoté). À passer en `tokenOverrides` à `SheetSurface` / `BingoGrid`
+// dans les contextes où la grille/fiche est posée dans un wrapper aux
+// couleurs différentes du snapshot (home, liste, detail, customizer
+// preview…). La matière du cadre se fond alors avec son entourage réel.
+export function makeFondTokenOverrides(color: string): Record<string, string> {
+  return {
+    paper: color,
+    paperWarm: color,
+    paperShade: color,
+    bgColor: color,
+    colorBg: color,
+  };
+}
+
+// Compose le hex avec un alpha. Accepte :
+//  - `#rrggbb` → renvoie `#rrggbbaa` avec aa = alpha demandé.
+//  - `#rrggbbaa` → multiplie l'alpha existant avec celui demandé. Permet
+//    aux couleurs déjà transparentes (mutedColor user-personnalisé avec
+//    opacité) de continuer à composer correctement avec les alphas
+//    hardcodés des rendus (bordures, divisions, overlays).
 export function hexWithAlpha(hex: string, alpha: number): string {
   const m = hex.replace('#', '');
-  if (!/^[0-9a-fA-F]{6}$/.test(m)) return hex;
-  const a = Math.round(Math.max(0, Math.min(1, alpha)) * 255)
-    .toString(16)
-    .padStart(2, '0');
-  return `#${m}${a}`;
+  const clamped = Math.max(0, Math.min(1, alpha));
+  if (/^[0-9a-fA-F]{6}$/.test(m)) {
+    const a = Math.round(clamped * 255).toString(16).padStart(2, '0');
+    return `#${m}${a}`;
+  }
+  if (/^[0-9a-fA-F]{8}$/.test(m)) {
+    const existing = parseInt(m.slice(6, 8), 16) / 255;
+    const a = Math.round(existing * clamped * 255)
+      .toString(16)
+      .padStart(2, '0');
+    return `#${m.slice(0, 6)}${a}`;
+  }
+  return hex;
 }
 
 // True si l'appearance de la fiche diffère du template global courant.

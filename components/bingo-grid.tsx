@@ -27,6 +27,8 @@ type Props = {
   winLineCells?: Set<number>;
   onCellPress?: (index: number, item: BingoItem | undefined) => void;
   renderBadge?: (state: BingoGridCellState) => ReactNode;
+  // Rendu derrière le label de la case (ex: couverture du livre placé).
+  renderBackground?: (state: BingoGridCellState) => ReactNode;
   highlightSelectedIndex?: number;
   // Mise en évidence d'une case cible pendant un drag.
   hoveredIndex?: number | null;
@@ -42,6 +44,12 @@ type Props = {
   // Snapshot de l'appearance de la grille. Si fourni, le wrapper et les cellules
   // utilisent les couleurs / le cadre / la police snapshotés au lieu du thème app.
   appearance?: SheetAppearance;
+  // Surcharges de tokens forwardées au `SheetSurface` interne. Permet au parent
+  // de remapper les tokens "fond" du cadre SVG vers la couleur d'environnement
+  // immédiate (ex: home/liste où la grille est posée dans une card distincte
+  // du `appearance.bgColor` snapshoté). Sans, le cadre se fond avec son propre
+  // bgColor — ce qui peut détonner avec l'entourage réel.
+  tokenOverrides?: Record<string, string>;
 };
 
 export function BingoGrid({
@@ -51,11 +59,13 @@ export function BingoGrid({
   winLineCells,
   onCellPress,
   renderBadge,
+  renderBackground,
   highlightSelectedIndex,
   hoveredIndex,
   dragSourceIndex,
   onCellLayout,
   appearance,
+  tokenOverrides,
 }: Props) {
   const byIndex = new Map<number, BingoItem>();
   for (const it of items) byIndex.set(it.position, it);
@@ -138,12 +148,21 @@ export function BingoGrid({
                 borderColor: cellBorderColor,
               };
               textStyle = {
-                color: isRead ? accentColor : textColor,
+                color: textColor,
                 fontFamily,
+                fontWeight: '700',
+                textShadowColor: hexWithAlpha(bgColor, 0.9),
+                textShadowOffset: { width: 0, height: 0 },
+                textShadowRadius: 3,
               };
             } else {
               cellStyle = {};
-              textStyle = {};
+              textStyle = {
+                fontWeight: '700',
+                textShadowColor: 'rgba(255,255,255,0.9)',
+                textShadowOffset: { width: 0, height: 0 },
+                textShadowRadius: 3,
+              };
             }
 
             const fallbackBg = isHovered
@@ -177,7 +196,7 @@ export function BingoGrid({
                 }
                 disabled={!onCellPress}
                 style={{
-                  aspectRatio: 1,
+                  aspectRatio: compact ? 1 : 2 / 3,
                   flex: 1,
                   margin: 2,
                   borderWidth: isRead || isSelected || isHovered ? 2 : 1,
@@ -191,6 +210,9 @@ export function BingoGrid({
                     ? 'items-center justify-center active:opacity-70'
                     : `${fallbackBg} ${fallbackBorder} items-center justify-center active:opacity-70`
                 }>
+                {renderBackground
+                  ? renderBackground({ index, item, completed, isRead })
+                  : null}
                 {!compact && (
                   <Text
                     numberOfLines={4}
@@ -219,7 +241,10 @@ export function BingoGrid({
 
   if (appearance) {
     return (
-      <SheetSurface appearance={appearance} padding={8}>
+      <SheetSurface
+        appearance={appearance}
+        padding={8}
+        tokenOverrides={tokenOverrides}>
         {renderRows}
       </SheetSurface>
     );

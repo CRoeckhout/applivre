@@ -30,10 +30,16 @@ type Props = {
   // laissent voir ce fond. Ignorée si `innerBackground` est fourni.
   innerBackgroundColor?: string;
   // Override complet de la couche de fond interne : ReactNode rendu en
-  // absolute fill dans la zone bornée par `bgInsets`. Permet d'injecter un
-  // fond image (FondLayer) au lieu d'une simple solid color. Substitue
-  // `innerBackgroundColor` si fourni.
+  // absolute fill dans la zone définie par `innerBackgroundCover`. Permet
+  // d'injecter un fond image (FondLayer) au lieu d'une simple solid color.
+  // Substitue `innerBackgroundColor` si fourni.
   innerBackground?: ReactNode;
+  // Étendue de la couche `innerBackground`. `'insets'` (default) la borne
+  // par `bgInsets` (compat avec l'ancien comportement de `innerBackgroundColor`).
+  // `'full'` couvre toute la zone du cadre (absolute fill) — utilisé quand
+  // les tokens "fond" du SVG sont rendus transparents pour que le fond image
+  // apparaisse aussi sous l'encre du cadre.
+  innerBackgroundCover?: 'insets' | 'full';
   // Distance depuis chaque bord externe vers l'intérieur où commence le bg.
   // Default = slice/2 : le bg pénètre à mi-distance dans les edges, ce qui
   // évite (a) le halo si on couvre tout le host (bg dépasse le visible)
@@ -68,6 +74,7 @@ export function NineSliceFrame({
   fillCenter = true,
   innerBackgroundColor,
   innerBackground,
+  innerBackgroundCover = 'insets',
   bgInsets,
   repeat = 'stretch',
   style,
@@ -139,27 +146,38 @@ export function NineSliceFrame({
       {innerBackground ? (
         <View
           pointerEvents="none"
-          style={{
-            position: 'absolute',
-            top: bgi.top,
-            right: bgi.right,
-            bottom: bgi.bottom,
-            left: bgi.left,
-            overflow: 'hidden',
-          }}>
+          style={
+            innerBackgroundCover === 'full'
+              ? [StyleSheet.absoluteFillObject, { overflow: 'hidden' }]
+              : {
+                  position: 'absolute',
+                  top: bgi.top,
+                  right: bgi.right,
+                  bottom: bgi.bottom,
+                  left: bgi.left,
+                  overflow: 'hidden',
+                }
+          }>
           {innerBackground}
         </View>
       ) : innerBackgroundColor ? (
         <View
           pointerEvents="none"
-          style={{
-            position: 'absolute',
-            top: bgi.top,
-            right: bgi.right,
-            bottom: bgi.bottom,
-            left: bgi.left,
-            backgroundColor: innerBackgroundColor,
-          }}
+          style={
+            innerBackgroundCover === 'full'
+              ? [
+                  StyleSheet.absoluteFillObject,
+                  { backgroundColor: innerBackgroundColor },
+                ]
+              : {
+                  position: 'absolute',
+                  top: bgi.top,
+                  right: bgi.right,
+                  bottom: bgi.bottom,
+                  left: bgi.left,
+                  backgroundColor: innerBackgroundColor,
+                }
+          }
         />
       ) : null}
       <View style={{ flexDirection: 'row', height: T }}>

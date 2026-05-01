@@ -1,5 +1,6 @@
 import { ColorPickerModal } from '@/components/color-picker-modal';
 import { FondLayer } from '@/components/fond-layer';
+import { FondOpacityRow } from '@/components/sheet-customizer';
 import { NineSliceFrame } from '@/components/nine-slice-frame';
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { type BorderDef } from '@/lib/borders/catalog';
@@ -29,6 +30,7 @@ export function PersonalizationSheet() {
   const [colorTarget, setColorTarget] = useState<ColorTarget>(null);
   const [saveOpen, setSaveOpen] = useState(false);
 
+  const allFonds = useAllFonds();
   const themeId = usePreferences((s) => s.themeId);
   const fontId = usePreferences((s) => s.fontId);
   const primary = usePreferences((s) => s.colorPrimary);
@@ -39,6 +41,8 @@ export function PersonalizationSheet() {
   const setBorderId = usePreferences((s) => s.setBorderId);
   const fondId = usePreferences((s) => s.fondId);
   const setFondId = usePreferences((s) => s.setFondId);
+  const fondOpacity = usePreferences((s) => s.fondOpacity);
+  const setFondOpacity = usePreferences((s) => s.setFondOpacity);
   const applyTheme = usePreferences((s) => s.applyTheme);
   const setFontId = usePreferences((s) => s.setFontId);
   const setPrimary = usePreferences((s) => s.setColorPrimary);
@@ -47,6 +51,14 @@ export function PersonalizationSheet() {
   const saveCurrentAsCustomTheme = usePreferences((s) => s.saveCurrentAsCustomTheme);
   const deleteCustomTheme = usePreferences((s) => s.deleteCustomTheme);
   const resetToDefaults = usePreferences((s) => s.resetToDefaults);
+
+  // Le slider d'opacité n'a de sens que si le fond du thème est une image
+  // (cover/tile). Pour 'none' ou un id inconnu/sans visuel, on cache.
+  const fondImageActive = useMemo(() => {
+    if (!fondId || fondId === 'none') return false;
+    const def = allFonds.find((f) => f.id === fondId);
+    return !!(def && (def.source || def.svgXml));
+  }, [fondId, allFonds]);
 
   if (!isOpen) return null;
 
@@ -154,6 +166,14 @@ export function PersonalizationSheet() {
 
                 <SectionLabel>Fonds</SectionLabel>
                 <FondsRow fondId={fondId} setFondId={setFondId} />
+                {fondImageActive && (
+                  <View style={{ paddingHorizontal: 20 }}>
+                    <FondOpacityRow
+                      value={fondOpacity}
+                      onChange={setFondOpacity}
+                    />
+                  </View>
+                )}
               </>
             )}
 

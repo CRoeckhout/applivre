@@ -113,6 +113,10 @@ export type SheetFond = {
   // Color overrides per-instance pour les fonds SVG (mêmes règles que
   // SheetFrame.colorOverrides).
   colorOverrides?: Record<string, string>;
+  // Opacité de la couche fond (image), 0..1. `undefined` ⇒ 1 (opaque).
+  // N'affecte pas `bgColor` rendu en arrière-plan : seule l'image au-dessus
+  // s'estompe, laissant le bg de la fiche transparaître à mesure qu'on baisse.
+  opacity?: number;
 };
 
 export type SheetRatingIconConfig = {

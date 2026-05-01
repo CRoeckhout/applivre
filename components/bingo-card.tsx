@@ -1,8 +1,10 @@
 import { BingoGrid } from "@/components/bingo-grid";
 import { useCardFrame } from "@/components/card-frame-context";
+import { useThemeColors } from "@/hooks/use-theme-colors";
 import { pickInitialPresetLabels } from "@/lib/bingo-presets";
 import { countCompletedLines } from "@/lib/bingo-win";
 import { newId } from "@/lib/id";
+import { makeFondTokenOverrides } from "@/lib/sheet-appearance";
 import { useBingos } from "@/store/bingo";
 import { useBookshelf } from "@/store/bookshelf";
 import type { Bingo, BingoItem } from "@/types/bingo";
@@ -19,6 +21,17 @@ export function BingoCard() {
   const books = useBookshelf((s) => s.books);
   const createBingo = useBingos((s) => s.createBingo);
   const { inFrame, padding: framedPadding } = useCardFrame();
+  // Cf. shortcut-card : padding natif quand pas de cadre.
+  const useNaturalPadding = framedPadding === undefined;
+  // La grille preview est posée dans la card BingoCard de la home (wrapper
+  // `bg-paper-warm` quand pas de cadre catalog). On remappe les tokens fond
+  // du cadre SVG snapshoté vers cette couleur d'environnement — sinon le cadre
+  // se fond avec son propre `appearance.bgColor` qui peut différer du wrapper.
+  const theme = useThemeColors();
+  const previewTokenOverrides = useMemo(
+    () => makeFondTokenOverrides(theme.paperWarm),
+    [theme.paperWarm],
+  );
 
   const active = useMemo(() => bingos.filter((b) => !b.archivedAt), [bingos]);
 
@@ -115,8 +128,8 @@ export function BingoCard() {
     >
       <Animated.View
         entering={FadeIn.duration(400)}
-        className={`rounded-3xl ${inFrame ? '' : 'bg-paper-warm p-6'}`}
-        style={inFrame ? { padding: framedPadding } : undefined}
+        className={`rounded-3xl ${useNaturalPadding ? 'p-6' : ''} ${inFrame ? '' : 'bg-paper-warm'}`}
+        style={!useNaturalPadding ? { padding: framedPadding } : undefined}
       >
         <View className="flex-row items-baseline justify-between">
           <Text className="font-display text-xl text-ink">Bingo</Text>
@@ -153,6 +166,7 @@ export function BingoCard() {
                 completedCells={stats.mostFilledPlacedCells}
                 readCells={stats.mostFilledReadCells}
                 appearance={stats.mostFilled.appearance}
+                tokenOverrides={previewTokenOverrides}
               />
             </View>
           )}

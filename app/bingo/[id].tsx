@@ -1,8 +1,10 @@
 import { BingoGrid } from '@/components/bingo-grid';
 import { BookCover } from '@/components/book-cover';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import { BINGO_PRESETS, pickInitialPresetLabels } from '@/lib/bingo-presets';
 import { completedLines, hasAnyWin } from '@/lib/bingo-win';
 import { newId } from '@/lib/id';
+import { makeFondTokenOverrides } from '@/lib/sheet-appearance';
 import { useBadgeToasts } from '@/store/badge-toasts';
 import { BingoCustomizer } from '@/components/bingo-customizer';
 import { useBingos, isBingoLocked } from '@/store/bingo';
@@ -115,6 +117,7 @@ export default function BingoScreen() {
         archived={!!bingo.archivedAt}
         canEditItems={canEditItems}
         appearance={effectiveAppearance}
+        onSetAppearance={(next) => setBingoAppearance(id, next)}
         onEditItems={() => router.replace(`/bingo/${id}?edit=1`)}
         onPickCell={(cellIndex) => router.push(`/bingo/${id}/pick/${cellIndex}`)}
         onRemoveCell={(cellIndex) => removeCompletion(id, cellIndex)}
@@ -239,6 +242,13 @@ function EditMode({
   onSave: () => void;
 }) {
   const router = useRouter();
+  const theme = useThemeColors();
+  // La grille est posée sur la page (bg = `theme.paper`). On remappe les
+  // tokens fond du cadre SVG vers cette couleur d'environnement.
+  const tokenOverrides = useMemo(
+    () => makeFondTokenOverrides(theme.paper),
+    [theme.paper],
+  );
   const [pickerOpen, setPickerOpen] = useState(false);
   const [targetCell, setTargetCell] = useState<number | null>(null);
   const [search, setSearch] = useState('');
@@ -611,6 +621,7 @@ function EditMode({
                 hoveredIndex={hoveredIndex}
                 dragSourceIndex={dragSource}
                 appearance={appearance}
+                tokenOverrides={tokenOverrides}
               />
             </View>
           </GestureDetector>
@@ -899,6 +910,7 @@ function PlayMode({
   canEditItems,
   books,
   appearance,
+  onSetAppearance,
   onEditItems,
   onPickCell,
   onRemoveCell,
@@ -916,6 +928,7 @@ function PlayMode({
   canEditItems: boolean;
   books: UserBook[];
   appearance: SheetAppearance;
+  onSetAppearance: (next: SheetAppearance | undefined) => void;
   onEditItems: () => void;
   onPickCell: (cellIndex: number) => void;
   onRemoveCell: (cellIndex: number) => void;
@@ -925,9 +938,16 @@ function PlayMode({
   onWinNewBingo: () => void;
 }) {
   const router = useRouter();
+  const theme = useThemeColors();
+  // Cf. EditMode : grille posée sur la page (bg = `theme.paper`).
+  const tokenOverrides = useMemo(
+    () => makeFondTokenOverrides(theme.paper),
+    [theme.paper],
+  );
 
   const [showMenu, setShowMenu] = useState(false);
   const [showWin, setShowWin] = useState(false);
+  const [customizerOpen, setCustomizerOpen] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
   const winSeenRef = useRef(false);
@@ -1025,7 +1045,7 @@ function PlayMode({
     setSelectedBookId((prev) => (prev === userBookId ? null : userBookId));
   };
 
-  const renderBadge = ({
+  const renderBackground = ({
     index,
     item,
   }: {
@@ -1039,19 +1059,21 @@ function PlayMode({
     if (!ub) return null;
     return (
       <View
+        pointerEvents="none"
         style={{
           position: 'absolute',
-          top: 2,
-          right: 2,
-          width: 18,
-          height: 24,
-          borderRadius: 3,
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          borderRadius: 6,
           overflow: 'hidden',
         }}>
         <BookCover
           isbn={ub.book.isbn}
           coverUrl={ub.book.coverUrl}
-          style={{ width: 18, height: 24, borderRadius: 3 }}
+          contentFit="cover"
+          style={{ width: '100%', height: '100%', opacity: 0.5 }}
         />
       </View>
     );
@@ -1064,9 +1086,20 @@ function PlayMode({
           <Pressable onPress={() => router.back()} hitSlop={10} className="p-1 active:opacity-60">
             <MaterialIcons name="arrow-back" size={24} color="#1f1a16" />
           </Pressable>
-          <Pressable onPress={() => setShowMenu(true)} hitSlop={10} className="p-1 active:opacity-60">
-            <MaterialIcons name="more-vert" size={24} color="#1f1a16" />
-          </Pressable>
+          <View className="flex-row items-center gap-3">
+            {!archived && (
+              <Pressable
+                onPress={() => setCustomizerOpen(true)}
+                hitSlop={10}
+                accessibilityLabel="Personnaliser"
+                className="p-1 active:opacity-60">
+                <MaterialIcons name="palette" size={22} color="#1f1a16" />
+              </Pressable>
+            )}
+            <Pressable onPress={() => setShowMenu(true)} hitSlop={10} className="p-1 active:opacity-60">
+              <MaterialIcons name="more-vert" size={24} color="#1f1a16" />
+            </Pressable>
+          </View>
         </View>
 
         <Animated.View entering={FadeInDown.duration(300)}>
@@ -1092,9 +1125,10 @@ function PlayMode({
             readCells={readCells}
             winLineCells={winCells}
             onCellPress={archived ? undefined : onCellPress}
-            renderBadge={renderBadge}
+            renderBackground={renderBackground}
             hoveredIndex={hoveredIndex}
             appearance={appearance}
+            tokenOverrides={tokenOverrides}
             onCellLayout={(index, layout) => {
               cellLayoutsRef.current.set(index, layout);
             }}
@@ -1264,6 +1298,20 @@ function PlayMode({
           </View>
         </View>
       </Modal>
+
+      <BingoCustomizer
+        open={customizerOpen}
+        appearance={appearance}
+        title="Personnaliser la grille"
+        subtitle={title}
+        onClose={() => setCustomizerOpen(false)}
+        onSave={(next) => {
+          onSetAppearance(next);
+          setCustomizerOpen(false);
+        }}
+        onReset={() => onSetAppearance(undefined)}
+        resetLabel="Reprendre le template global"
+      />
     </SafeAreaView>
   );
 }

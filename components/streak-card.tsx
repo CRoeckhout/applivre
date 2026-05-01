@@ -69,6 +69,8 @@ export function StreakCard({
   const sessions = useTimer((s) => s.sessions);
   const goalMinutes = usePreferences((s) => s.dailyReadingGoalMinutes);
   const { inFrame, padding: framedPadding } = useCardFrame();
+  // Cf. shortcut-card : padding natif quand pas de cadre.
+  const useNaturalPadding = framedPadding === undefined;
   const chimePlayer = useAudioPlayer(CHIME_SOURCE);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -165,9 +167,9 @@ export function StreakCard({
       >
         <Animated.View
           entering={FadeIn.duration(400)}
-          className={`rounded-3xl ${inFrame ? '' : 'bg-paper-warm p-6'}`}
+          className={`rounded-3xl ${useNaturalPadding ? 'p-6' : ''} ${inFrame ? '' : 'bg-paper-warm'}`}
           style={[
-            inFrame ? { padding: framedPadding } : null,
+            !useNaturalPadding ? { padding: framedPadding } : null,
             isDragging
               ? {
                   shadowColor: "#1a1410",

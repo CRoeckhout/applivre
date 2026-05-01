@@ -21,6 +21,8 @@ export function ChallengeCard() {
   const challenge = useChallenges((s) => s.challenges[year]);
   const books = useBookshelf((s) => s.books);
   const { inFrame, padding: framedPadding } = useCardFrame();
+  // Cf. shortcut-card : padding natif quand pas de cadre.
+  const useNaturalPadding = framedPadding === undefined;
 
   const finishedCount = useMemo(
     () =>
@@ -38,8 +40,8 @@ export function ChallengeCard() {
       <>
         <Animated.View
           entering={FadeIn.duration(400)}
-          className={`rounded-3xl ${inFrame ? '' : 'bg-paper-warm p-6'}`}
-          style={inFrame ? { padding: framedPadding } : undefined}>
+          className={`rounded-3xl ${useNaturalPadding ? 'p-6' : ''} ${inFrame ? '' : 'bg-paper-warm'}`}
+          style={!useNaturalPadding ? { padding: framedPadding } : undefined}>
           <Text className="font-display text-xl text-ink">Défi de lecture {year}</Text>
           <Text className="mt-2 text-ink-muted">
             Fixe un objectif de livres pour l&apos;année. On suivra ta progression auto.
@@ -88,8 +90,8 @@ export function ChallengeCard() {
       <Pressable onPress={() => setEditOpen(true)} className="active:opacity-90">
         <Animated.View
           entering={FadeIn.duration(400)}
-          className={`rounded-3xl ${inFrame ? '' : 'bg-paper-warm p-6'}`}
-          style={inFrame ? { padding: framedPadding } : undefined}>
+          className={`rounded-3xl ${useNaturalPadding ? 'p-6' : ''} ${inFrame ? '' : 'bg-paper-warm'}`}
+          style={!useNaturalPadding ? { padding: framedPadding } : undefined}>
           <View className="flex-row items-baseline justify-between">
             <Text className="font-display text-xl text-ink">Défi {year}</Text>
             <Text className="text-xs uppercase tracking-wider text-ink-muted">

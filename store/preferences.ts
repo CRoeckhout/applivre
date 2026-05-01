@@ -32,6 +32,11 @@ export type Preferences = {
   customThemes: CustomTheme[];
   borderId: string;
   fondId: string;
+  // Opacité globale appliquée au fond du thème (0..1). Sert quand le fond
+  // est rendu via `prefs.fondId` directement (home cards) ou hérité (fiches
+  // sans `appearance.fond` explicite). Les fiches/grilles avec un fond
+  // explicite ont leur propre `fond.opacity` et ignorent cette valeur.
+  fondOpacity: number;
 };
 
 const papier = getTheme(DEFAULT_THEME_ID);
@@ -47,6 +52,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   customThemes: [],
   borderId: DEFAULT_BORDER_ID,
   fondId: DEFAULT_FOND_ID,
+  fondOpacity: 1,
 };
 
 type PreferencesState = Preferences & {
@@ -61,6 +67,7 @@ type PreferencesState = Preferences & {
   deleteCustomTheme: (id: string) => void;
   setBorderId: (id: string) => void;
   setFondId: (id: string) => void;
+  setFondOpacity: (opacity: number) => void;
   resetToDefaults: () => void;
 };
 
@@ -88,6 +95,7 @@ function pushFullPrefs(state: Preferences): void {
     customThemes: state.customThemes,
     borderId: state.borderId,
     fondId: state.fondId,
+    fondOpacity: state.fondOpacity,
   });
 }
 
@@ -175,6 +183,11 @@ export const usePreferences = create<PreferencesState>()(
         set({ fondId: id });
         pushFullPrefs(get());
       },
+      setFondOpacity: (opacity) => {
+        const v = Math.max(0, Math.min(1, opacity));
+        set({ fondOpacity: v });
+        pushFullPrefs(get());
+      },
       deleteCustomTheme: (id) => {
         const state = get();
         const next = state.customThemes.filter((t) => t.id !== id);
@@ -193,7 +206,7 @@ export const usePreferences = create<PreferencesState>()(
     }),
     {
       name: `${APP_SLUG}-preferences`,
-      version: 8,
+      version: 9,
       storage: createJSONStorage(() => AsyncStorage),
       migrate: (persisted: unknown, version: number) => {
         // Toute version antérieure → merge avec defaults : ajoute les champs
@@ -216,6 +229,9 @@ export const usePreferences = create<PreferencesState>()(
         }
         // v8 : ajout de fondId (default 'none'). Les versions <8 le récupèrent
         // depuis DEFAULT_PREFERENCES via le merge ci-dessus, rien à forcer.
+        // v9 : ajout de fondOpacity (default 1). Idem, le merge ajoute
+        // automatiquement le champ pour les états persistés sans, donc rien
+        // à forcer non plus.
         return merged;
       },
     },

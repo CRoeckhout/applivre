@@ -1,4 +1,4 @@
-import { ColorPickerModal } from '@/components/color-picker-modal';
+import { ColorPickerModal, OpacitySlider } from '@/components/color-picker-modal';
 import { FondLayer } from '@/components/fond-layer';
 import { IconPickerModal } from '@/components/icon-picker-modal';
 import { NineSliceFrame } from '@/components/nine-slice-frame';
@@ -14,6 +14,7 @@ import {
   DEFAULT_CATEGORIES,
   DEFAULT_RATING_ICONS,
   hexWithAlpha,
+  makeFondTokenOverrides,
   shiftTowardsPaper,
 } from '@/lib/sheet-appearance';
 import { BUILTIN_PRESETS, type SheetPreset } from '@/lib/sheet-presets';
@@ -122,6 +123,20 @@ export function SheetCustomizer({
   const colorPrimary = usePreferences((s) => s.colorPrimary);
   const colorSecondary = usePreferences((s) => s.colorSecondary);
   const colorBg = usePreferences((s) => s.colorBg);
+  // Fond du thème user — sert au tile "Theme" (preview + snapshot au clic).
+  const themeFondId = usePreferences((s) => s.fondId);
+  const themeFondOpacity = usePreferences((s) => s.fondOpacity);
+  const themeFondDef = useMemo(
+    () => allFonds.find((f) => f.id === themeFondId),
+    [allFonds, themeFondId],
+  );
+  // Fond image actif sur la fiche : `draft.fond.fondId` explicite (≠ 'none')
+  // ou hérité du thème. Sert à masquer le bg row dans Couleurs (`bgColor`
+  // n'est pas visible sous un fond image, l'éditer crée de la confusion).
+  const fondImageActive = useMemo(() => {
+    const id = draft.fond?.fondId ?? themeFondId;
+    return !!id && id !== 'none';
+  }, [draft.fond?.fondId, themeFondId]);
 
   useEffect(() => {
     if (open) setDraft(appearance);
@@ -133,11 +148,14 @@ export function SheetCustomizer({
   const updateFond = (partial: Partial<SheetFond>) =>
     setDraft((d) => {
       const next: SheetFond = { ...(d.fond ?? {}), ...partial };
-      // Normalisation : un fond vide / 'none' ⇒ supprime la clé pour rester
-      // proche du shape minimal et ne pas polluer le JSONB persisté.
+      // Normalisation : on ne supprime la clé `fond` que si plus rien n'est
+      // défini (ni id explicite, ni overrides, ni opacité). 'none' est
+      // conservé car il a une sémantique propre (= explicitement aucun fond)
+      // distincte de `undefined` (= hérite du thème).
       const isEmpty =
-        (!next.fondId || next.fondId === 'none') &&
-        (!next.colorOverrides || Object.keys(next.colorOverrides).length === 0);
+        !next.fondId &&
+        (!next.colorOverrides || Object.keys(next.colorOverrides).length === 0) &&
+        next.opacity === undefined;
       return { ...d, fond: isEmpty ? undefined : next };
     });
 
@@ -171,7 +189,7 @@ export function SheetCustomizer({
         colorOverrides: Object.keys(next).length > 0 ? next : undefined,
       };
       const isEmpty =
-        (!fond.fondId || fond.fondId === 'none') &&
+        !fond.fondId &&
         (!fond.colorOverrides || Object.keys(fond.colorOverrides).length === 0);
       return { ...d, fond: isEmpty ? undefined : fond };
     });
@@ -206,18 +224,17 @@ export function SheetCustomizer({
               ? draft.frame.color
               : '#000000';
 
+  const colorLabels = DEFAULT_APPEARANCE_COLOR_LABELS;
   const pickerTitle =
-    colorTarget === 'bg'
-      ? 'Couleur de fond'
-      : colorTarget === 'text'
-        ? 'Couleur du texte'
-        : colorTarget === 'muted'
-          ? 'Couleur secondaire'
-          : colorTarget === 'accent'
-            ? 'Couleur accent'
-            : colorTarget === 'frame'
-              ? 'Couleur du cadre'
-              : '';
+    colorTarget === 'frame'
+      ? 'Couleur du cadre'
+      : colorTarget && colorTarget !== null
+        ? colorLabels[colorTarget].picker
+        : '';
+  const pickerWithAlpha =
+    colorTarget && colorTarget !== 'frame'
+      ? colorLabels[colorTarget].withAlpha === true
+      : false;
 
   const onPickColor = (hex: string) => {
     if (colorTarget === 'bg') setDraft((d) => ({ ...d, bgColor: hex }));
@@ -419,10 +436,37 @@ export function SheetCustomizer({
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ gap: 10, paddingVertical: 4 }}>
+              {/* Theme : snapshot du fond du thème user. Le clic insère
+                  l'id concret au moment T pour qu'un changement de thème
+                  ultérieur n'affecte pas la fiche/bingo. */}
+              <FondTile
+                label="Theme"
+                def={themeFondDef}
+                active={(draft.fond?.fondId ?? themeFondId) === themeFondId}
+                onPress={() =>
+                  updateFond({
+                    fondId: themeFondId,
+                    colorOverrides: undefined,
+                    // Pas de snapshot d'opacité : on laisse `undefined` pour
+                    // que la fiche suive l'opacité du thème (lazy inherit).
+                    // Dès que l'utilisateur drag le slider, l'opacité devient
+                    // littérale et indépendante. Cf. SheetSurface.
+                    opacity: undefined,
+                  })
+                }
+              />
               <FondTile
                 label="Aucun"
-                active={!draft.fond?.fondId || draft.fond.fondId === 'none'}
-                onPress={() => updateFond({ fondId: 'none', colorOverrides: undefined })}
+                active={
+                  draft.fond?.fondId === 'none' && themeFondId !== 'none'
+                }
+                onPress={() =>
+                  updateFond({
+                    fondId: 'none',
+                    colorOverrides: undefined,
+                    opacity: undefined,
+                  })
+                }
               />
               {allFonds
                 .filter((f) => f.source || f.svgXml)
@@ -432,10 +476,33 @@ export function SheetCustomizer({
                     def={f}
                     label={f.label}
                     active={draft.fond?.fondId === f.id}
-                    onPress={() => updateFond({ fondId: f.id, colorOverrides: undefined })}
+                    onPress={() =>
+                      updateFond({
+                        fondId: f.id,
+                        colorOverrides: undefined,
+                        opacity: undefined,
+                      })
+                    }
                   />
                 ))}
             </ScrollView>
+
+            {fondImageActive && (
+              <FondOpacityRow
+                // Cf. SheetSurface : si pas d'opacité posée et qu'on est sur
+                // le tile "Theme", on affiche l'opacité courante du thème —
+                // sinon 1.0. Le drag stocke la valeur littérale (sans
+                // normalisation `>=1`) pour que 100% slider = 100% rendu,
+                // indépendant du thème.
+                value={
+                  draft.fond?.opacity ??
+                  ((draft.fond?.fondId ?? themeFondId) === themeFondId
+                    ? themeFondOpacity
+                    : 1)
+                }
+                onChange={(v) => updateFond({ opacity: v })}
+              />
+            )}
 
             {fondIsSvg && selectedFond?.tokens && (
               <TokenOverridesEditor
@@ -482,30 +549,11 @@ export function SheetCustomizer({
             </View>
           </Section>
 
-          <Section title="Couleurs">
-            <View className="gap-2">
-              <ColorRowLabeled
-                label="Fond"
-                hex={draft.bgColor}
-                onPress={() => setColorTarget('bg')}
-              />
-              <ColorRowLabeled
-                label="Texte"
-                hex={draft.textColor}
-                onPress={() => setColorTarget('text')}
-              />
-              <ColorRowLabeled
-                label="Secondaire"
-                hex={draft.mutedColor}
-                onPress={() => setColorTarget('muted')}
-              />
-              <ColorRowLabeled
-                label="Accent"
-                hex={draft.accentColor}
-                onPress={() => setColorTarget('accent')}
-              />
-            </View>
-          </Section>
+          <AppearanceColorsSection
+            appearance={draft}
+            onTargetColor={setColorTarget}
+            hiddenTargets={fondImageActive ? ['bg'] : undefined}
+          />
 
           <Section title="Catégories par défaut">
             <Text className="mb-2 text-xs text-ink-muted">
@@ -567,6 +615,7 @@ export function SheetCustomizer({
           open={colorTarget !== null}
           initial={pickerInitial}
           title={pickerTitle}
+          withAlpha={pickerWithAlpha}
           onClose={() => setColorTarget(null)}
           onChange={onPickColor}
         />
@@ -877,6 +926,36 @@ export function FondTile({
   );
 }
 
+// Slider d'opacité du fond image. Affiché conditionnellement par les
+// customizers (uniquement quand un fond image est actif sur l'instance ou
+// hérité du thème). Rend le pourcentage à droite et la track à gauche.
+//
+// `value` est borné [0, 1]. `onChange` est appelé en continu pendant le drag.
+// Le parent décide de la sémantique de stockage (par-fiche, theme, etc.).
+export function FondOpacityRow({
+  value,
+  onChange,
+  trackColor = '#c27b52',
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  trackColor?: string;
+}) {
+  return (
+    <View className="mt-3 rounded-2xl bg-paper-warm px-4 py-3">
+      <View className="mb-2 flex-row items-center justify-between">
+        <Text className="text-xs uppercase tracking-wider text-ink-muted">
+          Opacité
+        </Text>
+        <Text className="font-sans-med text-ink">
+          {Math.round(value * 100)}%
+        </Text>
+      </View>
+      <OpacitySlider value={value} onChange={onChange} trackColor={trackColor} />
+    </View>
+  );
+}
+
 // Liste éditable d'overrides de couleurs pour les tokens d'un cadre OU d'un
 // fond SVG. Identique pour les deux : on passe les tokens, l'état courant des
 // overrides, et les callbacks pour ouvrir le picker / clear un override.
@@ -1138,6 +1217,95 @@ export function ColorRowLabeled({
   );
 }
 
+// Cibles éditables des 4 couleurs d'une appearance. `frame` reste à part —
+// il dépend du mode (perso CSS ou cadre catalog) et est géré séparément
+// par chaque customizer.
+export type AppearanceColorTarget = 'bg' | 'text' | 'muted' | 'accent';
+
+// Métadonnées d'une couleur de l'appearance, parametrables par le parent
+// pour adapter le vocabulaire au domaine (fiche / bingo / autre) :
+//  - `row` : label affiché sur la row de sélection.
+//  - `picker` : titre de la modal d'édition (Couleur de fond / Couleur des
+//    cases…).
+//  - `withAlpha` : si true, la modal d'édition expose un slider d'opacité.
+//    Permet de stocker la couleur en `#rrggbbaa` quand l'alpha < 100%.
+export type AppearanceColorLabel = {
+  row: string;
+  picker: string;
+  withAlpha?: boolean;
+};
+
+export type AppearanceColorLabels = {
+  bg: AppearanceColorLabel;
+  text: AppearanceColorLabel;
+  muted: AppearanceColorLabel;
+  accent: AppearanceColorLabel;
+};
+
+// Vocabulaire par défaut (générique fiche). Bingo/autres surchargent via
+// la prop `labels` de `AppearanceColorsSection`.
+export const DEFAULT_APPEARANCE_COLOR_LABELS: AppearanceColorLabels = {
+  bg: { row: 'Fond', picker: 'Couleur de fond' },
+  text: { row: 'Texte', picker: 'Couleur du texte' },
+  muted: { row: 'Secondaire', picker: 'Couleur secondaire' },
+  accent: { row: 'Accent', picker: 'Couleur accent' },
+};
+
+// Section "Couleurs" complète, réutilisable entre customizers (fiche, bingo,
+// futurs). Le parent reste responsable d'ouvrir la modal d'édition via
+// `onTargetColor` — c'est lui qui sait quel state il pilote.
+//
+// `hiddenTargets` permet de masquer une cible quand elle n'est pas pertinente
+// dans le contexte courant. Ex: cacher `bg` quand un fond image couvre la
+// card — la valeur n'aurait plus d'effet visible et créerait de la confusion.
+export function AppearanceColorsSection({
+  appearance,
+  onTargetColor,
+  labels = DEFAULT_APPEARANCE_COLOR_LABELS,
+  hiddenTargets,
+}: {
+  appearance: SheetAppearance;
+  onTargetColor: (target: AppearanceColorTarget) => void;
+  labels?: AppearanceColorLabels;
+  hiddenTargets?: AppearanceColorTarget[];
+}) {
+  const hidden = new Set(hiddenTargets);
+  return (
+    <Section title="Couleurs">
+      <View className="gap-2">
+        {!hidden.has('bg') && (
+          <ColorRowLabeled
+            label={labels.bg.row}
+            hex={appearance.bgColor}
+            onPress={() => onTargetColor('bg')}
+          />
+        )}
+        {!hidden.has('text') && (
+          <ColorRowLabeled
+            label={labels.text.row}
+            hex={appearance.textColor}
+            onPress={() => onTargetColor('text')}
+          />
+        )}
+        {!hidden.has('muted') && (
+          <ColorRowLabeled
+            label={labels.muted.row}
+            hex={appearance.mutedColor}
+            onPress={() => onTargetColor('muted')}
+          />
+        )}
+        {!hidden.has('accent') && (
+          <ColorRowLabeled
+            label={labels.accent.row}
+            hex={appearance.accentColor}
+            onPress={() => onTargetColor('accent')}
+          />
+        )}
+      </View>
+    </Section>
+  );
+}
+
 function CategoriesEditor({
   categories,
   onChange,
@@ -1277,6 +1445,15 @@ function PreviewCard({
   const divider = hexWithAlpha(mutedColor, 0.22);
 
   const themePaper = usePreferences((s) => s.colorBg);
+  // Cf. BingoPreview : la fiche est rendue dans la modal du customizer dont
+  // le bg est `themePaper`. On remappe les tokens fond du cadre SVG vers
+  // cette couleur d'environnement — sinon les paths externes du cadre (ex:
+  // wavy mappé sur `paper`) sont peints avec `appearance.bgColor` (= la
+  // valeur "Fond" de la fiche), créant un mismatch visuel.
+  const previewTokenOverrides = useMemo(
+    () => makeFondTokenOverrides(themePaper),
+    [themePaper],
+  );
 
   return (
     // Fond de page = thème app. Intérieur = la fiche avec son bg + frame.
@@ -1288,7 +1465,10 @@ function PreviewCard({
         borderWidth: 1,
         borderColor: 'rgba(107,98,89,0.12)',
       }}>
-      <SheetSurface appearance={appearance} padding={14}>
+      <SheetSurface
+        appearance={appearance}
+        padding={14}
+        tokenOverrides={previewTokenOverrides}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <View
             style={{

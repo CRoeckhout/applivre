@@ -3,6 +3,7 @@ import { useCardFrame } from '@/components/card-frame-context';
 import { FondLayer } from '@/components/fond-layer';
 import { PERSO_BORDER_ID } from '@/lib/borders/catalog';
 import { outerCardStyle } from '@/lib/sheet-appearance';
+import { usePreferences } from '@/store/preferences';
 import type { SheetAppearance } from '@/types/book';
 import { type ReactNode, useMemo } from 'react';
 import { type StyleProp, View, type ViewStyle } from 'react-native';
@@ -12,6 +13,15 @@ type Props = {
   // Padding interne en mode Perso (legacy CSS). En mode catalog, ignoré :
   // c'est `def.cardPadding` qui pilote l'espacement.
   padding?: number;
+  // Surcharges de tokens injectées par le parent selon le contexte de rendu.
+  // Permet par ex. à un preview imbriqué dans une modal de remapper le token
+  // `paper` du cadre SVG vers la couleur de fond de la modal — la matière du
+  // cadre se fond alors avec son entourage immédiat plutôt qu'avec la fiche
+  // elle-même. Ordre de précédence (du plus faible au plus fort) :
+  // appearanceOverrides auto → tokenOverrides parent → frame.colorOverrides
+  // sauvés. Ainsi une override explicite saved par l'utilisateur reste
+  // souveraine.
+  tokenOverrides?: Record<string, string>;
   // Style additionnel sur le wrapper externe (margin, shadow, animation…).
   style?: StyleProp<ViewStyle>;
   children: ReactNode;
@@ -26,11 +36,40 @@ type Props = {
 //
 // Un fond image (`appearance.fond`) est rendu en couche absolue derrière
 // le contenu, dans la zone bgInsets quand un cadre catalog est actif.
-export function SheetSurface({ appearance, padding = 20, style, children }: Props) {
+export function SheetSurface({
+  appearance,
+  padding = 20,
+  tokenOverrides,
+  style,
+  children,
+}: Props) {
   const { frame, fond, bgColor, textColor, mutedColor, accentColor } = appearance;
   const isPerso = !frame.borderId || frame.borderId === PERSO_BORDER_ID;
-  const fondId = fond?.fondId;
+  // `fond.fondId` peut être :
+  //  - un id concret (ex. 'flowers') : ce fond.
+  //  - 'none' : explicitement aucun fond.
+  //  - undefined : non défini → on hérite du fond du thème user (prefs.fondId)
+  //    pour préserver la rétro-compat des fiches/bingos pré-feature et matcher
+  //    le comportement de `CardFrame`. Le customizer écrit toujours une valeur
+  //    concrète (snapshot de prefs au clic du tile "Theme") pour que les
+  //    futurs changements de thème n'affectent pas la fiche.
+  const themeFondId = usePreferences((s) => s.fondId);
+  const themeFondOpacity = usePreferences((s) => s.fondOpacity);
+  const explicitFondId = fond?.fondId;
+  const fondId = explicitFondId ?? themeFondId;
   const hasFond = !!fondId && fondId !== 'none';
+  // Sémantique de l'opacité (alignée avec la valeur affichée par le slider
+  // du customizer) :
+  //  - `fond.opacity` posé → valeur littérale (l'utilisateur a draggé, indép.
+  //    du thème) ;
+  //  - `fond.opacity` absent + tile "Theme" actif (pas de fondId explicite OU
+  //    fondId == themeFondId) → on suit l'opacité courante du thème (lazy
+  //    inherit, comme on suit déjà son fondId par fallback) ;
+  //  - `fond.opacity` absent + fondId explicite ≠ thème → 1.0 (default propre
+  //    pour un fond choisi spécifiquement, sans réglage d'opacité).
+  const isThemeActive = !explicitFondId || explicitFondId === themeFondId;
+  const effectiveFondOpacity =
+    fond?.opacity ?? (isThemeActive ? themeFondOpacity : 1);
 
   // Mappe les 4 couleurs snapshotées de l'appearance sur les noms de tokens
   // les plus communs côté cadres (slots de theme + names de userPref). Ainsi
@@ -62,8 +101,12 @@ export function SheetSurface({ appearance, padding = 20, style, children }: Prop
   );
 
   const mergedOverrides = useMemo(
-    () => ({ ...appearanceOverrides, ...(frame.colorOverrides ?? {}) }),
-    [appearanceOverrides, frame.colorOverrides],
+    () => ({
+      ...appearanceOverrides,
+      ...(tokenOverrides ?? {}),
+      ...(frame.colorOverrides ?? {}),
+    }),
+    [appearanceOverrides, tokenOverrides, frame.colorOverrides],
   );
 
   if (isPerso) {
@@ -83,6 +126,7 @@ export function SheetSurface({ appearance, padding = 20, style, children }: Prop
           bgColor={bgColor}
           fondId={fondId}
           colorOverrides={fond?.colorOverrides}
+          opacity={effectiveFondOpacity}
         />
         {children}
       </View>
@@ -105,6 +149,7 @@ export function SheetSurface({ appearance, padding = 20, style, children }: Prop
       colorOverrides={mergedOverrides}
       fondId={fondId}
       fondColorOverrides={fond?.colorOverrides}
+      fondOpacity={effectiveFondOpacity}
       style={style}>
       <FramedSheetContent>{children}</FramedSheetContent>
     </CardFrame>

@@ -15,6 +15,8 @@ export function UserProfileCard() {
   const username = useProfile((s) => s.username);
   const [uploading, setUploading] = useState(false);
   const { inFrame, padding: framedPadding } = useCardFrame();
+  // Cf. shortcut-card : padding natif quand pas de cadre.
+  const useNaturalPadding = framedPadding === undefined;
 
   const email = session?.user.email ?? "";
   const displayName = username ? `@${username}` : email || "Anonyme";
@@ -40,8 +42,8 @@ export function UserProfileCard() {
 
   return (
     <View
-      className={`flex-row items-center gap-4 rounded-3xl ${inFrame ? "" : "bg-paper-warm p-5"}`}
-      style={inFrame ? { padding: framedPadding } : undefined}
+      className={`flex-row items-center gap-4 rounded-3xl ${useNaturalPadding ? "p-5" : ""} ${inFrame ? "" : "bg-paper-warm"}`}
+      style={!useNaturalPadding ? { padding: framedPadding } : undefined}
     >
       <Pressable
         onPress={onPressAvatar}

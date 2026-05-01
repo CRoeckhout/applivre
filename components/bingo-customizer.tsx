@@ -1,10 +1,11 @@
 import { ColorPickerModal } from '@/components/color-picker-modal';
 import { SheetSurface } from '@/components/sheet-surface';
 import {
+  AppearanceColorsSection,
   BorderTile,
   Chip,
   ColorRow,
-  ColorRowLabeled,
+  FondOpacityRow,
   FondTile,
   Label,
   PresetCard,
@@ -15,11 +16,12 @@ import {
   TokenOverridesEditor,
   borderLabel,
   tokenLabel,
+  type AppearanceColorLabels,
 } from '@/components/sheet-customizer';
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { PERSO_BORDER_ID, type BorderDef } from '@/lib/borders/catalog';
 import { type FondDef } from '@/lib/fonds/catalog';
-import { DEFAULT_APPEARANCE } from '@/lib/sheet-appearance';
+import { DEFAULT_APPEARANCE, makeFondTokenOverrides } from '@/lib/sheet-appearance';
 import { BUILTIN_PRESETS } from '@/lib/sheet-presets';
 import { FONTS } from '@/lib/theme/fonts';
 import { useAllBorders } from '@/store/border-catalog';
@@ -47,6 +49,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 type ColorTarget = 'bg' | 'text' | 'muted' | 'accent' | 'frame' | null;
 
 type TokenOverrideTarget = { kind: 'frame' | 'fond'; tokenName: string } | null;
+
+// Vocabulaire spécifique au bingo : `muted` = couleur des cases vides (avec
+// opacité ajustable, alpha sur 8 chars), `accent` = couleur des cases
+// validées. Le reste reprend la convention générale.
+const BINGO_COLOR_LABELS: AppearanceColorLabels = {
+  bg: { row: 'Fond', picker: 'Couleur de fond' },
+  text: { row: 'Texte', picker: 'Couleur du texte' },
+  muted: { row: 'Case', picker: 'Couleur des cases', withAlpha: true },
+  accent: { row: 'Case validée', picker: 'Couleur des cases validées' },
+};
 
 type Props = {
   open: boolean;
@@ -85,6 +97,19 @@ export function BingoCustomizer({
   const colorSecondary = usePreferences((s) => s.colorSecondary);
   const colorBg = usePreferences((s) => s.colorBg);
   const themePaper = usePreferences((s) => s.colorBg);
+  // Fond du thème user — sert au tile "Theme" (preview + snapshot au clic).
+  const themeFondId = usePreferences((s) => s.fondId);
+  const themeFondOpacity = usePreferences((s) => s.fondOpacity);
+  const themeFondDef = useMemo(
+    () => allFonds.find((f) => f.id === themeFondId),
+    [allFonds, themeFondId],
+  );
+  // Fond image actif sur la grille : `draft.fond.fondId` explicite (≠ 'none')
+  // ou hérité du thème. Sert à masquer le bg row dans Couleurs.
+  const fondImageActive = useMemo(() => {
+    const id = draft.fond?.fondId ?? themeFondId;
+    return !!id && id !== 'none';
+  }, [draft.fond?.fondId, themeFondId]);
 
   useEffect(() => {
     if (open) setDraft(appearance);
@@ -96,9 +121,12 @@ export function BingoCustomizer({
   const updateFond = (partial: Partial<SheetFond>) =>
     setDraft((d) => {
       const next: SheetFond = { ...(d.fond ?? {}), ...partial };
+      // 'none' a une sémantique distincte de undefined (= explicitement aucun
+      // fond, vs hérite du thème) — on le conserve. Cf. sheet-customizer.
       const isEmpty =
-        (!next.fondId || next.fondId === 'none') &&
-        (!next.colorOverrides || Object.keys(next.colorOverrides).length === 0);
+        !next.fondId &&
+        (!next.colorOverrides || Object.keys(next.colorOverrides).length === 0) &&
+        next.opacity === undefined;
       return { ...d, fond: isEmpty ? undefined : next };
     });
 
@@ -126,7 +154,7 @@ export function BingoCustomizer({
         colorOverrides: Object.keys(next).length > 0 ? next : undefined,
       };
       const isEmpty =
-        (!fond.fondId || fond.fondId === 'none') &&
+        !fond.fondId &&
         (!fond.colorOverrides || Object.keys(fond.colorOverrides).length === 0);
       return { ...d, fond: isEmpty ? undefined : fond };
     });
@@ -163,16 +191,20 @@ export function BingoCustomizer({
 
   const pickerTitle =
     colorTarget === 'bg'
-      ? 'Couleur de fond'
+      ? BINGO_COLOR_LABELS.bg.picker
       : colorTarget === 'text'
-        ? 'Couleur du texte'
+        ? BINGO_COLOR_LABELS.text.picker
         : colorTarget === 'muted'
-          ? 'Couleur secondaire'
+          ? BINGO_COLOR_LABELS.muted.picker
           : colorTarget === 'accent'
-            ? 'Couleur accent'
+            ? BINGO_COLOR_LABELS.accent.picker
             : colorTarget === 'frame'
               ? 'Couleur du cadre'
               : '';
+  const pickerWithAlpha =
+    colorTarget && colorTarget !== 'frame'
+      ? BINGO_COLOR_LABELS[colorTarget].withAlpha === true
+      : false;
 
   const onPickColor = (hex: string) => {
     if (colorTarget === 'bg') setDraft((d) => ({ ...d, bgColor: hex }));
@@ -372,10 +404,35 @@ export function BingoCustomizer({
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ gap: 10, paddingVertical: 4 }}>
+              {/* Theme : snapshot du fond du thème user. Le clic insère
+                  l'id concret au moment T pour qu'un changement de thème
+                  ultérieur n'affecte pas la grille. */}
+              <FondTile
+                label="Theme"
+                def={themeFondDef}
+                active={(draft.fond?.fondId ?? themeFondId) === themeFondId}
+                onPress={() =>
+                  updateFond({
+                    fondId: themeFondId,
+                    colorOverrides: undefined,
+                    // Pas de snapshot d'opacité : lazy inherit du thème
+                    // (cf. sheet-customizer).
+                    opacity: undefined,
+                  })
+                }
+              />
               <FondTile
                 label="Aucun"
-                active={!draft.fond?.fondId || draft.fond.fondId === 'none'}
-                onPress={() => updateFond({ fondId: 'none', colorOverrides: undefined })}
+                active={
+                  draft.fond?.fondId === 'none' && themeFondId !== 'none'
+                }
+                onPress={() =>
+                  updateFond({
+                    fondId: 'none',
+                    colorOverrides: undefined,
+                    opacity: undefined,
+                  })
+                }
               />
               {allFonds
                 .filter((f) => f.source || f.svgXml)
@@ -385,10 +442,29 @@ export function BingoCustomizer({
                     def={f}
                     label={f.label}
                     active={draft.fond?.fondId === f.id}
-                    onPress={() => updateFond({ fondId: f.id, colorOverrides: undefined })}
+                    onPress={() =>
+                      updateFond({
+                        fondId: f.id,
+                        colorOverrides: undefined,
+                        opacity: undefined,
+                      })
+                    }
                   />
                 ))}
             </ScrollView>
+
+            {fondImageActive && (
+              <FondOpacityRow
+                // Cf. sheet-customizer.
+                value={
+                  draft.fond?.opacity ??
+                  ((draft.fond?.fondId ?? themeFondId) === themeFondId
+                    ? themeFondOpacity
+                    : 1)
+                }
+                onChange={(v) => updateFond({ opacity: v })}
+              />
+            )}
 
             {fondIsSvg && selectedFond?.tokens && (
               <TokenOverridesEditor
@@ -435,30 +511,12 @@ export function BingoCustomizer({
             </View>
           </Section>
 
-          <Section title="Couleurs">
-            <View className="gap-2">
-              <ColorRowLabeled
-                label="Fond"
-                hex={draft.bgColor}
-                onPress={() => setColorTarget('bg')}
-              />
-              <ColorRowLabeled
-                label="Texte"
-                hex={draft.textColor}
-                onPress={() => setColorTarget('text')}
-              />
-              <ColorRowLabeled
-                label="Secondaire"
-                hex={draft.mutedColor}
-                onPress={() => setColorTarget('muted')}
-              />
-              <ColorRowLabeled
-                label="Accent"
-                hex={draft.accentColor}
-                onPress={() => setColorTarget('accent')}
-              />
-            </View>
-          </Section>
+          <AppearanceColorsSection
+            appearance={draft}
+            onTargetColor={setColorTarget}
+            labels={BINGO_COLOR_LABELS}
+            hiddenTargets={fondImageActive ? ['bg'] : undefined}
+          />
 
           <View className="flex-row items-center justify-between pt-2">
             {onReset ? (
@@ -482,6 +540,7 @@ export function BingoCustomizer({
           open={colorTarget !== null}
           initial={pickerInitial}
           title={pickerTitle}
+          withAlpha={pickerWithAlpha}
           onClose={() => setColorTarget(null)}
           onChange={onPickColor}
         />
@@ -524,16 +583,28 @@ export function BingoCustomizer({
 }
 
 // Mini-aperçu bingo : SheetSurface (gère perso CSS + cadre catalog) +
-// titre stylé + 3x3 cells de démonstration.
+// titre stylé + 3x3 cells de démonstration. Seule la case centrale est
+// rendue comme validée (couleur accent + label "Défi complété") pour
+// matérialiser l'état "case gagnée".
 function BingoPreview({ appearance }: { appearance: SheetAppearance }) {
-  const { textColor, accentColor, mutedColor, fontId } = appearance;
+  const { textColor, accentColor, mutedColor, bgColor, fontId } = appearance;
   const fontDef = useMemo(
     () => FONTS.find((f) => f.id === fontId) ?? FONTS[0],
     [fontId],
   );
+  // Le preview est rendu dans la modal customizer (bg = `themePaper`). On
+  // remappe les tokens fond du cadre vers cette couleur d'environnement.
+  const themePaper = usePreferences((s) => s.colorBg);
+  const previewTokenOverrides = useMemo(
+    () => makeFondTokenOverrides(themePaper),
+    [themePaper],
+  );
 
   return (
-    <SheetSurface appearance={appearance} padding={10}>
+    <SheetSurface
+      appearance={appearance}
+      padding={10}
+      tokenOverrides={previewTokenOverrides}>
       <Text
         numberOfLines={1}
         style={{
@@ -549,7 +620,7 @@ function BingoPreview({ appearance }: { appearance: SheetAppearance }) {
           <View key={r} style={{ flexDirection: 'row', gap: 4 }}>
             {Array.from({ length: 3 }).map((_, c) => {
               const idx = r * 3 + c;
-              const isAccent = idx === 0 || idx === 4 || idx === 8;
+              const isAccent = idx === 4;
               return (
                 <View
                   key={c}
@@ -557,11 +628,26 @@ function BingoPreview({ appearance }: { appearance: SheetAppearance }) {
                     flex: 1,
                     aspectRatio: 1,
                     borderRadius: 6,
-                    backgroundColor: isAccent ? accentColor : mutedColor + '22',
-                    borderWidth: 1,
-                    borderColor: mutedColor + '33',
-                  }}
-                />
+                    backgroundColor: isAccent ? accentColor : mutedColor,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 2,
+                  }}>
+                  {isAccent ? (
+                    <Text
+                      numberOfLines={2}
+                      adjustsFontSizeToFit
+                      style={{
+                        fontFamily: fontDef.variants.sans,
+                        fontSize: 9,
+                        color: bgColor,
+                        textAlign: 'center',
+                        fontWeight: '600',
+                      }}>
+                      Défi complété
+                    </Text>
+                  ) : null}
+                </View>
               );
             })}
           </View>

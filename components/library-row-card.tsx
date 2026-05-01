@@ -29,6 +29,8 @@ export function LibraryRowCard({ books, onPress, onLongPress, isDragging = false
   const theme = useThemeColors();
   const router = useRouter();
   const { inFrame, padding: framedPadding } = useCardFrame();
+  // Cf. shortcut-card : padding natif quand pas de cadre (fond-only ou rien).
+  const useNaturalPadding = framedPadding === undefined;
   // Pile déjà triée par date d'ajout décroissante dans le store (prepend).
   // On prend les N premières couvertures existantes.
   const recents = books.slice(0, MAX_COVERS);
@@ -88,7 +90,7 @@ export function LibraryRowCard({ books, onPress, onLongPress, isDragging = false
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={280}
-      className={`rounded-3xl ${inFrame ? '' : 'p-5'} ${
+      className={`rounded-3xl ${useNaturalPadding ? 'p-5' : ''} ${
         isDragging
           ? 'bg-accent-pale'
           : inFrame
@@ -96,7 +98,7 @@ export function LibraryRowCard({ books, onPress, onLongPress, isDragging = false
             : 'bg-paper-warm active:bg-paper-shade'
       }`}
       style={[
-        inFrame ? { padding: framedPadding } : null,
+        !useNaturalPadding ? { padding: framedPadding } : null,
         isDragging
           ? {
               shadowColor: '#1a1410',

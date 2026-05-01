@@ -41,8 +41,9 @@ export function applyTokens(
   const themeMap = theme as unknown as Record<string, string | undefined>;
   let out = svgXml;
   for (const [key, sentinel] of Object.entries(tokens)) {
+    if (!sentinel) continue;
     const replacement = overrides?.[key] ?? prefMap[key] ?? themeMap[key];
-    if (!replacement || !sentinel) continue;
+    if (!replacement) continue;
     out = out.replace(new RegExp(escapeRegex(sentinel), 'gi'), replacement);
   }
   return out;

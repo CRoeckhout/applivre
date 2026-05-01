@@ -1,7 +1,9 @@
 import { BingoGrid } from "@/components/bingo-grid";
+import { useThemeColors } from "@/hooks/use-theme-colors";
 import { pickInitialPresetLabels } from "@/lib/bingo-presets";
 import { countCompletedLines } from "@/lib/bingo-win";
 import { newId } from "@/lib/id";
+import { makeFondTokenOverrides } from "@/lib/sheet-appearance";
 import { useBingos } from "@/store/bingo";
 import { useBookshelf } from "@/store/bookshelf";
 import type { Bingo, BingoCompletion, BingoItem } from "@/types/bingo";
@@ -181,6 +183,15 @@ function BingoRow({
   const deleteBingo = useBingos((s) => s.deleteBingo);
   const archiveBingo = useBingos((s) => s.archiveBingo);
 
+  // L'item de liste a un wrapper `bg-paper-warm`. On remappe les tokens fond
+  // du cadre SVG vers cette couleur d'environnement (sinon le cadre se fond
+  // avec son propre `appearance.bgColor` au lieu du wrapper).
+  const theme = useThemeColors();
+  const previewTokenOverrides = useMemo(
+    () => makeFondTokenOverrides(theme.paperWarm),
+    [theme.paperWarm],
+  );
+
   const readCells = useMemo(() => {
     const s = new Set<number>();
     for (const c of completions) {
@@ -276,6 +287,7 @@ function BingoRow({
                 completedCells={placedCells}
                 readCells={readCells}
                 appearance={bingo.appearance}
+                tokenOverrides={previewTokenOverrides}
               />
             </View>
           </View>

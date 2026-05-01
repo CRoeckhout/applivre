@@ -22,12 +22,16 @@ export function ShortcutCard({
 }: Props) {
   const theme = useThemeColors();
   const { inFrame, padding: framedPadding } = useCardFrame();
+  // `framedPadding === undefined` = mode fond-only sans cadre : on garde le
+  // padding CSS natif (p-5) pour que le fond occupe la même surface arrondie
+  // que `bg-paper-warm` occuperait.
+  const useNaturalPadding = framedPadding === undefined;
   return (
     <Pressable
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={280}
-      className={`flex-row items-center gap-3 rounded-3xl ${inFrame ? '' : 'p-5'} ${
+      className={`flex-row items-center gap-3 rounded-3xl ${useNaturalPadding ? 'p-5' : ''} ${
         isDragging
           ? 'bg-accent-pale'
           : inFrame
@@ -35,7 +39,7 @@ export function ShortcutCard({
             : 'bg-paper-warm active:bg-paper-shade'
       }`}
       style={[
-        inFrame ? { padding: framedPadding } : null,
+        !useNaturalPadding ? { padding: framedPadding } : null,
         isDragging
           ? { shadowColor: '#1a1410', shadowOpacity: 0.18, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8 }
           : null,
