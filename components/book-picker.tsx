@@ -16,7 +16,7 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type BookPickerProps = {
-  title: string;
+  title?: string;
   subtitle?: string;
   onPick: (ub: UserBook) => void;
   // ISBN ou id d'user_books à désactiver (déjà utilisés ailleurs).
@@ -93,12 +93,16 @@ export function BookPicker({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}>
         <View className="px-6 pt-4">
-          <Animated.View entering={FadeInDown.duration(400)}>
-            <Text className="font-display text-2xl text-ink">{title}</Text>
-            {subtitle ? (
-              <Text className="mt-1 text-sm text-ink-muted">{subtitle}</Text>
-            ) : null}
-          </Animated.View>
+          {(title || subtitle) && (
+            <Animated.View entering={FadeInDown.duration(400)}>
+              {title ? (
+                <Text className="font-display text-2xl text-ink">{title}</Text>
+              ) : null}
+              {subtitle ? (
+                <Text className="mt-1 text-sm text-ink-muted">{subtitle}</Text>
+              ) : null}
+            </Animated.View>
+          )}
           {header}
           <TextInput
             value={query}

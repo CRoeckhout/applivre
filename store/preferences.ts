@@ -1,4 +1,5 @@
 import { APP_SLUG } from '@/constants/app';
+import { DEFAULT_AVATAR_FRAME_ID } from '@/lib/avatar-frames/catalog';
 import { DEFAULT_BORDER_ID } from '@/lib/borders/catalog';
 import { DEFAULT_FOND_ID } from '@/lib/fonds/catalog';
 import { newId } from '@/lib/id';
@@ -37,6 +38,8 @@ export type Preferences = {
   // sans `appearance.fond` explicite). Les fiches/grilles avec un fond
   // explicite ont leur propre `fond.opacity` et ignorent cette valeur.
   fondOpacity: number;
+  // Cadre rond appliqué autour de la photo de profil. 'none' = pas de cadre.
+  avatarFrameId: string;
 };
 
 const papier = getTheme(DEFAULT_THEME_ID);
@@ -53,6 +56,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   borderId: DEFAULT_BORDER_ID,
   fondId: DEFAULT_FOND_ID,
   fondOpacity: 1,
+  avatarFrameId: DEFAULT_AVATAR_FRAME_ID,
 };
 
 type PreferencesState = Preferences & {
@@ -68,6 +72,7 @@ type PreferencesState = Preferences & {
   setBorderId: (id: string) => void;
   setFondId: (id: string) => void;
   setFondOpacity: (opacity: number) => void;
+  setAvatarFrameId: (id: string) => void;
   resetToDefaults: () => void;
 };
 
@@ -96,6 +101,7 @@ function pushFullPrefs(state: Preferences): void {
     borderId: state.borderId,
     fondId: state.fondId,
     fondOpacity: state.fondOpacity,
+    avatarFrameId: state.avatarFrameId,
   });
 }
 
@@ -188,6 +194,10 @@ export const usePreferences = create<PreferencesState>()(
         set({ fondOpacity: v });
         pushFullPrefs(get());
       },
+      setAvatarFrameId: (id) => {
+        set({ avatarFrameId: id });
+        pushFullPrefs(get());
+      },
       deleteCustomTheme: (id) => {
         const state = get();
         const next = state.customThemes.filter((t) => t.id !== id);
@@ -206,7 +216,7 @@ export const usePreferences = create<PreferencesState>()(
     }),
     {
       name: `${APP_SLUG}-preferences`,
-      version: 9,
+      version: 10,
       storage: createJSONStorage(() => AsyncStorage),
       migrate: (persisted: unknown, version: number) => {
         // Toute version antérieure → merge avec defaults : ajoute les champs
@@ -232,6 +242,8 @@ export const usePreferences = create<PreferencesState>()(
         // v9 : ajout de fondOpacity (default 1). Idem, le merge ajoute
         // automatiquement le champ pour les états persistés sans, donc rien
         // à forcer non plus.
+        // v10 : ajout de avatarFrameId (default 'none'). Le merge le remplit
+        // automatiquement, rien à forcer.
         return merged;
       },
     },

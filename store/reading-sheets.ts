@@ -3,7 +3,9 @@ import { newId } from '@/lib/id';
 import { getSyncUserId } from '@/lib/sync/session';
 import { syncDeleteSheet, syncUpsertSheetDebounced } from '@/lib/sync/writers';
 import { useSheetTemplates } from '@/store/sheet-templates';
+import { MAX_STICKERS_PER_SHEET } from '@/lib/stickers/catalog';
 import type {
+  PlacedSticker,
   RatingIconKind,
   ReadingSheet,
   SectionRating,
@@ -40,6 +42,35 @@ type SheetsState = {
     userBookId: string,
     next: SheetAppearance | undefined,
   ) => void;
+  // Ajoute un sticker à la fiche. Bloqué silencieusement si la limite
+  // `MAX_STICKERS_PER_SHEET` est déjà atteinte (l'UI doit aussi gater
+  // l'action). Retourne l'id du nouveau placement, ou null si bloqué.
+  addSticker: (
+    userBookId: string,
+    placement: Omit<PlacedSticker, 'id'>,
+  ) => string | null;
+  // Met à jour la transformation (position/scale/rotation) d'un sticker.
+  // Appelé typiquement à la fin d'un geste pour persister l'état final —
+  // les valeurs intermédiaires restent dans les shared values reanimated.
+  updateStickerTransform: (
+    userBookId: string,
+    stickerPlacementId: string,
+    next: Pick<PlacedSticker, 'x' | 'y' | 'scale' | 'rotation'>,
+  ) => void;
+  removeSticker: (userBookId: string, stickerPlacementId: string) => void;
+  // Réordonne le z-order d'un sticker. `direction` : +1 = vers l'avant,
+  // -1 = vers l'arrière. Aux bornes du tableau : no-op.
+  reorderSticker: (
+    userBookId: string,
+    stickerPlacementId: string,
+    direction: 1 | -1,
+  ) => void;
+  // Remplace l'ensemble des stickers de la fiche. Utilisé pour persister
+  // un draft local (cf. screen sheet/[isbn]) après un tap utilisateur sur
+  // le bouton Enregistrer — la liste fournie devient la source de vérité.
+  // Tableau vide ⇒ on supprime la clé `stickers` de la fiche (pas de tableau
+  // vide persisté). Limite max appliquée silencieusement (truncate).
+  setStickers: (userBookId: string, stickers: PlacedSticker[]) => void;
 };
 
 // Lors de la création d'une fiche, on snapshot le template global courant
@@ -154,6 +185,13 @@ export const useReadingSheets = create<SheetsState>()(
             if (!sheet) return state;
             const next = sheet.sections.filter((s) => s.id !== sectionId);
             if (next.length === 0) {
+              // Si la fiche a des stickers, on garde le record (sections vides
+              // mais stickers préservés). Sinon, suppression complète.
+              if (sheet.stickers && sheet.stickers.length > 0) {
+                return {
+                  sheets: { ...state.sheets, [userBookId]: touch(sheet, next) },
+                };
+              }
               const { [userBookId]: _, ...rest } = state.sheets;
               return { sheets: rest };
             }
@@ -169,6 +207,16 @@ export const useReadingSheets = create<SheetsState>()(
             const existing = state.sheets[userBookId];
             if (sections.length === 0) {
               if (!existing) return state;
+              // Stickers présents ⇒ on garde la fiche avec sections vides
+              // pour ne pas perdre le placement. Sinon, suppression complète.
+              if (existing.stickers && existing.stickers.length > 0) {
+                const updated: ReadingSheet = {
+                  ...existing,
+                  sections: [],
+                  updatedAt: new Date().toISOString(),
+                };
+                return { sheets: { ...state.sheets, [userBookId]: updated } };
+              }
               const { [userBookId]: _removed, ...rest } = state.sheets;
               return { sheets: rest };
             }
@@ -178,6 +226,10 @@ export const useReadingSheets = create<SheetsState>()(
               sections,
               updatedAt: new Date().toISOString(),
               appearance,
+              // Préserve les stickers pose précédemment — `setSections` ne
+              // doit pas écraser le placement (bug observé : valider la fiche
+              // faisait disparaître les stickers).
+              stickers: existing?.stickers,
             };
             return { sheets: { ...state.sheets, [userBookId]: updated } };
           });
@@ -206,6 +258,152 @@ export const useReadingSheets = create<SheetsState>()(
                   appearance: snapshot,
                 };
             return { sheets: { ...state.sheets, [userBookId]: updated } };
+          });
+          afterMutation(userBookId);
+        },
+
+        addSticker: (userBookId, placement) => {
+          let createdId: string | null = null;
+          set((state) => {
+            const sheet = ensureSheet(state.sheets, userBookId);
+            const current = sheet.stickers ?? [];
+            if (current.length >= MAX_STICKERS_PER_SHEET) return state;
+            const id = newId();
+            createdId = id;
+            const next: PlacedSticker = { id, ...placement };
+            return {
+              sheets: {
+                ...state.sheets,
+                [userBookId]: {
+                  ...sheet,
+                  stickers: [...current, next],
+                  updatedAt: new Date().toISOString(),
+                },
+              },
+            };
+          });
+          if (createdId) afterMutation(userBookId);
+          return createdId;
+        },
+
+        updateStickerTransform: (userBookId, stickerPlacementId, partial) => {
+          set((state) => {
+            const sheet = state.sheets[userBookId];
+            if (!sheet?.stickers) return state;
+            const idx = sheet.stickers.findIndex((s) => s.id === stickerPlacementId);
+            if (idx < 0) return state;
+            const updatedSticker = { ...sheet.stickers[idx], ...partial };
+            const stickers = [...sheet.stickers];
+            stickers[idx] = updatedSticker;
+            return {
+              sheets: {
+                ...state.sheets,
+                [userBookId]: {
+                  ...sheet,
+                  stickers,
+                  updatedAt: new Date().toISOString(),
+                },
+              },
+            };
+          });
+          afterMutation(userBookId);
+        },
+
+        removeSticker: (userBookId, stickerPlacementId) => {
+          set((state) => {
+            const sheet = state.sheets[userBookId];
+            if (!sheet?.stickers) return state;
+            const stickers = sheet.stickers.filter((s) => s.id !== stickerPlacementId);
+            return {
+              sheets: {
+                ...state.sheets,
+                [userBookId]: {
+                  ...sheet,
+                  stickers: stickers.length > 0 ? stickers : undefined,
+                  updatedAt: new Date().toISOString(),
+                },
+              },
+            };
+          });
+          afterMutation(userBookId);
+        },
+
+        reorderSticker: (userBookId, stickerPlacementId, direction) => {
+          set((state) => {
+            const sheet = state.sheets[userBookId];
+            if (!sheet?.stickers) return state;
+            const idx = sheet.stickers.findIndex((s) => s.id === stickerPlacementId);
+            if (idx < 0) return state;
+            const targetIdx = idx + direction;
+            if (targetIdx < 0 || targetIdx >= sheet.stickers.length) return state;
+            const stickers = [...sheet.stickers];
+            [stickers[idx], stickers[targetIdx]] = [stickers[targetIdx], stickers[idx]];
+            return {
+              sheets: {
+                ...state.sheets,
+                [userBookId]: {
+                  ...sheet,
+                  stickers,
+                  updatedAt: new Date().toISOString(),
+                },
+              },
+            };
+          });
+          afterMutation(userBookId);
+        },
+
+        setStickers: (userBookId, stickers) => {
+          set((state) => {
+            const truncated = stickers.slice(0, MAX_STICKERS_PER_SHEET);
+            const existing = state.sheets[userBookId];
+            // Pas de fiche existante : créer un placeholder uniquement si on
+            // pose au moins un sticker (évite de générer une fiche vide).
+            if (!existing) {
+              if (truncated.length === 0) return state;
+              return {
+                sheets: {
+                  ...state.sheets,
+                  [userBookId]: {
+                    userBookId,
+                    sections: [],
+                    updatedAt: new Date().toISOString(),
+                    appearance: useSheetTemplates.getState().global,
+                    stickers: truncated,
+                  },
+                },
+              };
+            }
+            // Liste vide → on supprime la clé `stickers` (cf. mappers.ts qui
+            // ne sérialise pas un tableau vide). Si la fiche n'a plus rien
+            // (sections vides ET aucun sticker), on supprime tout le record
+            // pour cohérence avec setSections/removeSection.
+            if (truncated.length === 0) {
+              if (existing.sections.length === 0) {
+                const { [userBookId]: _, ...rest } = state.sheets;
+                afterMutation(userBookId);
+                return { sheets: rest };
+              }
+              return {
+                sheets: {
+                  ...state.sheets,
+                  [userBookId]: {
+                    ...existing,
+                    stickers: undefined,
+                    updatedAt: new Date().toISOString(),
+                  },
+                },
+              };
+            }
+            return {
+              sheets: {
+                ...state.sheets,
+                [userBookId]: {
+                  ...existing,
+                  stickers: truncated,
+                  updatedAt: new Date().toISOString(),
+                },
+              },
+            };
           });
           afterMutation(userBookId);
         },

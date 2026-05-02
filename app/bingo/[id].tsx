@@ -4,6 +4,7 @@ import { useThemeColors } from '@/hooks/use-theme-colors';
 import { BINGO_PRESETS, pickInitialPresetLabels } from '@/lib/bingo-presets';
 import { completedLines, hasAnyWin } from '@/lib/bingo-win';
 import { newId } from '@/lib/id';
+import { READING_STATUS_META } from '@/lib/reading-status';
 import { makeFondTokenOverrides } from '@/lib/sheet-appearance';
 import { useBadgeToasts } from '@/store/badge-toasts';
 import { BingoCustomizer } from '@/components/bingo-customizer';
@@ -546,7 +547,7 @@ function EditMode({
               onPress={() => router.back()}
               hitSlop={10}
               className="p-1 active:opacity-60">
-              <MaterialIcons name="arrow-back" size={24} color="#1f1a16" />
+              <MaterialIcons name="arrow-back" size={24} color={theme.ink} />
             </Pressable>
             <View className="flex-row items-center gap-3">
               {!alreadySaved && items.length < BINGO_CELLS && (
@@ -559,7 +560,7 @@ function EditMode({
                 hitSlop={10}
                 accessibilityLabel="Personnaliser"
                 className="p-1 active:opacity-60">
-                <MaterialIcons name="palette" size={22} color="#1f1a16" />
+                <MaterialIcons name="palette" size={22} color={theme.ink} />
               </Pressable>
               <Pressable
                 onPress={onUndo}
@@ -568,7 +569,7 @@ function EditMode({
                 accessibilityLabel="Annuler"
                 style={{ opacity: undoStack.length === 0 ? 0.3 : 1 }}
                 className="p-1 active:opacity-60">
-                <MaterialIcons name="undo" size={22} color="#1f1a16" />
+                <MaterialIcons name="undo" size={22} color={theme.ink} />
               </Pressable>
               <Pressable
                 onPress={onRedo}
@@ -577,7 +578,7 @@ function EditMode({
                 accessibilityLabel="Rétablir"
                 style={{ opacity: redoStack.length === 0 ? 0.3 : 1 }}
                 className="p-1 active:opacity-60">
-                <MaterialIcons name="redo" size={22} color="#1f1a16" />
+                <MaterialIcons name="redo" size={22} color={theme.ink} />
               </Pressable>
               <Pressable
                 onPress={onSave}
@@ -645,7 +646,7 @@ function EditMode({
       <Pressable
         onPress={onDelete}
         accessibilityLabel="Supprimer le bingo"
-        style={{ position: 'absolute', left: 16, right: 16, bottom: 16 }}
+        style={{ position: 'absolute', left: 16, right: 16, bottom: insets.bottom + 16 }}
         className="flex-row items-center justify-center gap-2 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 active:opacity-80">
         <MaterialIcons name="delete-outline" size={20} color="#dc2626" />
         <Text className="font-sans-med text-red-600">
@@ -1084,7 +1085,7 @@ function PlayMode({
       <ScrollView contentContainerClassName="px-4 pt-4 pb-16">
         <View className="flex-row items-center justify-between">
           <Pressable onPress={() => router.back()} hitSlop={10} className="p-1 active:opacity-60">
-            <MaterialIcons name="arrow-back" size={24} color="#1f1a16" />
+            <MaterialIcons name="arrow-back" size={24} color={theme.ink} />
           </Pressable>
           <View className="flex-row items-center gap-3">
             {!archived && (
@@ -1093,11 +1094,11 @@ function PlayMode({
                 hitSlop={10}
                 accessibilityLabel="Personnaliser"
                 className="p-1 active:opacity-60">
-                <MaterialIcons name="palette" size={22} color="#1f1a16" />
+                <MaterialIcons name="palette" size={22} color={theme.ink} />
               </Pressable>
             )}
             <Pressable onPress={() => setShowMenu(true)} hitSlop={10} className="p-1 active:opacity-60">
-              <MaterialIcons name="more-vert" size={24} color="#1f1a16" />
+              <MaterialIcons name="more-vert" size={24} color={theme.ink} />
             </Pressable>
           </View>
         </View>
@@ -1187,20 +1188,26 @@ function PlayMode({
                     style={{ width: 36, height: 54, borderRadius: 4 }}
                   />
                   <View className="flex-1">
-                    <Text numberOfLines={1} className="text-xs text-ink-muted">
-                      {item.label}
-                    </Text>
-                    <Text numberOfLines={1} className="font-sans-med text-ink">
+                    <View
+                      style={{ backgroundColor: '#e5e1da' }}
+                      className="self-start rounded-full px-2 py-0.5">
+                      <Text
+                        numberOfLines={1}
+                        className="text-xs font-sans-bold text-ink">
+                        {item.label}
+                      </Text>
+                    </View>
+                    <Text numberOfLines={1} className="mt-1 font-sans-med text-ink">
                       {ub.book.title}
                     </Text>
-                    <Text className="text-xs text-ink-soft">
-                      {ub.status === 'read'
-                        ? 'Lu'
-                        : ub.status === 'reading'
-                          ? 'En cours'
-                          : ub.status === 'to_read'
-                            ? 'À lire'
-                            : 'Abandonné'}
+                  </View>
+                  <View
+                    style={{
+                      backgroundColor: READING_STATUS_META[ub.status].color,
+                    }}
+                    className="rounded-full px-2 py-0.5">
+                    <Text className="text-[11px] font-sans-med text-paper">
+                      {READING_STATUS_META[ub.status].label}
                     </Text>
                   </View>
                   {!archived && (

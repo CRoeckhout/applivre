@@ -156,9 +156,47 @@ export type SheetAppearance = {
 
 export type SheetAppearanceOverride = Partial<SheetAppearance>;
 
+// Sticker placé librement par l'utilisateur sur sa fiche de lecture. Position
+// et géométrie sont stockées en relatif (fraction de la fiche / multiplicateur
+// de la taille naturelle) — ainsi le placement reste cohérent quelle que soit
+// la taille d'écran ou la marge de la fiche au moment du rendu.
+//
+// L'ordre dans le tableau `ReadingSheet.stickers` détermine le z-order : index
+// 0 = arrière du layer, dernier = avant. Tous les stickers sont rendus
+// au-dessus du contenu de la fiche (pas de "derrière la fiche").
+export type PlacedSticker = {
+  // Identifiant unique du placement (un même `stickerId` peut être posé N
+  // fois avec des transformations différentes — chaque instance a son propre
+  // `id`).
+  id: string;
+  // Référence dans `sticker_catalog` (synthétisé via `useAllStickers`).
+  // Si l'id n'est plus dispo (sticker retiré, plus unlocked), le rendu
+  // skip silencieusement — le placement reste persisté pour le cas où le
+  // sticker redeviendrait dispo.
+  stickerId: string;
+  // Position du centre du sticker, en fraction de la fiche : x ∈ [0,1] sur
+  // la largeur, y ∈ [0,1] sur la hauteur. Le drag clamp garantit que le
+  // centre reste dans [0,1] — l'image peut visuellement déborder mais le
+  // sticker reste "ancré" à la fiche.
+  x: number;
+  y: number;
+  // Multiplicateur de la taille naturelle (cf. STICKER_NATURAL_WIDTH_FRACTION
+  // dans lib/stickers/catalog). 1 = taille de base, > 1 = agrandi.
+  scale: number;
+  // Rotation en radians (sens horaire positif).
+  rotation: number;
+  // Color overrides per-placement pour les SVG (mêmes règles que
+  // SheetFrame.colorOverrides / SheetFond.colorOverrides).
+  colorOverrides?: Record<string, string>;
+};
+
 export type ReadingSheet = {
   userBookId: string;
   sections: SheetSection[];
   updatedAt: string;
   appearance?: SheetAppearanceOverride;
+  // Stickers placés sur la fiche. Optionnel pour rester ascendant-compatible
+  // avec les fiches persistées avant l'introduction des stickers (absent ⇒
+  // pas de stickers rendus). Limite max imposée à l'add via le picker.
+  stickers?: PlacedSticker[];
 };

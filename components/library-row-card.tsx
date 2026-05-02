@@ -33,7 +33,7 @@ export function LibraryRowCard({ books, onPress, onLongPress, isDragging = false
   const useNaturalPadding = framedPadding === undefined;
   // Pile déjà triée par date d'ajout décroissante dans le store (prepend).
   // On prend les N premières couvertures existantes.
-  const recents = books.slice(0, MAX_COVERS);
+  const recents = books.filter((b) => !!b.book.coverUrl).slice(0, MAX_COVERS);
   const count = books.length;
   const subtitle =
     count === 0

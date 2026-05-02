@@ -10,8 +10,10 @@ import { flushQueue } from "@/lib/sync/queue";
 import { resetAllStores } from "@/lib/sync/reset";
 import { setSyncUserId } from "@/lib/sync/session";
 import { hexToRgb, relativeLuminance } from "@/lib/theme/colors";
+import { useAvatarFrameCatalog } from "@/store/avatar-frame-catalog";
 import { useBorderCatalog } from "@/store/border-catalog";
 import { useFondCatalog } from "@/store/fond-catalog";
+import { useStickerCatalog } from "@/store/sticker-catalog";
 import { useDebug } from "@/store/debug";
 import { usePreferences } from "@/store/preferences";
 import { useProfile } from "@/store/profile";
@@ -54,8 +56,27 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, DevSettings, Platform, Text, View } from "react-native";
+import { ActivityIndicator, DevSettings, Platform, Text, TextInput, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+
+// Désactive le scaling système des polices (Dynamic Type iOS / Font Size
+// Android) pour TOUS les Text/TextInput de l'app. Trade-off accepté : moins
+// accessibility-friendly pour les users avec dynamic type activé, mais
+// indispensable pour garantir un rendu identique sur tous les devices —
+// notamment côté fiche de lecture où le wrapping et la position des stickers
+// dépendent de la taille effective des polices. Doit tourner avant tout
+// premier render, donc au top-level du module.
+type WithDefaultProps = { defaultProps?: Record<string, unknown> };
+const textWithProps = Text as unknown as WithDefaultProps;
+textWithProps.defaultProps = {
+  ...(textWithProps.defaultProps ?? {}),
+  allowFontScaling: false,
+};
+const textInputWithProps = TextInput as unknown as WithDefaultProps;
+textInputWithProps.defaultProps = {
+  ...(textInputWithProps.defaultProps ?? {}),
+  allowFontScaling: false,
+};
 import "react-native-reanimated";
 import { BadgeUnlockToastHost } from "@/components/badges/badge-unlock-toast-host";
 import { useBadgeForegroundEval } from "@/hooks/use-badges";
@@ -155,6 +176,8 @@ function AuthGate() {
     const userId = session?.user.id ?? null;
     void useBorderCatalog.getState().fetch(userId);
     void useFondCatalog.getState().fetch(userId);
+    void useStickerCatalog.getState().fetch(userId);
+    void useAvatarFrameCatalog.getState().fetch(userId);
   }, [session]);
 
   // Pilote la Live Activity iOS depuis le store timer (no-op en Expo Go).

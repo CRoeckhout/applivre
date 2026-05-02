@@ -86,6 +86,16 @@ export const SHEET_TEXT_SHADOW: TextStyle = {
   textShadowRadius: 2,
 };
 
+// Aide pour fixer un `lineHeight` explicite à partir d'un `fontSize`. Sans
+// lineHeight explicite, RN s'appuie sur la métrique intrinsèque du fichier
+// de police, qui peut varier légèrement entre iOS et Android — d'où des
+// hauteurs de paragraphes différentes même à `allowFontScaling=false`. On
+// la cale à 1.4× le fontSize (rapport classique pour des fontes display +
+// sans-serif), arrondi pour rester sur des dp entiers.
+export function ficheTextStyle(fontSize: number): TextStyle {
+  return { fontSize, lineHeight: Math.round(fontSize * 1.4) };
+}
+
 // Surcharges typiques pour remapper les tokens "fond" d'un cadre SVG vers
 // la couleur d'environnement immédiate (et non l'`appearance.bgColor`
 // snapshoté). À passer en `tokenOverrides` à `SheetSurface` / `BingoGrid`

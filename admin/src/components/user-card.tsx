@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import type { UserCardData } from '../lib/types';
+import type { ReactNode } from "react";
+import type { UserCardData } from "../lib/types";
 
 type Stat = { label: string; value: number };
 
@@ -13,8 +13,8 @@ type Props = {
 };
 
 const cardStyle: React.CSSProperties = {
-  border: '1px solid var(--line)',
-  background: 'var(--surface)',
+  border: "1px solid var(--line)",
+  background: "var(--surface)",
   borderRadius: 12,
   padding: 14,
 };
@@ -49,48 +49,48 @@ export function UserCard({
     return (
       <div style={cardStyle}>
         <div className="muted" style={{ fontSize: 13 }}>
-          {emptyLabel ?? 'Utilisateur inconnu.'}
+          {emptyLabel ?? "Utilisateur inconnu."}
         </div>
       </div>
     );
   }
 
   const name =
-    user.display_name || user.username || user.email || 'Utilisateur';
+    user.display_name || user.username || user.email || "Utilisateur";
   const initials =
     name
       .split(/[\s.@_-]+/)
       .filter(Boolean)
       .slice(0, 2)
-      .map((s) => s[0]?.toUpperCase() ?? '')
-      .join('') || '?';
+      .map((s) => s[0]?.toUpperCase() ?? "")
+      .join("") || "?";
 
   return (
     <div style={cardStyle}>
-      <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+      <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
         <div
           style={{
             width: 56,
             height: 56,
-            borderRadius: '50%',
-            overflow: 'hidden',
+            borderRadius: "50%",
+            overflow: "hidden",
             flexShrink: 0,
-            background: 'var(--line)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            background: "var(--line)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             fontWeight: 600,
             fontSize: 18,
-            color: 'var(--text-muted, #888)',
+            color: "var(--text-muted, #888)",
           }}
         >
           {user.avatar_url ? (
             <img
               src={user.avatar_url}
               alt=""
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
               onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = 'none';
+                (e.currentTarget as HTMLImageElement).style.display = "none";
               }}
             />
           ) : (
@@ -100,20 +100,20 @@ export function UserCard({
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>
-            {user.username ?? user.display_name ?? '—'}
+            {user.username ?? user.display_name ?? "—"}
           </div>
           <div
             className="muted"
             style={{
               fontSize: 12,
-              fontFamily: 'monospace',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              fontFamily: "monospace",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
-            title={user.email ?? ''}
+            title={user.email ?? ""}
           >
-            {user.email ?? '—'}
+            {user.email ?? "—"}
           </div>
         </div>
       </div>
@@ -121,7 +121,7 @@ export function UserCard({
       {stats && stats.length > 0 && (
         <div
           style={{
-            display: 'grid',
+            display: "grid",
             gridTemplateColumns: `repeat(${stats.length}, 1fr)`,
             gap: 8,
             marginTop: 12,
@@ -136,20 +136,20 @@ export function UserCard({
       {(footer || user.account_created_at) && (
         <div
           style={{
-            display: 'flex',
-            justifyContent: 'space-between',
+            display: "flex",
+            justifyContent: "space-between",
             marginTop: 10,
             paddingTop: 10,
-            borderTop: '1px solid var(--line)',
+            borderTop: "1px solid var(--line)",
             fontSize: 12,
             gap: 8,
-            flexWrap: 'wrap',
+            flexWrap: "wrap",
           }}
         >
           {user.account_created_at && (
             <span className="muted">
-              Compte :{' '}
-              <strong style={{ color: 'var(--text)' }}>
+              Compte :{" "}
+              <strong style={{ color: "var(--text)" }}>
                 {new Date(user.account_created_at).toLocaleDateString()}
               </strong>
             </span>
@@ -165,11 +165,11 @@ function UserCardStat({ label, value }: Stat) {
   return (
     <div
       style={{
-        background: 'var(--bg, transparent)',
-        border: '1px solid var(--line)',
+        background: "var(--bg, transparent)",
+        border: "1px solid var(--line)",
         borderRadius: 8,
-        padding: '8px 10px',
-        textAlign: 'center',
+        padding: "8px 10px",
+        textAlign: "center",
       }}
     >
       <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.1 }}>

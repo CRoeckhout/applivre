@@ -4,6 +4,7 @@ import type {
   ReadCycle,
   ReadCycleOutcome,
   ReadingSession,
+  PlacedSticker,
   ReadingSheet,
   SheetAppearance,
   SheetAppearanceOverride,
@@ -224,6 +225,7 @@ export function loanToDb(l: BookLoan): DbBookLoan {
 export type DbSheetContent = {
   sections: SheetSection[];
   appearance?: SheetAppearanceOverride;
+  stickers?: PlacedSticker[];
 };
 
 export type DbReadingSheet = {
@@ -238,11 +240,14 @@ export function sheetFromDb(row: DbReadingSheet): ReadingSheet {
   const appearance = row.content?.appearance;
   const hasAppearance =
     appearance && typeof appearance === 'object' && Object.keys(appearance).length > 0;
+  const stickers = row.content?.stickers;
+  const hasStickers = Array.isArray(stickers) && stickers.length > 0;
   return {
     userBookId: row.user_book_id,
     sections: row.content?.sections ?? [],
     updatedAt: row.updated_at,
     appearance: hasAppearance ? appearance : undefined,
+    stickers: hasStickers ? stickers : undefined,
   };
 }
 
@@ -252,6 +257,9 @@ export function sheetToDb(
   const content: DbSheetContent = { sections: sheet.sections };
   if (sheet.appearance && Object.keys(sheet.appearance).length > 0) {
     content.appearance = sheet.appearance;
+  }
+  if (sheet.stickers && sheet.stickers.length > 0) {
+    content.stickers = sheet.stickers;
   }
   return {
     user_book_id: sheet.userBookId,

@@ -1,5 +1,6 @@
 import { BookCover } from '@/components/book-cover';
 import { BookPicker } from '@/components/book-picker';
+import { READING_STATUS_META } from '@/lib/reading-status';
 import { useBingos } from '@/store/bingo';
 import { useBookshelf } from '@/store/bookshelf';
 import type { BingoCompletion } from '@/types/bingo';
@@ -83,27 +84,41 @@ export default function BingoCellPicker() {
         }}
       />
       <BookPicker
-        title="Choisir un livre"
-        subtitle={`Pour la case « ${item.label} »`}
         onPick={(ub) => {
           setCompletion(id, cellIndex, ub.id);
           goBack();
         }}
         disabledIds={disabledIds}
         excludedIds={excludedIds}
+        renderRight={(ub) => (
+          <View
+            style={{ backgroundColor: READING_STATUS_META[ub.status].color }}
+            className="rounded-full px-2 py-0.5">
+            <Text className="text-[11px] font-sans-med text-paper">
+              {READING_STATUS_META[ub.status].label}
+            </Text>
+          </View>
+        )}
         header={
-          <View className="mt-4 gap-3">
-            <View className="rounded-2xl bg-accent-pale p-3">
-              <Text className="text-xs uppercase tracking-wider text-accent-deep">
-                Case sélectionnée
-              </Text>
-              <Text className="mt-1 font-display text-lg text-ink">{item.label}</Text>
-            </View>
+          <View className="mt-3 gap-3">
+            {!currentBook && (
+              <View
+                style={{ backgroundColor: '#e5e1da' }}
+                className="self-start rounded-full px-3 py-1">
+                <Text className="text-sm font-sans-bold text-ink">
+                  {item.label}
+                </Text>
+              </View>
+            )}
             {currentBook && (
               <View className="rounded-2xl bg-paper-warm p-3">
-                <Text className="text-xs uppercase tracking-wider text-ink-muted">
-                  Livre actuel
-                </Text>
+                <View
+                  style={{ backgroundColor: '#e5e1da' }}
+                  className="self-start rounded-full px-3 py-1">
+                  <Text className="text-sm font-sans-bold text-ink">
+                    {item.label}
+                  </Text>
+                </View>
                 <Pressable
                   onPress={() => router.push(`/book/${currentBook.book.isbn}`)}
                   className="mt-2 flex-row items-center gap-3 active:opacity-80">
@@ -129,8 +144,10 @@ export default function BingoCellPicker() {
                     removeCompletion(id, cellIndex);
                     goBack();
                   }}
-                  className="mt-3 self-start rounded-full border border-ink-muted/30 px-3 py-1 active:opacity-70">
-                  <Text className="text-sm text-ink-muted">Retirer le livre de la case</Text>
+                  className="mt-3 self-center rounded-full border border-red-500/40 bg-red-500/10 px-4 py-1.5 active:opacity-70">
+                  <Text className="text-sm font-sans-med text-red-600">
+                    Retirer le livre de la case
+                  </Text>
                 </Pressable>
               </View>
             )}

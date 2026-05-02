@@ -3,15 +3,19 @@ import { KeyboardDismissBar } from "@/components/keyboard-dismiss-bar";
 import { RatingIcon } from "@/components/rating-row";
 import { SheetCustomizer } from "@/components/sheet-customizer";
 import { SheetSurface } from "@/components/sheet-surface";
+import { StickerLayer } from "@/components/sticker-layer";
+import { StickerPickerModal } from "@/components/sticker-picker-modal";
 import { useKeyboardOffset } from "@/hooks/use-keyboard-offset";
 import { newId } from "@/lib/id";
 import {
+  ficheTextStyle,
   hexWithAlpha,
   isCustomAppearance,
   mergeAppearance,
   resolveSectionIcon,
   SHEET_TEXT_SHADOW,
 } from "@/lib/sheet-appearance";
+import { MAX_STICKERS_PER_SHEET } from "@/lib/stickers/catalog";
 import { getFont } from "@/lib/theme/fonts";
 import { useBookshelf } from "@/store/bookshelf";
 import { usePreferences } from "@/store/preferences";
@@ -19,6 +23,7 @@ import { useReadingSheets } from "@/store/reading-sheets";
 import { useSheetTemplates } from "@/store/sheet-templates";
 import { useTimer } from "@/store/timer";
 import type {
+  PlacedSticker,
   SheetAppearance,
   SheetDefaultCategory,
   SheetSection,
@@ -54,6 +59,7 @@ export default function SheetScreen() {
   const setSections = useReadingSheets((s) => s.setSections);
   const removeSheet = useReadingSheets((s) => s.removeSheet);
   const setSheetAppearance = useReadingSheets((s) => s.setAppearance);
+  const setStickers = useReadingSheets((s) => s.setStickers);
 
   const globalTemplate = useSheetTemplates((s) => s.global);
   const themeInk = usePreferences((s) => s.colorSecondary);
@@ -62,15 +68,25 @@ export default function SheetScreen() {
 
   const sheet = userBook ? sheets[userBook.id] : undefined;
   const storedSections = sheet?.sections ?? EMPTY_SECTIONS;
+  const storedStickers = sheet?.stickers ?? EMPTY_STICKERS;
 
-  // Draft local. Toute édition (titre, body, note, add/remove section) n'affecte
-  // que ce draft — rien n'est persisté avant tap sur le bouton Enregistrer.
+  // Draft local. Toute édition (titre, body, note, add/remove section,
+  // placement/edition/suppression de stickers) n'affecte que ce draft —
+  // rien n'est persisté avant tap sur le bouton Enregistrer.
   const [draft, setDraft] = useState<SheetSection[]>(() => storedSections);
+  const [draftStickers, setDraftStickers] = useState<PlacedSticker[]>(
+    () => storedStickers,
+  );
 
-  const dirty = useMemo(
+  const sectionsDirty = useMemo(
     () => !sectionsEqual(draft, storedSections),
     [draft, storedSections],
   );
+  const stickersDirty = useMemo(
+    () => !stickersEqual(draftStickers, storedStickers),
+    [draftStickers, storedStickers],
+  );
+  const dirty = sectionsDirty || stickersDirty;
 
   const appearance = useMemo<SheetAppearance>(
     () => mergeAppearance(globalTemplate, sheet?.appearance),
@@ -87,6 +103,14 @@ export default function SheetScreen() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [customizerOpen, setCustomizerOpen] = useState(false);
+  const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
+  const [selectedStickerId, setSelectedStickerId] = useState<string | null>(
+    null,
+  );
+  // True dès qu'un finger touche un sticker — désactive le scroll de la
+  // fiche pour que le ScrollView ne capte pas le 2e doigt avant que pinch
+  // ou rotate puisse s'activer.
+  const [stickerInteracting, setStickerInteracting] = useState(false);
 
   const addSectionDraft = (
     title: string,
@@ -142,6 +166,50 @@ export default function SheetScreen() {
   const handleSaveDraft = () => {
     if (!userBook) return;
     setSections(userBook.id, draft);
+    if (stickersDirty) {
+      setStickers(userBook.id, draftStickers);
+    }
+  };
+
+  // ═══════════════ Stickers (draft) ═══════════════
+  // Mutations locales du `draftStickers`. Le commit en store se fait via
+  // `handleSaveDraft` (bouton Enregistrer) — aligné sur le pattern des
+  // sections. Avant ça, l'utilisateur peut placer/déplacer/supprimer
+  // librement, et un retour arrière sans save lui propose de discarder.
+
+  const placeStickerDraft = (stickerId: string): string | null => {
+    if (draftStickers.length >= MAX_STICKERS_PER_SHEET) return null;
+    const id = newId();
+    setDraftStickers((prev) => [
+      ...prev,
+      { id, stickerId, x: 0.5, y: 0.5, scale: 1, rotation: 0 },
+    ]);
+    return id;
+  };
+
+  const updateStickerDraftTransform = (
+    placementId: string,
+    next: { x: number; y: number; scale: number; rotation: number },
+  ) => {
+    setDraftStickers((prev) =>
+      prev.map((s) => (s.id === placementId ? { ...s, ...next } : s)),
+    );
+  };
+
+  const removeStickerDraft = (placementId: string) => {
+    setDraftStickers((prev) => prev.filter((s) => s.id !== placementId));
+  };
+
+  const reorderStickerDraft = (placementId: string, direction: 1 | -1) => {
+    setDraftStickers((prev) => {
+      const idx = prev.findIndex((s) => s.id === placementId);
+      if (idx < 0) return prev;
+      const target = idx + direction;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
   };
 
   const handleBack = () => {
@@ -268,177 +336,255 @@ export default function SheetScreen() {
         <ScrollView
           contentContainerClassName="px-4 pt-2 pb-32"
           keyboardShouldPersistTaps="handled"
+          scrollEnabled={!stickerInteracting}
         >
-          <Animated.View
-            entering={FadeInDown.duration(400)}
-            style={{ marginTop: 8 }}
+          {/* La fiche est rendue à largeur fixe (SHEET_MAX_WIDTH) sur
+              tous les devices, pour garantir un rendu identique cross-device
+              (positions x des stickers, wrapping du texte, layout). Sur les
+              écrans plus larges, la fiche est centrée ; sur les écrans plus
+              étroits, l'utilisateur peut scroller latéralement. Le scroll
+              horizontal est désactivé pendant un geste sticker pour ne pas
+              capturer le 2e doigt avant pinch/rotate. */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            scrollEnabled={!stickerInteracting}
+            contentContainerStyle={{
+              minWidth: "100%",
+              justifyContent: "center",
+            }}
           >
-            <SheetSurface
-              appearance={appearance}
+            <Animated.View
+              entering={FadeInDown.duration(400)}
               style={{
-                shadowColor: "#000",
-                shadowOpacity: 0.12,
-                shadowRadius: 14,
-                shadowOffset: { width: 0, height: 6 },
-                elevation: 6,
+                width: SHEET_MAX_WIDTH,
+                marginTop: 8,
+                position: "relative",
               }}
             >
-              <View className="flex-row items-start gap-3">
-                <BookCover
-                  isbn={userBook.book.isbn}
-                  coverUrl={userBook.book.coverUrl}
-                  style={{ width: 48, height: 72, borderRadius: 6 }}
-                />
-                <View className="flex-1">
-                  <Text
-                    style={[{ color: appearance.mutedColor }, SHEET_TEXT_SHADOW]}
-                    className="text-xs uppercase tracking-wider"
-                  >
-                    Fiche de lecture
-                  </Text>
-                  <Text
-                    numberOfLines={2}
-                    style={[{ color: appearance.textColor, fontFamily }, SHEET_TEXT_SHADOW]}
-                    className="text-xl"
-                  >
-                    {userBook.book.title}
-                  </Text>
-                  {isCustomAppearance(sheet?.appearance, globalTemplate) ? (
-                    <View className="mt-1 flex-row items-center gap-1">
-                      <MaterialIcons
-                        name="palette"
-                        size={12}
-                        color={appearance.mutedColor}
-                      />
-                      <Text
-                        style={[{ color: appearance.mutedColor, fontSize: 11 }, SHEET_TEXT_SHADOW]}
-                      >
-                        Personnalisée
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-                <ReadCountSheetBadge
-                  userBookId={userBook.id}
-                  mutedColor={appearance.mutedColor}
-                  accentColor={appearance.accentColor}
-                />
-              </View>
-
-              {draft.length === 0 ? (
-                <EmptyState
-                  appearance={appearance}
-                  fontFamily={fontFamily}
-                  onAdd={(c) =>
-                    addSectionDraft(c.title, {
-                      materialIcon: c.materialIcon,
-                      materialIconColor: c.materialIconColor,
-                      emoji: c.emoji,
-                    })
-                  }
-                  onAddCustom={() => addSectionDraft("")}
-                  suggestions={unusedDefaults}
-                />
-              ) : (
-                <View className="mt-6">
-                  {draft.map((section, i) => (
-                    <Animated.View
-                      key={section.id}
-                      entering={FadeIn.duration(300).delay(i * 40)}
-                      style={{
-                        paddingVertical: 14,
-                        borderTopWidth: i === 0 ? 0 : 1,
-                        borderTopColor: hexWithAlpha(
-                          appearance.mutedColor,
-                          0.22,
-                        ),
-                      }}
+              <SheetSurface
+                appearance={appearance}
+                style={{
+                  shadowColor: "#000",
+                  shadowOpacity: 0.12,
+                  shadowRadius: 14,
+                  shadowOffset: { width: 0, height: 6 },
+                  elevation: 6,
+                }}
+              >
+                <View className="flex-row items-start gap-3">
+                  <BookCover
+                    isbn={userBook.book.isbn}
+                    coverUrl={userBook.book.coverUrl}
+                    style={{ width: 48, height: 72, borderRadius: 6 }}
+                  />
+                  <View className="flex-1">
+                    <Text
+                      style={[
+                        { color: appearance.mutedColor },
+                        SHEET_TEXT_SHADOW,
+                      ]}
+                      className="text-xs uppercase tracking-wider"
                     >
-                      <SectionEditor
-                        section={section}
-                        appearance={appearance}
-                        fontFamily={fontFamily}
-                        onUpdateTitle={(title) =>
-                          updateTitleDraft(section.id, title)
-                        }
-                        onUpdateBody={(body) =>
-                          updateBodyDraft(section.id, body)
-                        }
-                        onSetRating={(v) => setRatingValueDraft(section.id, v)}
-                        onRemove={() => removeSectionDraft(section.id)}
-                      />
-                    </Animated.View>
-                  ))}
+                      Fiche de lecture
+                    </Text>
+                    <Text
+                      numberOfLines={2}
+                      style={[
+                        { color: appearance.textColor, fontFamily },
+                        SHEET_TEXT_SHADOW,
+                      ]}
+                      className="text-xl"
+                    >
+                      {userBook.book.title}
+                    </Text>
+                    {isCustomAppearance(sheet?.appearance, globalTemplate) ? (
+                      <View className="mt-1 flex-row items-center gap-1">
+                        <MaterialIcons
+                          name="palette"
+                          size={12}
+                          color={appearance.mutedColor}
+                        />
+                        <Text
+                          style={[
+                            {
+                              color: appearance.mutedColor,
+                              ...ficheTextStyle(11),
+                            },
+                            SHEET_TEXT_SHADOW,
+                          ]}
+                        >
+                          Personnalisée
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <ReadCountSheetBadge
+                    userBookId={userBook.id}
+                    mutedColor={appearance.mutedColor}
+                    accentColor={appearance.accentColor}
+                  />
                 </View>
-              )}
 
-              {draft.length > 0 && unusedDefaults.length > 0 && (
-                <View
-                  className="mt-4 pt-4"
-                  style={{
-                    borderTopWidth: 1,
-                    borderTopColor: hexWithAlpha(appearance.mutedColor, 0.22),
-                  }}
-                >
-                  <Text
-                    style={[{ color: appearance.mutedColor }, SHEET_TEXT_SHADOW]}
-                    className="mb-3 text-sm"
-                  >
-                    Ajouter une catégorie
-                  </Text>
-                  <View className="flex-row flex-wrap gap-2">
-                    {unusedDefaults.map((c) => (
-                      <SuggestionPill
-                        key={c.title}
-                        category={c}
-                        appearance={appearance}
-                        onPress={() =>
-                          addSectionDraft(c.title, {
-                            materialIcon: c.materialIcon,
-                            materialIconColor: c.materialIconColor,
-                            emoji: c.emoji,
-                          })
-                        }
-                      />
+                {draft.length === 0 ? (
+                  <EmptyState
+                    appearance={appearance}
+                    fontFamily={fontFamily}
+                    onAdd={(c) =>
+                      addSectionDraft(c.title, {
+                        materialIcon: c.materialIcon,
+                        materialIconColor: c.materialIconColor,
+                        emoji: c.emoji,
+                      })
+                    }
+                    onAddCustom={() => addSectionDraft("")}
+                    suggestions={unusedDefaults}
+                  />
+                ) : (
+                  <View className="mt-6">
+                    {draft.map((section, i) => (
+                      <Animated.View
+                        key={section.id}
+                        entering={FadeIn.duration(300).delay(i * 40)}
+                        style={{
+                          paddingVertical: 14,
+                          borderTopWidth: i === 0 ? 0 : 1,
+                          borderTopColor: hexWithAlpha(
+                            appearance.mutedColor,
+                            0.22,
+                          ),
+                        }}
+                      >
+                        <SectionEditor
+                          section={section}
+                          appearance={appearance}
+                          fontFamily={fontFamily}
+                          onUpdateTitle={(title) =>
+                            updateTitleDraft(section.id, title)
+                          }
+                          onUpdateBody={(body) =>
+                            updateBodyDraft(section.id, body)
+                          }
+                          onSetRating={(v) =>
+                            setRatingValueDraft(section.id, v)
+                          }
+                          onRemove={() => removeSectionDraft(section.id)}
+                        />
+                      </Animated.View>
                     ))}
                   </View>
-                </View>
-              )}
+                )}
+              </SheetSurface>
+              {/* Couche stickers : sibling de SheetSurface (l'un des deux a
+                overflow:hidden si fond image, l'autre overflow:visible pour
+                laisser les stickers déborder visuellement). Bornes alignées
+                via le wrapper Animated.View en position:relative. */}
+              <StickerLayer
+                stickers={draftStickers}
+                selectedId={selectedStickerId}
+                onSelect={setSelectedStickerId}
+                onUpdateTransform={updateStickerDraftTransform}
+                onDelete={(id) => {
+                  removeStickerDraft(id);
+                  setSelectedStickerId(null);
+                }}
+                onReorder={reorderStickerDraft}
+                onInteractChange={setStickerInteracting}
+              />
+            </Animated.View>
+          </ScrollView>
 
-              {draft.length > 0 && (
-                <Pressable
-                  onPress={() => addSectionDraft("")}
-                  style={{ borderColor: appearance.mutedColor, borderWidth: 1 }}
-                  className="mt-4 rounded-full py-3 active:opacity-70"
-                >
-                  <Text
-                    style={[{ color: appearance.mutedColor }, SHEET_TEXT_SHADOW]}
-                    className="text-center"
-                  >
-                    + Section personnalisée
-                  </Text>
-                </Pressable>
-              )}
-            </SheetSurface>
-          </Animated.View>
-
-          <Pressable
-            onPress={handleCustomize}
-            className="mt-4 flex-row items-center justify-center gap-2 rounded-full py-3 active:opacity-70"
-            style={{ borderWidth: 1, borderColor: themeInk }}
+          {/* Boutons sous la fiche : restent à la largeur du device (avec
+              padding du ScrollView outer), capés à SHEET_MAX_WIDTH sur
+              desktop et centrés. Pas de scroll latéral nécessaire car
+              ils tiennent toujours dans la fenêtre. */}
+          <View
+            style={{
+              maxWidth: SHEET_MAX_WIDTH,
+              width: "100%",
+              alignSelf: "center",
+            }}
           >
-            <MaterialIcons name="palette" size={16} color={themeInk} />
-            <Text style={{ color: themeInk }} className="font-sans-med">
-              Personnaliser la fiche
-            </Text>
-          </Pressable>
+            {draft.length > 0 && unusedDefaults.length > 0 && (
+              <View
+                className="mt-4 pt-4"
+                style={{
+                  borderTopWidth: 1,
+                  borderTopColor: hexWithAlpha(appearance.mutedColor, 0.22),
+                }}
+              >
+                <Text
+                  style={[{ color: appearance.mutedColor }, SHEET_TEXT_SHADOW]}
+                  className="mb-3 text-sm"
+                >
+                  Ajouter une catégorie
+                </Text>
+                <View className="flex-row flex-wrap gap-2">
+                  {unusedDefaults.map((c) => (
+                    <SuggestionPill
+                      key={c.title}
+                      category={c}
+                      appearance={appearance}
+                      onPress={() =>
+                        addSectionDraft(c.title, {
+                          materialIcon: c.materialIcon,
+                          materialIconColor: c.materialIconColor,
+                          emoji: c.emoji,
+                        })
+                      }
+                    />
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {draft.length > 0 && (
+              <Pressable
+                onPress={() => addSectionDraft("")}
+                style={{ borderColor: appearance.mutedColor, borderWidth: 1 }}
+                className="mt-4 rounded-full py-3 active:opacity-70"
+              >
+                <Text
+                  style={[{ color: appearance.mutedColor }, SHEET_TEXT_SHADOW]}
+                  className="text-center"
+                >
+                  + Section personnalisée
+                </Text>
+              </Pressable>
+            )}
+
+            <Pressable
+              onPress={handleCustomize}
+              className="mt-4 flex-row items-center justify-center gap-2 rounded-full py-3 active:opacity-70"
+              style={{ borderWidth: 1, borderColor: themeInk }}
+            >
+              <MaterialIcons name="palette" size={16} color={themeInk} />
+              <Text style={{ color: themeInk }} className="font-sans-med">
+                Personnaliser la fiche
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setStickerPickerOpen(true)}
+              className="mt-2 flex-row items-center justify-center gap-2 rounded-full py-3 active:opacity-70"
+              style={{ borderWidth: 1, borderColor: themeInk }}
+            >
+              <MaterialIcons name="emoji-emotions" size={16} color={themeInk} />
+              <Text style={{ color: themeInk }} className="font-sans-med">
+                Stickers · {draftStickers.length}/{MAX_STICKERS_PER_SHEET}
+              </Text>
+            </Pressable>
+          </View>
         </ScrollView>
 
         {dirty && (
           <SaveFab
             onPress={handleSaveDraft}
             accentColor={themePrimary}
-            isEmpty={draft.length === 0}
+            // "Supprimer la fiche" uniquement si on persiste un état
+            // vraiment vide (ni sections, ni stickers). Sinon "Enregistrer".
+            isEmpty={draft.length === 0 && draftStickers.length === 0}
           />
         )}
       </KeyboardAvoidingView>
@@ -466,6 +612,19 @@ export default function SheetScreen() {
             : undefined
         }
         resetLabel="Utiliser le template global"
+      />
+
+      <StickerPickerModal
+        open={stickerPickerOpen}
+        onClose={() => setStickerPickerOpen(false)}
+        placedCount={draftStickers.length}
+        maxCount={MAX_STICKERS_PER_SHEET}
+        onPick={(stickerId) => {
+          // Pose dans le draft local ; persistance via le bouton Enregistrer.
+          // Auto-sélection du nouveau placement pour afficher la barre flottante.
+          const placedId = placeStickerDraft(stickerId);
+          if (placedId) setSelectedStickerId(placedId);
+        }}
       />
     </SafeAreaView>
   );
@@ -670,7 +829,7 @@ function SuggestionPill({
         + {category.title}
       </Text>
       {category.emoji ? (
-        <Text style={[{ fontSize: 14 }, SHEET_TEXT_SHADOW]}>
+        <Text style={[ficheTextStyle(14), SHEET_TEXT_SHADOW]}>
           {category.emoji}
         </Text>
       ) : category.materialIcon ? (
@@ -715,7 +874,7 @@ function SectionEditor({
           placeholder="Titre de la catégorie"
           placeholderTextColor={appearance.mutedColor}
           style={[
-            { color: appearance.textColor, fontFamily, fontSize: 18 },
+            { color: appearance.textColor, fontFamily, ...ficheTextStyle(18) },
             SHEET_TEXT_SHADOW,
           ]}
           className="flex-1"
@@ -747,7 +906,7 @@ function SectionEditor({
                 style={{ opacity: filled ? 1 : 0.3 }}
               >
                 {resolvedIcon.emoji ? (
-                  <Text style={[{ fontSize: 22 }, SHEET_TEXT_SHADOW]}>
+                  <Text style={[ficheTextStyle(22), SHEET_TEXT_SHADOW]}>
                     {resolvedIcon.emoji}
                   </Text>
                 ) : (
@@ -837,6 +996,16 @@ function SaveFab({
 }
 
 const EMPTY_SECTIONS: SheetSection[] = [];
+// Référence stable pour quand `sheet?.stickers` est undefined — évite que
+// `<StickerLayer>` reçoive un nouveau tableau à chaque render et resync ses
+// shared values pour rien.
+const EMPTY_STICKERS: PlacedSticker[] = [];
+
+// Largeur fixe de la fiche, en dp. Toutes les fiches sont rendues à cette
+// largeur sur tous les devices : mobile scrolle latéralement si l'écran est
+// plus étroit, desktop/tablette centre la fiche. Garantit un wrapping textuel
+// et une position des stickers identiques d'un device à l'autre.
+const SHEET_MAX_WIDTH = 380;
 
 function sectionsEqual(a: SheetSection[], b: SheetSection[]): boolean {
   if (a === b) return true;
@@ -850,6 +1019,28 @@ function sectionsEqual(a: SheetSection[], b: SheetSection[]): boolean {
       x.body !== y.body ||
       x.rating?.value !== y.rating?.value ||
       x.rating?.icon !== y.rating?.icon
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Égalité shallow par champ — l'ordre du tableau compte (= z-order). Compare
+// uniquement les champs persistés ; ignore d'éventuelles refs intermédiaires.
+function stickersEqual(a: PlacedSticker[], b: PlacedSticker[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    const x = a[i];
+    const y = b[i];
+    if (
+      x.id !== y.id ||
+      x.stickerId !== y.stickerId ||
+      x.x !== y.x ||
+      x.y !== y.y ||
+      x.scale !== y.scale ||
+      x.rotation !== y.rotation
     ) {
       return false;
     }

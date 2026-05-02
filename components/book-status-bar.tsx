@@ -1,3 +1,4 @@
+import { READING_STATUS_META } from "@/lib/reading-status";
 import type { ReadingStatus, UserBook } from "@/types/book";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Platform, Pressable, Text, View } from "react-native";
@@ -23,37 +24,37 @@ const ACTIONS: Action[] = [
   {
     kind: "status",
     value: "wishlist",
-    label: "Wishlist",
+    label: READING_STATUS_META.wishlist.label,
     icon: "bookmark-border",
-    color: "#d4a017",
+    color: READING_STATUS_META.wishlist.color,
   },
   {
     kind: "status",
     value: "to_read",
-    label: "À lire",
+    label: READING_STATUS_META.to_read.label,
     icon: "schedule",
-    color: "#4a90c2",
+    color: READING_STATUS_META.to_read.color,
   },
   {
     kind: "status",
     value: "reading",
-    label: "En cours",
+    label: READING_STATUS_META.reading.label,
     icon: "auto-stories",
-    color: "#8e5dc8",
+    color: READING_STATUS_META.reading.color,
   },
   {
     kind: "status",
     value: "read",
-    label: "Lu",
+    label: READING_STATUS_META.read.label,
     icon: "check-circle",
-    color: "#5fa84d",
+    color: READING_STATUS_META.read.color,
   },
   {
     kind: "status",
     value: "abandoned",
-    label: "Abandonné",
+    label: READING_STATUS_META.abandoned.label,
     icon: "cancel",
-    color: "#1f1a16",
+    color: READING_STATUS_META.abandoned.color,
   },
   { kind: "favorite", label: "J'aime", icon: "favorite", color: "#d4493e" },
 ];

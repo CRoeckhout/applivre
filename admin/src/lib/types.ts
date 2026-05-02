@@ -101,6 +101,63 @@ export type FondCatalogRow = {
   updated_at: string;
 };
 
+// ═══════════════ Stickers ═══════════════
+
+// Sticker placé librement par l'utilisateur sur une fiche. Plus simple que
+// cadres/fonds : pas de slice, pas de mode de remplissage (chaque sticker
+// est placé à un (x,y,scale,rotation) arbitraire). Conserve `tokens` SVG
+// pour le recolor runtime.
+
+export type StickerKind = 'png' | 'svg';
+
+export type StickerCatalogRow = {
+  sticker_key: string;
+  title: string;
+  description: string | null;
+  kind: StickerKind;
+  storage_path: string | null;
+  payload: string | null;
+  image_width: number;
+  image_height: number;
+  tokens: Record<string, string>;
+  is_default: boolean;
+  active_from: string | null;
+  active_until: string | null;
+  retired_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+// ═══════════════ Avatar frames ═══════════════
+
+// Cadre rond appliqué autour de la photo de profil. PNG only en MVP.
+// `image_scale` (0..1) règle la taille de la photo dans le cadre ;
+// `image_padding` (px en espace natif) ajoute un inset additionnel pour
+// fine-tuning. Pas de slice (rendering plein cadre, forme toujours ronde
+// imposée côté app via border-radius).
+
+export type AvatarFrameKind = 'png';
+
+export type AvatarFrameCatalogRow = {
+  frame_key: string;
+  title: string;
+  description: string | null;
+  kind: AvatarFrameKind;
+  storage_path: string | null;
+  payload: string | null;
+  image_width: number;
+  image_height: number;
+  image_scale: number;
+  image_padding: number;
+  tokens: Record<string, string>;
+  is_default: boolean;
+  active_from: string | null;
+  active_until: string | null;
+  retired_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 // ═══════════════ Books (catalog public) ═══════════════
 
 export type BookSource = 'isbndb' | 'openlibrary' | 'googlebooks' | 'bnf' | 'manual';

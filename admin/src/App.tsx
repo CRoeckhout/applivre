@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { AvatarFramesSection } from "./sections/avatar-frames-section";
 import { BadgesSection } from "./sections/badges-section";
 import { BingoPillsSection } from "./sections/bingo-pills-section";
 import { BooksSection } from "./sections/books-section";
 import { BordersSection } from "./sections/borders-section";
 import { FondsSection } from "./sections/fonds-section";
+import { StickersSection } from "./sections/stickers-section";
 import { LoginForm } from "./components/login";
 import { supabase } from "./lib/supabase";
 
@@ -13,10 +15,10 @@ type AuthState =
   | { kind: "not_admin" }
   | { kind: "admin" };
 
-type Tab = "badges" | "borders" | "fonds" | "books" | "pills";
+type Tab = "badges" | "borders" | "fonds" | "stickers" | "avatar-frames" | "books" | "pills";
 type Theme = "light" | "dark";
 
-const TABS: Tab[] = ["badges", "borders", "fonds", "books", "pills"];
+const TABS: Tab[] = ["badges", "borders", "fonds", "stickers", "avatar-frames", "books", "pills"];
 const DEFAULT_TAB: Tab = "badges";
 const THEME_KEY = "admin-theme";
 
@@ -167,6 +169,8 @@ export function App() {
             <TabButton label="Badges" active={route.tab === "badges"} onClick={() => selectTab("badges")} />
             <TabButton label="Cadres" active={route.tab === "borders"} onClick={() => selectTab("borders")} />
             <TabButton label="Fonds" active={route.tab === "fonds"} onClick={() => selectTab("fonds")} />
+            <TabButton label="Stickers" active={route.tab === "stickers"} onClick={() => selectTab("stickers")} />
+            <TabButton label="Cadres photo" active={route.tab === "avatar-frames"} onClick={() => selectTab("avatar-frames")} />
             <TabButton label="Livres" active={route.tab === "books"} onClick={() => selectTab("books")} />
             <TabButton label="Défis bingo" active={route.tab === "pills"} onClick={() => selectTab("pills")} />
           </nav>
@@ -195,6 +199,12 @@ export function App() {
         )}
         {route.tab === "fonds" && (
           <FondsSection itemId={route.itemId} onItemChange={selectItem} />
+        )}
+        {route.tab === "stickers" && (
+          <StickersSection itemId={route.itemId} onItemChange={selectItem} />
+        )}
+        {route.tab === "avatar-frames" && (
+          <AvatarFramesSection itemId={route.itemId} onItemChange={selectItem} />
         )}
         {route.tab === "books" && (
           <BooksSection itemId={route.itemId} onItemChange={selectItem} />

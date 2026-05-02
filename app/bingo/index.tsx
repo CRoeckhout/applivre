@@ -13,7 +13,7 @@ import { useMemo } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 const EMPTY_COMPLETIONS: BingoCompletion[] = [];
 
@@ -27,6 +27,8 @@ function makePresetItems(): BingoItem[] {
 
 export default function BingoListScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const theme = useThemeColors();
   const bingos = useBingos((s) => s.bingos);
   const createBingo = useBingos((s) => s.createBingo);
 
@@ -57,7 +59,7 @@ export default function BingoListScreen() {
               hitSlop={10}
               className="-ml-1 p-1 active:opacity-60"
             >
-              <MaterialIcons name="arrow-back" size={28} color="#1f1a16" />
+              <MaterialIcons name="arrow-back" size={28} color={theme.ink} />
             </Pressable>
             <Text className="font-display text-4xl text-ink">Mes bingos</Text>
           </View>
@@ -148,7 +150,7 @@ export default function BingoListScreen() {
         style={{
           position: "absolute",
           right: 24,
-          bottom: 24,
+          bottom: insets.bottom + 24,
           width: 60,
           height: 60,
           borderRadius: 30,
