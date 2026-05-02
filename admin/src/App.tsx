@@ -19,6 +19,60 @@ type Tab = "badges" | "borders" | "fonds" | "stickers" | "avatar-frames" | "book
 type Theme = "light" | "dark";
 
 const TABS: Tab[] = ["badges", "borders", "fonds", "stickers", "avatar-frames", "books", "pills"];
+const TAB_LABELS: Record<Tab, string> = {
+  badges: "Badges",
+  borders: "Cadres",
+  fonds: "Fonds",
+  stickers: "Stickers",
+  "avatar-frames": "Cadres photo",
+  books: "Livres",
+  pills: "Défis bingo",
+};
+const TAB_ICONS: Record<Tab, JSX.Element> = {
+  badges: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="9" r="6" />
+      <path d="m9 14-2 7 5-3 5 3-2-7" />
+    </svg>
+  ),
+  borders: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <rect x="7" y="7" width="10" height="10" rx="1" />
+    </svg>
+  ),
+  fonds: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="9" cy="9" r="2" />
+      <path d="m21 15-5-5L5 21" />
+    </svg>
+  ),
+  stickers: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3 14 9l6 .5-4.5 4 1.5 6L12 16l-5 3.5 1.5-6L4 9.5 10 9z" />
+    </svg>
+  ),
+  "avatar-frames": (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="10" r="3" />
+      <path d="M6.5 18a6 6 0 0 1 11 0" />
+    </svg>
+  ),
+  books: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v18H6.5A2.5 2.5 0 0 0 4 22.5z" />
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+    </svg>
+  ),
+  pills: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
+    </svg>
+  ),
+};
 const DEFAULT_TAB: Tab = "badges";
 const THEME_KEY = "admin-theme";
 
@@ -152,45 +206,61 @@ export function App() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
-      <header
+    <div style={{ display: "flex", height: "100vh" }}>
+      <aside
         style={{
-          padding: "10px 24px",
-          borderBottom: "1px solid var(--line)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
+          width: 220,
+          flexShrink: 0,
+          borderRight: "1px solid var(--line)",
           background: "var(--surface)",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-          <strong>Grimolia — admin</strong>
-          <nav style={{ display: "flex", gap: 4 }}>
-            <TabButton label="Badges" active={route.tab === "badges"} onClick={() => selectTab("badges")} />
-            <TabButton label="Cadres" active={route.tab === "borders"} onClick={() => selectTab("borders")} />
-            <TabButton label="Fonds" active={route.tab === "fonds"} onClick={() => selectTab("fonds")} />
-            <TabButton label="Stickers" active={route.tab === "stickers"} onClick={() => selectTab("stickers")} />
-            <TabButton label="Cadres photo" active={route.tab === "avatar-frames"} onClick={() => selectTab("avatar-frames")} />
-            <TabButton label="Livres" active={route.tab === "books"} onClick={() => selectTab("books")} />
-            <TabButton label="Défis bingo" active={route.tab === "pills"} onClick={() => selectTab("pills")} />
-          </nav>
+        <div
+          style={{
+            padding: "16px 20px",
+            borderBottom: "1px solid var(--line)",
+            fontWeight: 700,
+            fontSize: 15,
+          }}
+        >
+          Grimolia — admin
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            className="btn"
+        <nav style={{ display: "flex", flexDirection: "column", gap: 2, padding: 12, flex: 1, minHeight: 0, overflowY: "auto" }}>
+          {TABS.map((tab) => (
+            <SidebarItem
+              key={tab}
+              label={TAB_LABELS[tab]}
+              icon={TAB_ICONS[tab]}
+              active={route.tab === tab}
+              onClick={() => selectTab(tab)}
+            />
+          ))}
+        </nav>
+        <div
+          style={{
+            padding: 12,
+            borderTop: "1px solid var(--line)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+          }}
+        >
+          <SidebarAction
+            label={theme === "dark" ? "Mode clair" : "Mode sombre"}
+            icon={theme === "dark" ? <SunIcon /> : <MoonIcon />}
             onClick={toggleTheme}
-            title={theme === "dark" ? "Passer en clair" : "Passer en sombre"}
-            aria-label="Basculer le thème"
-          >
-            {theme === "dark" ? "☀︎" : "☾"}
-          </button>
-          <button className="btn" onClick={() => supabase.auth.signOut()}>
-            Se déconnecter
-          </button>
+          />
+          <SidebarAction
+            label="Se déconnecter"
+            icon={<LogoutIcon />}
+            onClick={() => supabase.auth.signOut()}
+          />
         </div>
-      </header>
+      </aside>
 
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden" }}>
         {route.tab === "badges" && (
           <BadgesSection itemId={route.itemId} onItemChange={selectItem} />
         )}
@@ -217,12 +287,14 @@ export function App() {
   );
 }
 
-function TabButton({
+function SidebarItem({
   label,
+  icon,
   active,
   onClick,
 }: {
   label: string;
+  icon: JSX.Element;
   active: boolean;
   onClick: () => void;
 }) {
@@ -230,18 +302,97 @@ function TabButton({
     <button
       onClick={onClick}
       style={{
-        padding: "6px 14px",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        textAlign: "left",
+        padding: "8px 12px",
         borderRadius: 8,
-        border: "1px solid",
-        borderColor: active ? "var(--accent)" : "var(--line)",
-        background: active ? "var(--accent)" : "var(--surface)",
+        border: "1px solid transparent",
+        borderColor: active ? "var(--accent)" : "transparent",
+        background: active ? "var(--accent)" : "transparent",
         color: active ? "white" : "var(--ink)",
         fontWeight: 600,
         fontSize: 13,
         cursor: "pointer",
+        width: "100%",
+      }}
+      onMouseEnter={(e) => {
+        if (!active) e.currentTarget.style.background = "var(--surface-2)";
+      }}
+      onMouseLeave={(e) => {
+        if (!active) e.currentTarget.style.background = "transparent";
       }}
     >
-      {label}
+      <span style={{ display: "inline-flex", flexShrink: 0, color: active ? "white" : "var(--ink-muted)" }}>{icon}</span>
+      <span>{label}</span>
     </button>
+  );
+}
+
+function SidebarAction({
+  label,
+  icon,
+  onClick,
+}: {
+  label: string;
+  icon: JSX.Element;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        textAlign: "left",
+        padding: "8px 12px",
+        borderRadius: 8,
+        border: "1px solid transparent",
+        background: "transparent",
+        color: "var(--ink)",
+        fontWeight: 500,
+        fontSize: 13,
+        cursor: "pointer",
+        width: "100%",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = "var(--surface-2)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "transparent";
+      }}
+    >
+      <span style={{ display: "inline-flex", flexShrink: 0, color: "var(--ink-muted)" }}>{icon}</span>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function SunIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+    </svg>
+  );
+}
+
+function MoonIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  );
+}
+
+function LogoutIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="m16 17 5-5-5-5" />
+      <path d="M21 12H9" />
+    </svg>
   );
 }
