@@ -1,5 +1,6 @@
 import { SUPABASE_URL } from '../lib/supabase';
 import type { AvatarFrameCatalogRow } from '../lib/types';
+import { AvailabilityBadge } from './decoration-fields';
 
 type Props = {
   frames: AvatarFrameCatalogRow[];
@@ -102,19 +103,7 @@ export function AvatarFrameList({
                   {f.frame_key}
                 </div>
               </div>
-              {f.is_default && (
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    padding: '2px 6px',
-                    borderRadius: 4,
-                    background: 'var(--accent)',
-                    color: 'white',
-                  }}>
-                  DISPO
-                </span>
-              )}
+              <AvailabilityBadge availability={f.availability} />
               {isRetired && <span className="tag tag-retired">Retiré</span>}
             </li>
           );

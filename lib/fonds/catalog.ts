@@ -28,7 +28,7 @@ export const FONDS: FondDef[] = [
 
 // Pas de fond. Les nouveaux users démarrent ici. Pour utiliser un fond,
 // l'utilisateur doit le sélectionner dans le perso parmi ceux disponibles
-// (= fonds `is_default = true` côté catalog OU fonds unlock via user_fonds).
+// (= fonds `availability = everyone` côté catalog OU fonds unlock via user_fonds).
 export const DEFAULT_FOND_ID = 'none';
 
 export function getFond(id: string): FondDef {

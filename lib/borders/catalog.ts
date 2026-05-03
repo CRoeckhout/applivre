@@ -44,7 +44,7 @@ export const PERSO_BORDER_ID = 'perso';
 
 // Pas de cadre. Les nouveaux users démarrent ici. Pour utiliser un cadre,
 // l'utilisateur doit le sélectionner dans le perso parmi ceux disponibles
-// (= cadres `is_default = true` côté catalog OU cadres unlock via user_borders).
+// (= cadres `availability = everyone` côté catalog OU cadres unlock via user_borders).
 export const DEFAULT_BORDER_ID = 'none';
 
 export function getBorder(id: string): BorderDef {

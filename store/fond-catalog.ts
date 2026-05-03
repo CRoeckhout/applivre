@@ -13,7 +13,8 @@ type FondRow = {
   image_height: number;
   repeat_mode: FondRepeatMode;
   tokens: Record<string, string> | null;
-  is_default: boolean;
+  availability: 'everyone' | 'premium' | 'badge' | 'unit';
+  unlock_badge_key: string | null;
   retired_at: string | null;
   active_from: string | null;
   active_until: string | null;
@@ -87,7 +88,11 @@ export const useFondCatalog = create<FondCatalogState>((set) => ({
       }
     }
 
-    const visible = active.filter((r) => r.is_default || unlockedKeys.has(r.fond_key));
+    // Phase 1 : sémantique inchangée (everyone OR unlocked). Les items
+    // `premium`/`unit` sont cachés en attendant le wiring paywall (phase 2).
+    const visible = active.filter(
+      (r) => r.availability === 'everyone' || unlockedKeys.has(r.fond_key),
+    );
     const defs = visible
       .map(rowToDef)
       .filter((d): d is FondDef => d !== null);

@@ -9,7 +9,8 @@
 export { KindFileFieldset } from './kind-file-fieldset';
 export { TokensField } from './tokens-field';
 export { PeriodFieldset } from './period-fieldset';
-export { VisibilityFieldset } from './visibility-fieldset';
+export { AvailabilityFieldset, VisibilityFieldset } from './visibility-fieldset';
+export { AvailabilityBadge } from './availability-badge';
 export { SizeSlider } from './size-slider';
 export {
   applySvgPreviewOverrides,

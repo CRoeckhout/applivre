@@ -22,7 +22,8 @@ type BorderRow = {
   repeat_mode: 'stretch' | 'round';
   tokens: Record<string, string> | null;
   card_padding: number;
-  is_default: boolean;
+  availability: 'everyone' | 'premium' | 'badge' | 'unit';
+  unlock_badge_key: string | null;
   retired_at: string | null;
   active_from: string | null;
   active_until: string | null;
@@ -122,7 +123,13 @@ export const useBorderCatalog = create<BorderCatalogState>((set) => ({
       }
     }
 
-    const visible = active.filter((r) => r.is_default || unlockedKeys.has(r.border_key));
+    // Phase 1 du premium : visibilité = ancienne sémantique (everyone OR
+    // unlocked via user_borders). Les items `premium` et `unit` sont cachés
+    // en attendant le wiring paywall (phase 2). Le `badge` reste gated par
+    // user_borders comme avant.
+    const visible = active.filter(
+      (r) => r.availability === 'everyone' || unlockedKeys.has(r.border_key),
+    );
     const defs = visible
       .map(rowToDef)
       .filter((d): d is BorderDef => d !== null);

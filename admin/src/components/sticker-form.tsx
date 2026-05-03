@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { SUPABASE_URL, supabase } from '../lib/supabase';
-import type { StickerCatalogRow, StickerKind } from '../lib/types';
+import type { CatalogAvailability, StickerCatalogRow, StickerKind } from '../lib/types';
 import {
+  AvailabilityFieldset,
   KindFileFieldset,
   PeriodFieldset,
   SizeSlider,
   TokensField,
-  VisibilityFieldset,
   applySvgPreviewOverrides,
   type DecorationKind,
 } from './decoration-fields';
@@ -47,7 +47,9 @@ export function StickerForm({ initial, onSaved, onDeleted }: Props) {
   const [tokensJson, setTokensJson] = useState(
     JSON.stringify(initial?.tokens ?? {}, null, 2),
   );
-  const [isDefault, setIsDefault] = useState<boolean>(initial?.is_default ?? false);
+  const [availability, setAvailability] = useState<CatalogAvailability>(
+    initial?.availability ?? 'badge',
+  );
   const [activeFrom, setActiveFrom] = useState(initial?.active_from?.slice(0, 16) ?? '');
   const [activeUntil, setActiveUntil] = useState(initial?.active_until?.slice(0, 16) ?? '');
   const [retiredAt, setRetiredAt] = useState(initial?.retired_at?.slice(0, 16) ?? '');
@@ -74,7 +76,7 @@ export function StickerForm({ initial, onSaved, onDeleted }: Props) {
     setImageWidth(initial ? String(initial.image_width) : '128');
     setImageHeight(initial ? String(initial.image_height) : '128');
     setTokensJson(JSON.stringify(initial?.tokens ?? {}, null, 2));
-    setIsDefault(initial?.is_default ?? false);
+    setAvailability(initial?.availability ?? 'badge');
     setActiveFrom(initial?.active_from?.slice(0, 16) ?? '');
     setActiveUntil(initial?.active_until?.slice(0, 16) ?? '');
     setRetiredAt(initial?.retired_at?.slice(0, 16) ?? '');
@@ -168,7 +170,8 @@ export function StickerForm({ initial, onSaved, onDeleted }: Props) {
         image_width: iw,
         image_height: ih,
         tokens: parsedTokens,
-        is_default: isDefault,
+        availability,
+        unlock_badge_key: initial?.unlock_badge_key ?? null,
         active_from: activeFrom ? new Date(activeFrom).toISOString() : null,
         active_until: activeUntil ? new Date(activeUntil).toISOString() : null,
         retired_at: retiredAt ? new Date(retiredAt).toISOString() : null,
@@ -367,10 +370,10 @@ export function StickerForm({ initial, onSaved, onDeleted }: Props) {
             />
           </fieldset>
 
-          <VisibilityFieldset
-            isDefault={isDefault}
-            setIsDefault={setIsDefault}
-            helper="Coché : visible et sélectionnable par tous les users sans unlock préalable. Décoché : verrouillé — le user doit débloquer le sticker (table user_stickers) pour le voir apparaître dans le picker."
+          <AvailabilityFieldset
+            availability={availability}
+            setAvailability={setAvailability}
+            helper="Disponible pour tous : utilisable sans condition. Premium : visible avec étoile, paywall au clic si non-premium. Obtention d'un badge : caché tant que le badge n'est pas obtenu (unlock via user_stickers). À l'unité : à venir."
           />
 
           <PeriodFieldset

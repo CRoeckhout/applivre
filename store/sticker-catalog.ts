@@ -12,7 +12,8 @@ type StickerRow = {
   image_width: number;
   image_height: number;
   tokens: Record<string, string> | null;
-  is_default: boolean;
+  availability: 'everyone' | 'premium' | 'badge' | 'unit';
+  unlock_badge_key: string | null;
   retired_at: string | null;
   active_from: string | null;
   active_until: string | null;
@@ -88,7 +89,11 @@ export const useStickerCatalog = create<StickerCatalogState>((set) => ({
       }
     }
 
-    const visible = active.filter((r) => r.is_default || unlockedKeys.has(r.sticker_key));
+    // Phase 1 : sémantique inchangée (everyone OR unlocked). `premium`/`unit`
+    // cachés tant que le wiring paywall n'est pas en place (phase 2).
+    const visible = active.filter(
+      (r) => r.availability === 'everyone' || unlockedKeys.has(r.sticker_key),
+    );
     const defs = visible
       .map(rowToDef)
       .filter((d): d is StickerDef => d !== null);

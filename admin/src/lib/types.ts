@@ -38,6 +38,29 @@ export const RULE_TYPES_WITH_MIN: RuleType[] = [
   'streak_max',
 ];
 
+// ═══════════════ Catalog availability (cross-cutting) ═══════════════
+
+// Mode d'accès d'un item de catalog perso. `everyone` = visible et utilisable
+// par tous. `premium` = visible mais locked si user non-premium (paywall au
+// clic). `badge` = caché tant que l'unlock n'a pas eu lieu (table user_<asset>),
+// avec `unlock_badge_key` qui formalise le badge déclencheur (wiring à venir).
+// `unit` = achat à l'unité, mécanique à définir.
+export type CatalogAvailability = 'everyone' | 'premium' | 'badge' | 'unit';
+
+export const CATALOG_AVAILABILITIES: CatalogAvailability[] = [
+  'everyone',
+  'premium',
+  'badge',
+  'unit',
+];
+
+export const CATALOG_AVAILABILITY_LABELS: Record<CatalogAvailability, string> = {
+  everyone: 'Disponible pour tous',
+  premium: 'Premium',
+  badge: "Obtention d'un badge",
+  unit: "À l'unité",
+};
+
 // ═══════════════ Borders ═══════════════
 
 export type BorderKind = 'png_9slice' | 'svg_9slice' | 'lottie_9slice';
@@ -64,7 +87,8 @@ export type BorderCatalogRow = {
   repeat_mode: BorderRepeatMode;
   card_padding: number;
   tokens: Record<string, string>;
-  is_default: boolean;
+  availability: CatalogAvailability;
+  unlock_badge_key: string | null;
   active_from: string | null;
   active_until: string | null;
   retired_at: string | null;
@@ -93,7 +117,8 @@ export type FondCatalogRow = {
   image_height: number;
   repeat_mode: FondRepeatMode;
   tokens: Record<string, string>;
-  is_default: boolean;
+  availability: CatalogAvailability;
+  unlock_badge_key: string | null;
   active_from: string | null;
   active_until: string | null;
   retired_at: string | null;
@@ -120,7 +145,8 @@ export type StickerCatalogRow = {
   image_width: number;
   image_height: number;
   tokens: Record<string, string>;
-  is_default: boolean;
+  availability: CatalogAvailability;
+  unlock_badge_key: string | null;
   active_from: string | null;
   active_until: string | null;
   retired_at: string | null;
@@ -150,7 +176,8 @@ export type AvatarFrameCatalogRow = {
   image_scale: number;
   image_padding: number;
   tokens: Record<string, string>;
-  is_default: boolean;
+  availability: CatalogAvailability;
+  unlock_badge_key: string | null;
   active_from: string | null;
   active_until: string | null;
   retired_at: string | null;
@@ -202,5 +229,17 @@ export type UserCardData = {
   display_name: string | null;
   avatar_url: string | null;
   account_created_at: string | null;
+};
+
+// ═══════════════ Freemium settings (singleton) ═══════════════
+
+// Limites du plan freemium éditables depuis l'admin (section Abonnements).
+// Une seule row attendue (id = 1).
+export type FreemiumSettingsRow = {
+  id: number;
+  max_sheets: number;
+  max_active_bingos: number;
+  updated_at: string;
+  updated_by: string | null;
 };
 
