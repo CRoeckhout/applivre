@@ -74,6 +74,19 @@ export default function BookDetailScreen() {
   const existing = books.find((b) => b.book.isbn === isbn);
   const isSyntheticManualIsbn = !!isbn?.startsWith("manual-");
 
+  // Navigation prev/next dans la bibliothèque (ordre du store = ajout récent
+  // d'abord, identique au tri par défaut de /library). Pas de wrap-around : on
+  // masque la flèche aux bords.
+  const navigation = useMemo(() => {
+    if (!existing) return null;
+    const idx = books.findIndex((b) => b.id === existing.id);
+    if (idx === -1) return null;
+    return {
+      prev: idx > 0 ? books[idx - 1] : null,
+      next: idx < books.length - 1 ? books[idx + 1] : null,
+    };
+  }, [books, existing]);
+
   // On ne tape l'API ni pour un livre déjà en biblio (on a déjà les métadonnées)
   // ni pour un ISBN synthétique (pas de chance qu'il soit trouvé ailleurs).
   const {
@@ -193,6 +206,25 @@ export default function BookDetailScreen() {
     updateStatus(existing.id, "paused", { page, summary });
   };
 
+  const onRemovePress = () => {
+    if (!existing) return;
+    Alert.alert(
+      "Supprimer ce livre ?",
+      `« ${data.title} » sera retiré de ta bibliothèque.`,
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Supprimer",
+          style: "destructive",
+          onPress: () => {
+            removeBook(existing.id);
+            router.back();
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <View className="flex-1 bg-paper">
       <ScrollView
@@ -298,23 +330,7 @@ export default function BookDetailScreen() {
 
           {existing && (
             <Pressable
-              onPress={() => {
-                Alert.alert(
-                  "Supprimer ce livre ?",
-                  `« ${data.title} » sera retiré de ta bibliothèque.`,
-                  [
-                    { text: "Annuler", style: "cancel" },
-                    {
-                      text: "Supprimer",
-                      style: "destructive",
-                      onPress: () => {
-                        removeBook(existing.id);
-                        router.back();
-                      },
-                    },
-                  ],
-                );
-              }}
+              onPress={onRemovePress}
               style={{
                 backgroundColor: "#b8503a",
                 shadowColor: "#000",
@@ -367,12 +383,70 @@ export default function BookDetailScreen() {
           />
         )}
       </ScrollView>
+      {navigation?.prev && (
+        <NavArrow
+          direction="left"
+          onPress={() =>
+            router.replace(`/book/${navigation.prev!.book.isbn}`)
+          }
+        />
+      )}
+      {navigation?.next && (
+        <NavArrow
+          direction="right"
+          onPress={() =>
+            router.replace(`/book/${navigation.next!.book.isbn}`)
+          }
+        />
+      )}
       <BookStatusBar
         existing={existing}
         onStatusPress={onStatusPress}
         onToggleFavorite={() => existing && toggleFavorite(existing.id)}
+        onRemove={onRemovePress}
       />
     </View>
+  );
+}
+
+function NavArrow({
+  direction,
+  onPress,
+}: {
+  direction: "left" | "right";
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={12}
+      accessibilityLabel={
+        direction === "left" ? "Livre précédent" : "Livre suivant"
+      }
+      style={{
+        position: "absolute",
+        [direction]: 8,
+        top: "40%",
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: "rgba(255, 255, 255, 0.9)",
+        alignItems: "center",
+        justifyContent: "center",
+        shadowColor: "#000",
+        shadowOpacity: 0.15,
+        shadowOffset: { width: 0, height: 2 },
+        shadowRadius: 4,
+        elevation: 3,
+      }}
+      className="active:opacity-70"
+    >
+      <MaterialIcons
+        name={direction === "left" ? "chevron-left" : "chevron-right"}
+        size={32}
+        color="#1f1a16"
+      />
+    </Pressable>
   );
 }
 

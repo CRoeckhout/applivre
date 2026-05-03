@@ -63,12 +63,14 @@ type Props = {
   existing: UserBook | undefined;
   onStatusPress: (status: ReadingStatus) => void;
   onToggleFavorite: () => void;
+  onRemove?: () => void;
 };
 
 export function BookStatusBar({
   existing,
   onStatusPress,
   onToggleFavorite,
+  onRemove,
 }: Props) {
   const insets = useSafeAreaInsets();
   const safeBottom =
@@ -115,7 +117,15 @@ export function BookStatusBar({
               }
             } else {
               active = existing?.status === a.value;
+              const removableActive =
+                active &&
+                (a.value === "to_read" || a.value === "wishlist") &&
+                !!onRemove;
               onPress = () => {
+                if (removableActive) {
+                  onRemove!();
+                  return;
+                }
                 if (active) return; // rule: no-op when already active
                 onStatusPress(a.value);
               };
@@ -127,6 +137,12 @@ export function BookStatusBar({
             activeIcon = active ? "favorite" : "favorite-border";
             onPress = onToggleFavorite;
           }
+
+          const showRemovePill =
+            a.kind === "status" &&
+            (a.value === "to_read" || a.value === "wishlist") &&
+            active &&
+            !!onRemove;
 
           return (
             <View
@@ -190,6 +206,30 @@ export function BookStatusBar({
                   {label}
                 </Text>
               </Pressable>
+              {showRemovePill && (
+                <View
+                  pointerEvents="none"
+                  style={{
+                    position: "absolute",
+                    top: -6,
+                    left: -2,
+                    width: 22,
+                    height: 22,
+                    borderRadius: 11,
+                    backgroundColor: "#d4493e",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    shadowColor: "#000",
+                    shadowOpacity: 0.2,
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowRadius: 3,
+                    elevation: 6,
+                    zIndex: 10,
+                  }}
+                >
+                  <MaterialIcons name="close" size={14} color="#ffffff" />
+                </View>
+              )}
             </View>
           );
         })}
