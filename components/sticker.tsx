@@ -6,7 +6,7 @@ import {
   STICKER_SCALE_MIN,
   type StickerDef,
 } from '@/lib/stickers/catalog';
-import { useStickerCatalog } from '@/store/sticker-catalog';
+import { useAllStickers } from '@/store/sticker-catalog';
 import { usePreferences } from '@/store/preferences';
 import type { PlacedSticker } from '@/types/book';
 import { Image } from 'expo-image';
@@ -79,15 +79,15 @@ export function Sticker({
   onInteractStart,
   onInteractEnd,
 }: Props) {
-  const remote = useStickerCatalog((s) => s.remote);
+  const allStickers = useAllStickers();
   const colorPrimary = usePreferences((s) => s.colorPrimary);
   const colorSecondary = usePreferences((s) => s.colorSecondary);
   const colorBg = usePreferences((s) => s.colorBg);
   const theme = useThemeColors();
 
   const def: StickerDef | undefined = useMemo(
-    () => remote.find((s) => s.id === placement.stickerId),
-    [remote, placement.stickerId],
+    () => allStickers.find((s) => s.id === placement.stickerId),
+    [allStickers, placement.stickerId],
   );
 
   // Tokens SVG résolus selon prefs/theme + overrides per-placement (mêmes

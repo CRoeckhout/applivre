@@ -1,10 +1,12 @@
 import { BookCover } from "@/components/book-cover";
 import { KeyboardDismissBar } from "@/components/keyboard-dismiss-bar";
+import { PremiumPaywallModal } from "@/components/premium-paywall-modal";
 import { RatingIcon } from "@/components/rating-row";
 import { SheetCustomizer } from "@/components/sheet-customizer";
 import { SheetSurface } from "@/components/sheet-surface";
 import { StickerLayer } from "@/components/sticker-layer";
 import { StickerPickerModal } from "@/components/sticker-picker-modal";
+import { useFreemiumGate } from "@/hooks/use-freemium-gate";
 import { useKeyboardOffset } from "@/hooks/use-keyboard-offset";
 import { newId } from "@/lib/id";
 import {
@@ -111,6 +113,8 @@ export default function SheetScreen() {
   // fiche pour que le ScrollView ne capte pas le 2e doigt avant que pinch
   // ou rotate puisse s'activer.
   const [stickerInteracting, setStickerInteracting] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const gate = useFreemiumGate();
 
   const addSectionDraft = (
     title: string,
@@ -165,6 +169,14 @@ export default function SheetScreen() {
 
   const handleSaveDraft = () => {
     if (!userBook) return;
+    // Limite freemium : la création d'une nouvelle fiche (sheet absent du
+    // store) est gated. Une mise à jour de fiche existante passe toujours.
+    // setSections([], ...) supprime la fiche — on ne gate pas non plus.
+    const isNewSheet = !sheet && draft.length > 0;
+    if (isNewSheet && !gate.canCreateSheet()) {
+      setPaywallOpen(true);
+      return;
+    }
     setSections(userBook.id, draft);
     if (stickersDirty) {
       setStickers(userBook.id, draftStickers);
@@ -625,6 +637,13 @@ export default function SheetScreen() {
           const placedId = placeStickerDraft(stickerId);
           if (placedId) setSelectedStickerId(placedId);
         }}
+      />
+
+      <PremiumPaywallModal
+        open={paywallOpen}
+        reason="feature_limit"
+        feature="sheets"
+        onClose={() => setPaywallOpen(false)}
       />
     </SafeAreaView>
   );

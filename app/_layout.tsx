@@ -13,6 +13,8 @@ import { hexToRgb, relativeLuminance } from "@/lib/theme/colors";
 import { useAvatarFrameCatalog } from "@/store/avatar-frame-catalog";
 import { useBorderCatalog } from "@/store/border-catalog";
 import { useFondCatalog } from "@/store/fond-catalog";
+import { useFreemium } from "@/store/freemium";
+import { usePremium } from "@/store/premium";
 import { useStickerCatalog } from "@/store/sticker-catalog";
 import { useDebug } from "@/store/debug";
 import { usePreferences } from "@/store/preferences";
@@ -172,12 +174,17 @@ function AuthGate() {
 
   // Fetch catalogs cadres et fonds : default-pour-tous + unlocks du user
   // courant. Re-fetch quand le user change pour récupérer ses unlocks.
+  // Idem pour le flag premium (lié au user) ; les freemium settings sont
+  // public read et ne dépendent pas du user, mais fetch dans le même effect
+  // pour rester groupé avec les autres reads de bootstrap.
   useEffect(() => {
     const userId = session?.user.id ?? null;
     void useBorderCatalog.getState().fetch(userId);
     void useFondCatalog.getState().fetch(userId);
     void useStickerCatalog.getState().fetch(userId);
     void useAvatarFrameCatalog.getState().fetch(userId);
+    void usePremium.getState().fetch(userId);
+    void useFreemium.getState().fetch();
   }, [session]);
 
   // Pilote la Live Activity iOS depuis le store timer (no-op en Expo Go).

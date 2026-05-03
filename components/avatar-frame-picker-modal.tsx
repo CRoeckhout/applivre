@@ -1,9 +1,11 @@
 import { AvatarFrame } from '@/components/avatar-frame';
+import { LockOverlay } from '@/components/lock-overlay';
+import { PremiumPaywallModal } from '@/components/premium-paywall-modal';
 import { type AvatarFrameDef } from '@/lib/avatar-frames/catalog';
 import { useAllAvatarFrames } from '@/store/avatar-frame-catalog';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -41,6 +43,7 @@ export function AvatarFramePickerModal({
 }: Props) {
   const insets = useSafeAreaInsets();
   const frames = useAllAvatarFrames();
+  const [paywall, setPaywall] = useState(false);
 
   // Le sentinel 'none' est toujours en tête (déjà premier dans le catalog
   // local), suivi des cadres DB dans l'ordre du fetch.
@@ -90,12 +93,21 @@ export function AvatarFramePickerModal({
               initial={initial}
               selected={frame.id === selectedFrameId}
               onPress={() => {
+                if (frame.locked) {
+                  setPaywall(true);
+                  return;
+                }
                 onPick(frame.id);
                 onClose();
               }}
             />
           ))}
         </ScrollView>
+        <PremiumPaywallModal
+          open={paywall}
+          reason="premium"
+          onClose={() => setPaywall(false)}
+        />
       </View>
     </Modal>
   );
@@ -170,6 +182,7 @@ function FrameTile({
             <MaterialIcons name="block" size={16} color="rgba(107,98,89,0.6)" />
           </View>
         )}
+        {def.lockReason && <LockOverlay />}
       </View>
       <Text
         numberOfLines={1}

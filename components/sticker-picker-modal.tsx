@@ -1,3 +1,5 @@
+import { LockOverlay } from '@/components/lock-overlay';
+import { PremiumPaywallModal } from '@/components/premium-paywall-modal';
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { applyTokens } from '@/lib/decorations/tokens';
 import { type StickerDef } from '@/lib/stickers/catalog';
@@ -5,7 +7,7 @@ import { useAllStickers } from '@/store/sticker-catalog';
 import { usePreferences } from '@/store/preferences';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -46,6 +48,7 @@ export function StickerPickerModal({
 }: Props) {
   const insets = useSafeAreaInsets();
   const stickers = useAllStickers();
+  const [paywall, setPaywall] = useState(false);
   // Filtre : on n'affiche que les stickers ayant une source rendable. Le
   // sentinel "Aucun" n'existe pas pour les stickers (cf. catalog.ts).
   const renderable = useMemo(
@@ -124,6 +127,10 @@ export function StickerPickerModal({
                   key={s.id}
                   def={s}
                   onPress={() => {
+                    if (s.locked) {
+                      setPaywall(true);
+                      return;
+                    }
                     onPick(s.id);
                     onClose();
                   }}
@@ -132,6 +139,11 @@ export function StickerPickerModal({
             )}
           </ScrollView>
         )}
+        <PremiumPaywallModal
+          open={paywall}
+          reason="premium"
+          onClose={() => setPaywall(false)}
+        />
       </View>
     </Modal>
   );
@@ -199,6 +211,7 @@ function StickerTile({ def, onPress }: { def: StickerDef; onPress: () => void })
           {def.label}
         </Text>
       </View>
+      {def.lockReason && <LockOverlay />}
     </Pressable>
   );
 }

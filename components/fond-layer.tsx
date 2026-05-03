@@ -1,7 +1,7 @@
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { applyTokens } from '@/lib/decorations/tokens';
 import { type FondDef } from '@/lib/fonds/catalog';
-import { useFondCatalog } from '@/store/fond-catalog';
+import { useAllFonds } from '@/store/fond-catalog';
 import { usePreferences } from '@/store/preferences';
 import { Image } from 'expo-image';
 import { type ReactNode, useMemo, useState } from 'react';
@@ -35,7 +35,7 @@ type Props = {
 // pixels transparents de l'image laissent voir le parent). bgColor n'est
 // utilisée qu'en fallback (catalog pas chargé / fondId orphelin).
 export function FondLayer({ bgColor, fondId, colorOverrides, opacity }: Props) {
-  const remote = useFondCatalog((s) => s.remote);
+  const allFonds = useAllFonds();
   const colorPrimary = usePreferences((s) => s.colorPrimary);
   const colorSecondary = usePreferences((s) => s.colorSecondary);
   const colorBg = usePreferences((s) => s.colorBg);
@@ -43,8 +43,8 @@ export function FondLayer({ bgColor, fondId, colorOverrides, opacity }: Props) {
 
   const def: FondDef | undefined = useMemo(() => {
     if (!fondId || fondId === 'none') return undefined;
-    return remote.find((f) => f.id === fondId);
-  }, [fondId, remote]);
+    return allFonds.find((f) => f.id === fondId);
+  }, [fondId, allFonds]);
 
   const themedSvgXml = useMemo(() => {
     if (!def?.svgXml) return undefined;

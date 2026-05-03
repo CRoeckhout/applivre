@@ -1,4 +1,5 @@
 import { ColorPickerModal } from '@/components/color-picker-modal';
+import { PremiumPaywallModal } from '@/components/premium-paywall-modal';
 import { SheetSurface } from '@/components/sheet-surface';
 import {
   AppearanceColorsSection,
@@ -86,6 +87,7 @@ export function BingoCustomizer({
   const [overrideTokenTarget, setOverrideTokenTarget] =
     useState<TokenOverrideTarget>(null);
   const [savePresetOpen, setSavePresetOpen] = useState(false);
+  const [paywall, setPaywall] = useState(false);
 
   const userPresets = useSheetTemplates((s) => s.userPresets);
   const addUserPreset = useSheetTemplates((s) => s.addUserPreset);
@@ -327,9 +329,13 @@ export function BingoCustomizer({
                     def={b}
                     label={b.label}
                     active={draft.frame.borderId === b.id}
-                    onPress={() =>
-                      updateFrame({ borderId: b.id, colorOverrides: undefined })
-                    }
+                    onPress={() => {
+                      if (b.locked) {
+                        setPaywall(true);
+                        return;
+                      }
+                      updateFrame({ borderId: b.id, colorOverrides: undefined });
+                    }}
                   />
                 ))}
             </ScrollView>
@@ -442,13 +448,17 @@ export function BingoCustomizer({
                     def={f}
                     label={f.label}
                     active={draft.fond?.fondId === f.id}
-                    onPress={() =>
+                    onPress={() => {
+                      if (f.locked) {
+                        setPaywall(true);
+                        return;
+                      }
                       updateFond({
                         fondId: f.id,
                         colorOverrides: undefined,
                         opacity: undefined,
-                      })
-                    }
+                      });
+                    }}
                   />
                 ))}
             </ScrollView>
@@ -576,6 +586,12 @@ export function BingoCustomizer({
             addUserPreset(label, draft);
             setSavePresetOpen(false);
           }}
+        />
+
+        <PremiumPaywallModal
+          open={paywall}
+          reason="premium"
+          onClose={() => setPaywall(false)}
         />
       </View>
     </Modal>

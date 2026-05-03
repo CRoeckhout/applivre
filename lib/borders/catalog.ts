@@ -2,6 +2,13 @@ import type { ImageSourcePropType } from 'react-native';
 
 export type BorderInsets = { top: number; right: number; bottom: number; left: number };
 
+// Raison pour laquelle un item de catalog est verrouillé côté user. Seul
+// `premium` côté front : c'est la seule catégorie qui déclenche un paywall.
+// `badge` et `unit` sont gérés serveur (unlock via user_<asset>) — invisibles
+// tant que la row d'unlock n'est pas posée, et une fois visibles, sélectionnables
+// comme un item ouvert à tous.
+export type CatalogLockReason = 'premium';
+
 export type BorderDef = {
   id: string;
   label: string;
@@ -27,6 +34,15 @@ export type BorderDef = {
   // les paddings hardcodés (p-5/p-6) des composants cards via context.
   // Absent ou 0 ⇒ contenu collé aux edges intérieurs du frame.
   cardPadding?: number;
+  // Catégorie d'accès de l'item. Posée pour tout item non-`everyone` (et
+  // sert aussi de marker visuel : le picker affiche l'étoile dès que ce
+  // champ est set, indépendamment de `locked`). Absent ⇒ disponible pour
+  // tous, pas d'étoile.
+  lockReason?: CatalogLockReason;
+  // Verrou côté user. `true` ⇒ le tap déclenche la modale paywall au lieu
+  // de sélectionner. Indépendant de `lockReason` : un item premium chez un
+  // user abonné garde son `lockReason` mais perd son `locked`.
+  locked?: boolean;
 };
 
 // Catalog local. Sera remplacé par un fetch DB (table `border_catalog`) — pattern

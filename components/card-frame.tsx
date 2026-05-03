@@ -2,9 +2,9 @@ import { CardFrameProvider } from '@/components/card-frame-context';
 import { FondLayer } from '@/components/fond-layer';
 import { NineSliceFrame } from '@/components/nine-slice-frame';
 import { useThemeColors } from '@/hooks/use-theme-colors';
-import { BORDERS, type BorderDef } from '@/lib/borders/catalog';
+import type { BorderDef } from '@/lib/borders/catalog';
 import { applyTokens } from '@/lib/decorations/tokens';
-import { useBorderCatalog } from '@/store/border-catalog';
+import { useAllBorders } from '@/store/border-catalog';
 import { usePreferences } from '@/store/preferences';
 import { ReactNode, useMemo } from 'react';
 import { StyleProp, View, ViewStyle } from 'react-native';
@@ -55,11 +55,11 @@ export function CardFrame({
   const colorPrimary = usePreferences((s) => s.colorPrimary);
   const colorSecondary = usePreferences((s) => s.colorSecondary);
   const colorBg = usePreferences((s) => s.colorBg);
-  const remote = useBorderCatalog((s) => s.remote);
+  const allBorders = useAllBorders();
   const theme = useThemeColors();
 
   const id = borderId ?? fromPrefs;
-  const def: BorderDef | undefined = [...BORDERS, ...remote].find((b) => b.id === id);
+  const def: BorderDef | undefined = allBorders.find((b) => b.id === id);
   const effectiveFondId = fondId ?? fondFromPrefs;
   // L'opacité du fond suit la même logique de fallback que `fondId` : si le
   // caller n'en passe pas, on hérite de la préférence globale du thème.

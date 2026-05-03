@@ -5,6 +5,7 @@ import { useCardFrame } from "@/components/card-frame-context";
 import { useAuth } from "@/hooks/use-auth";
 import { pickAndUploadAvatar } from "@/lib/avatar";
 import { usePreferences } from "@/store/preferences";
+import { usePremium } from "@/store/premium";
 import { useProfile } from "@/store/profile";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -19,6 +20,7 @@ export function UserProfileCard() {
   const avatarUrl = useProfile((s) => s.avatarUrl);
   const setAvatarUrl = useProfile((s) => s.setAvatarUrl);
   const username = useProfile((s) => s.username);
+  const isPremium = usePremium((s) => s.isPremium);
   const avatarFrameId = usePreferences((s) => s.avatarFrameId);
   const setAvatarFrameId = usePreferences((s) => s.setAvatarFrameId);
   const [uploading, setUploading] = useState(false);
@@ -101,9 +103,19 @@ export function UserProfileCard() {
       </Pressable>
 
       <View className="flex-1">
-        <Text className="font-display text-lg text-ink" numberOfLines={1}>
-          {displayName}
-        </Text>
+        <View className="flex-row items-center gap-1.5">
+          <Text className="font-display text-lg text-ink" numberOfLines={1}>
+            {displayName}
+          </Text>
+          {isPremium && (
+            <MaterialIcons
+              name="star"
+              size={16}
+              color="#f59e0b"
+              accessibilityLabel="Abonné Premium"
+            />
+          )}
+        </View>
         <View className="mt-1 flex-row items-center gap-2">
           <MaterialIcons name="verified" size={14} color="#c27b52" />
           <Text className="text-xs text-ink-muted" numberOfLines={1}>

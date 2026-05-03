@@ -1,4 +1,5 @@
 import type { ImageSourcePropType } from 'react-native';
+import type { CatalogLockReason } from '@/lib/borders/catalog';
 
 export type FondRepeatMode = 'cover' | 'tile';
 
@@ -18,6 +19,9 @@ export type FondDef = {
   // les hex sentinelles literal ; à l'app, `name` est résolu contre les
   // userPrefs / theme via `applyTokens`.
   tokens?: Record<string, string>;
+  // Verrou côté user (cf. BorderDef pour la sémantique).
+  locked?: boolean;
+  lockReason?: CatalogLockReason;
 };
 
 // Catalog local. Les fonds réels viennent de la DB (table `fond_catalog`).

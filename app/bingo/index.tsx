@@ -1,4 +1,6 @@
 import { BingoGrid } from "@/components/bingo-grid";
+import { PremiumPaywallModal } from "@/components/premium-paywall-modal";
+import { useFreemiumGate } from "@/hooks/use-freemium-gate";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { pickInitialPresetLabels } from "@/lib/bingo-presets";
 import { countCompletedLines } from "@/lib/bingo-win";
@@ -9,7 +11,7 @@ import { useBookshelf } from "@/store/bookshelf";
 import type { Bingo, BingoCompletion, BingoItem } from "@/types/bingo";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
@@ -31,6 +33,8 @@ export default function BingoListScreen() {
   const theme = useThemeColors();
   const bingos = useBingos((s) => s.bingos);
   const createBingo = useBingos((s) => s.createBingo);
+  const gate = useFreemiumGate();
+  const [paywallOpen, setPaywallOpen] = useState(false);
 
   const { active, archived } = useMemo(() => {
     const a: Bingo[] = [];
@@ -45,6 +49,10 @@ export default function BingoListScreen() {
   }, [bingos]);
 
   const onNew = () => {
+    if (!gate.canCreateBingo()) {
+      setPaywallOpen(true);
+      return;
+    }
     const bingo = createBingo("Nouveau bingo", makePresetItems());
     if (bingo) router.push(`/bingo/${bingo.id}`);
   };
@@ -164,6 +172,13 @@ export default function BingoListScreen() {
       >
         <MaterialIcons name="add" size={32} color="white" />
       </Pressable>
+
+      <PremiumPaywallModal
+        open={paywallOpen}
+        reason="feature_limit"
+        feature="bingos"
+        onClose={() => setPaywallOpen(false)}
+      />
     </SafeAreaView>
   );
 }

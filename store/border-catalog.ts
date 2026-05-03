@@ -1,6 +1,9 @@
 import { BORDERS as STATIC_BORDERS, type BorderDef } from '@/lib/borders/catalog';
 import { supabase } from '@/lib/supabase';
+import { usePremium } from '@/store/premium';
 import { create } from 'zustand';
+
+type Availability = 'everyone' | 'premium' | 'badge' | 'unit';
 
 type BorderRow = {
   border_key: string;
@@ -22,17 +25,28 @@ type BorderRow = {
   repeat_mode: 'stretch' | 'round';
   tokens: Record<string, string> | null;
   card_padding: number;
-  availability: 'everyone' | 'premium' | 'badge' | 'unit';
+  availability: Availability;
   unlock_badge_key: string | null;
   retired_at: string | null;
   active_from: string | null;
   active_until: string | null;
 };
 
+// `availability` est conservé à côté de chaque def pour que `useAllBorders`
+// puisse calculer `locked` au runtime contre l'état premium courant. La
+// `BorderDef` consommée par les composants de rendu reste pure : seuls
+// `locked`/`lockReason` sont injectés (calculés dans le hook).
+type BorderEntry = {
+  def: BorderDef;
+  availability: Availability;
+};
+
 type BorderCatalogState = {
-  // Cadres effectivement disponibles pour le user courant : default-pour-tous
-  // + cadres unlocked via `user_borders`. Filtre fait au fetch.
-  remote: BorderDef[];
+  // Items effectivement exposables au user (visibles dans l'UI). Inclut les
+  // items `premium`/`unit` (qui seront flaggés `locked` au consommateur) et
+  // les items `everyone` ou `badge` débloqués via user_borders. Les `badge`
+  // non débloqués sont filtrés ici (jamais exposés à l'UI).
+  remote: BorderEntry[];
   loaded: boolean;
   fetch: (userId: string | null) => Promise<void>;
 };
@@ -123,22 +137,48 @@ export const useBorderCatalog = create<BorderCatalogState>((set) => ({
       }
     }
 
-    // Phase 1 du premium : visibilité = ancienne sémantique (everyone OR
-    // unlocked via user_borders). Les items `premium` et `unit` sont cachés
-    // en attendant le wiring paywall (phase 2). Le `badge` reste gated par
-    // user_borders comme avant.
-    const visible = active.filter(
-      (r) => r.availability === 'everyone' || unlockedKeys.has(r.border_key),
-    );
-    const defs = visible
-      .map(rowToDef)
-      .filter((d): d is BorderDef => d !== null);
-    set({ remote: defs, loaded: true });
+    // Visibilité :
+    //   everyone : toujours exposé.
+    //   premium  : toujours exposé (flaggé `locked` au consommateur si user
+    //              non-abonné, paywall au tap).
+    //   badge    : exposé uniquement si débloqué via user_borders (lifecycle
+    //              géré côté serveur quand le badge est gagné).
+    //   unit     : même lifecycle que badge — exposé uniquement si débloqué
+    //              via user_borders (rule serveur d'octroi à l'unité).
+    const visible = active.filter((r) => {
+      if (r.availability === 'badge' || r.availability === 'unit') {
+        return unlockedKeys.has(r.border_key);
+      }
+      return true;
+    });
+    const entries: BorderEntry[] = visible
+      .map<BorderEntry | null>((r) => {
+        const def = rowToDef(r);
+        return def ? { def, availability: r.availability } : null;
+      })
+      .filter((e): e is BorderEntry => e !== null);
+    set({ remote: entries, loaded: true });
   },
 }));
 
-// Helper hook : retourne tous les cadres dispo (statiques + DB) dans l'ordre.
+// Helper hook : retourne tous les cadres dispo (statiques + DB) avec les
+// flags `locked`/`lockReason` calculés contre l'état premium courant.
+// Les items `premium` deviennent locked si !isPremium ; les `unit` sont
+// systématiquement locked en phase 2 (mécanique d'achat à venir).
 export function useAllBorders(): BorderDef[] {
   const remote = useBorderCatalog((s) => s.remote);
-  return [...STATIC_BORDERS, ...remote];
+  const isPremium = usePremium((s) => s.isPremium);
+  const remoteDefs = remote.map(({ def, availability }) => {
+    if (availability === 'premium') {
+      // `lockReason: 'premium'` reste posé même chez l'abonné pour que l'UI
+      // affiche l'étoile (signal "produit premium") ; seul `locked` dépend
+      // de l'état d'abonnement courant.
+      return { ...def, lockReason: 'premium' as const, locked: !isPremium };
+    }
+    // `badge` et `unit` débloqués sont traités comme des items everyone
+    // (visibles, sélectionnables, sans étoile). Le filtre au fetch écarte
+    // déjà les rows non débloquées.
+    return def;
+  });
+  return [...STATIC_BORDERS, ...remoteDefs];
 }

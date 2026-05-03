@@ -1,6 +1,9 @@
 import { FONDS as STATIC_FONDS, type FondDef, type FondRepeatMode } from '@/lib/fonds/catalog';
 import { supabase } from '@/lib/supabase';
+import { usePremium } from '@/store/premium';
 import { create } from 'zustand';
+
+type Availability = 'everyone' | 'premium' | 'badge' | 'unit';
 
 type FondRow = {
   fond_key: string;
@@ -13,17 +16,20 @@ type FondRow = {
   image_height: number;
   repeat_mode: FondRepeatMode;
   tokens: Record<string, string> | null;
-  availability: 'everyone' | 'premium' | 'badge' | 'unit';
+  availability: Availability;
   unlock_badge_key: string | null;
   retired_at: string | null;
   active_from: string | null;
   active_until: string | null;
 };
 
+type FondEntry = {
+  def: FondDef;
+  availability: Availability;
+};
+
 type FondCatalogState = {
-  // Fonds effectivement disponibles pour le user courant : default-pour-tous
-  // + fonds unlocked via `user_fonds`. Filtre fait au fetch.
-  remote: FondDef[];
+  remote: FondEntry[];
   loaded: boolean;
   fetch: (userId: string | null) => Promise<void>;
 };
@@ -88,20 +94,32 @@ export const useFondCatalog = create<FondCatalogState>((set) => ({
       }
     }
 
-    // Phase 1 : sémantique inchangée (everyone OR unlocked). Les items
-    // `premium`/`unit` sont cachés en attendant le wiring paywall (phase 2).
-    const visible = active.filter(
-      (r) => r.availability === 'everyone' || unlockedKeys.has(r.fond_key),
-    );
-    const defs = visible
-      .map(rowToDef)
-      .filter((d): d is FondDef => d !== null);
-    set({ remote: defs, loaded: true });
+    // Cf. border-catalog.ts : `badge` et `unit` filtrés si pas débloqués
+    // (lifecycle serveur), `premium` toujours exposé, `everyone` toujours.
+    const visible = active.filter((r) => {
+      if (r.availability === 'badge' || r.availability === 'unit') {
+        return unlockedKeys.has(r.fond_key);
+      }
+      return true;
+    });
+    const entries: FondEntry[] = visible
+      .map<FondEntry | null>((r) => {
+        const def = rowToDef(r);
+        return def ? { def, availability: r.availability } : null;
+      })
+      .filter((e): e is FondEntry => e !== null);
+    set({ remote: entries, loaded: true });
   },
 }));
 
-// Helper hook : retourne tous les fonds dispo (statiques + DB) dans l'ordre.
 export function useAllFonds(): FondDef[] {
   const remote = useFondCatalog((s) => s.remote);
-  return [...STATIC_FONDS, ...remote];
+  const isPremium = usePremium((s) => s.isPremium);
+  const remoteDefs = remote.map(({ def, availability }) => {
+    if (availability === 'premium') {
+      return { ...def, lockReason: 'premium' as const, locked: !isPremium };
+    }
+    return def;
+  });
+  return [...STATIC_FONDS, ...remoteDefs];
 }

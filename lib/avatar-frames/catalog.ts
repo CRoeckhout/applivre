@@ -1,4 +1,5 @@
 import type { ImageSourcePropType } from 'react-native';
+import type { CatalogLockReason } from '@/lib/borders/catalog';
 
 // Définition d'un cadre photo dispo dans le catalog. PNG only en MVP.
 // `imageSize` reflète les dimensions natives du PNG ; sert à mettre à
@@ -12,6 +13,9 @@ export type AvatarFrameDef = {
   imageSize?: { width: number; height: number };
   imageScale: number;
   imagePadding: number;
+  // Verrou côté user (cf. BorderDef pour la sémantique).
+  locked?: boolean;
+  lockReason?: CatalogLockReason;
 };
 
 // Catalog local. Le sentinel 'none' représente l'absence de cadre — l'avatar

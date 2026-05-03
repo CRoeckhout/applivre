@@ -1,4 +1,5 @@
 import type { ImageSourcePropType } from 'react-native';
+import type { CatalogLockReason } from '@/lib/borders/catalog';
 
 // Définition d'un sticker dispo dans le catalog. Source PNG via `source` OU
 // SVG inline via `svgXml`. `imageSize` est obligatoire — il fixe l'aspect
@@ -14,6 +15,9 @@ export type StickerDef = {
   // les hex sentinelles literal ; au runtime, `name` est résolu contre les
   // userPrefs / theme via `applyTokens` (cf. cadres/fonds — même mécanisme).
   tokens?: Record<string, string>;
+  // Verrou côté user (cf. BorderDef pour la sémantique).
+  locked?: boolean;
+  lockReason?: CatalogLockReason;
 };
 
 // Pas de catalog statique : les stickers viennent tous de la DB. Aucun n'est

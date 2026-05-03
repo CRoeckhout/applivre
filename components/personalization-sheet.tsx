@@ -1,7 +1,9 @@
 import { ColorPickerModal } from '@/components/color-picker-modal';
 import { FondLayer } from '@/components/fond-layer';
 import { FondOpacityRow } from '@/components/sheet-customizer';
+import { LockOverlay } from '@/components/lock-overlay';
 import { NineSliceFrame } from '@/components/nine-slice-frame';
+import { PremiumPaywallModal } from '@/components/premium-paywall-modal';
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { type BorderDef } from '@/lib/borders/catalog';
 import { applyTokens } from '@/lib/decorations/tokens';
@@ -29,6 +31,7 @@ export function PersonalizationSheet() {
   const [tab, setTab] = useState<Tab>('theme');
   const [colorTarget, setColorTarget] = useState<ColorTarget>(null);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [paywall, setPaywall] = useState(false);
 
   const allFonds = useAllFonds();
   const themeId = usePreferences((s) => s.themeId);
@@ -162,10 +165,10 @@ export function PersonalizationSheet() {
                 </ScrollView>
 
                 <SectionLabel>Cadres</SectionLabel>
-                <BordersRow borderId={borderId} setBorderId={setBorderId} />
+                <BordersRow borderId={borderId} setBorderId={setBorderId} onPaywall={() => setPaywall(true)} />
 
                 <SectionLabel>Fonds</SectionLabel>
-                <FondsRow fondId={fondId} setFondId={setFondId} />
+                <FondsRow fondId={fondId} setFondId={setFondId} onPaywall={() => setPaywall(true)} />
                 {fondImageActive && (
                   <View style={{ paddingHorizontal: 20 }}>
                     <FondOpacityRow
@@ -242,6 +245,12 @@ export function PersonalizationSheet() {
           saveCurrentAsCustomTheme(label);
           setSaveOpen(false);
         }}
+      />
+
+      <PremiumPaywallModal
+        open={paywall}
+        reason="premium"
+        onClose={() => setPaywall(false)}
       />
     </>
   );
@@ -531,9 +540,11 @@ function SaveThemeModal({
 function BordersRow({
   borderId,
   setBorderId,
+  onPaywall,
 }: {
   borderId: string;
   setBorderId: (id: string) => void;
+  onPaywall: () => void;
 }) {
   const all = useAllBorders();
   return (
@@ -546,7 +557,13 @@ function BordersRow({
           key={b.id}
           def={b}
           active={b.id === borderId}
-          onPress={() => setBorderId(b.id)}
+          onPress={() => {
+            if (b.locked) {
+              onPaywall();
+              return;
+            }
+            setBorderId(b.id);
+          }}
         />
       ))}
     </ScrollView>
@@ -632,6 +649,7 @@ function BorderCard({
           </Text>
         </View>
       )}
+      {def.lockReason && <LockOverlay />}
     </Pressable>
   );
 }
@@ -639,9 +657,11 @@ function BorderCard({
 function FondsRow({
   fondId,
   setFondId,
+  onPaywall,
 }: {
   fondId: string;
   setFondId: (id: string) => void;
+  onPaywall: () => void;
 }) {
   const all = useAllFonds();
   return (
@@ -654,7 +674,13 @@ function FondsRow({
           key={f.id}
           def={f}
           active={f.id === fondId}
-          onPress={() => setFondId(f.id)}
+          onPress={() => {
+            if (f.locked) {
+              onPaywall();
+              return;
+            }
+            setFondId(f.id);
+          }}
         />
       ))}
     </ScrollView>
@@ -726,6 +752,7 @@ function FondCard({
           </Text>
         </View>
       )}
+      {def.lockReason && <LockOverlay />}
     </Pressable>
   );
 }

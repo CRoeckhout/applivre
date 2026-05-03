@@ -1,7 +1,9 @@
 import { ColorPickerModal, OpacitySlider } from '@/components/color-picker-modal';
 import { FondLayer } from '@/components/fond-layer';
 import { IconPickerModal } from '@/components/icon-picker-modal';
+import { LockOverlay } from '@/components/lock-overlay';
 import { NineSliceFrame } from '@/components/nine-slice-frame';
+import { PremiumPaywallModal } from '@/components/premium-paywall-modal';
 import { RatingIcon } from '@/components/rating-row';
 import { SheetSurface } from '@/components/sheet-surface';
 import { useThemeColors } from '@/hooks/use-theme-colors';
@@ -119,6 +121,10 @@ export function SheetCustomizer({
   const deleteUserPreset = useSheetTemplates((s) => s.deleteUserPreset);
   const allBorders = useAllBorders();
   const allFonds = useAllFonds();
+  // État d'ouverture de la paywall, déclenchée à chaque tap sur un item
+  // locked du catalog (seul le tier `premium` ouvre la paywall — `badge`
+  // et `unit` sont gérés serveur, jamais exposés en mode locked).
+  const [paywall, setPaywall] = useState(false);
   const theme = useThemeColors();
   const colorPrimary = usePreferences((s) => s.colorPrimary);
   const colorSecondary = usePreferences((s) => s.colorSecondary);
@@ -361,7 +367,13 @@ export function SheetCustomizer({
                     def={b}
                     label={b.label}
                     active={draft.frame.borderId === b.id}
-                    onPress={() => updateFrame({ borderId: b.id, colorOverrides: undefined })}
+                    onPress={() => {
+                      if (b.locked) {
+                        setPaywall(true);
+                        return;
+                      }
+                      updateFrame({ borderId: b.id, colorOverrides: undefined });
+                    }}
                   />
                 ))}
             </ScrollView>
@@ -476,13 +488,17 @@ export function SheetCustomizer({
                     def={f}
                     label={f.label}
                     active={draft.fond?.fondId === f.id}
-                    onPress={() =>
+                    onPress={() => {
+                      if (f.locked) {
+                        setPaywall(true);
+                        return;
+                      }
                       updateFond({
                         fondId: f.id,
                         colorOverrides: undefined,
                         opacity: undefined,
-                      })
-                    }
+                      });
+                    }}
                   />
                 ))}
             </ScrollView>
@@ -651,6 +667,12 @@ export function SheetCustomizer({
             addUserPreset(label, draft);
             setSavePresetOpen(false);
           }}
+        />
+
+        <PremiumPaywallModal
+          open={paywall}
+          reason="premium"
+          onClose={() => setPaywall(false)}
         />
       </View>
     </Modal>
@@ -922,6 +944,7 @@ export function FondTile({
           </Text>
         </View>
       )}
+      {def?.lockReason && <LockOverlay />}
     </Pressable>
   );
 }
@@ -1106,6 +1129,7 @@ export function BorderTile({
           </Text>
         </View>
       )}
+      {def?.lockReason && <LockOverlay />}
     </Pressable>
   );
 }

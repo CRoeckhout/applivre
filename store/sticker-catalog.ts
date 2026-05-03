@@ -1,6 +1,9 @@
 import { STICKERS as STATIC_STICKERS, type StickerDef } from '@/lib/stickers/catalog';
 import { supabase } from '@/lib/supabase';
+import { usePremium } from '@/store/premium';
 import { create } from 'zustand';
+
+type Availability = 'everyone' | 'premium' | 'badge' | 'unit';
 
 type StickerRow = {
   sticker_key: string;
@@ -12,17 +15,20 @@ type StickerRow = {
   image_width: number;
   image_height: number;
   tokens: Record<string, string> | null;
-  availability: 'everyone' | 'premium' | 'badge' | 'unit';
+  availability: Availability;
   unlock_badge_key: string | null;
   retired_at: string | null;
   active_from: string | null;
   active_until: string | null;
 };
 
+type StickerEntry = {
+  def: StickerDef;
+  availability: Availability;
+};
+
 type StickerCatalogState = {
-  // Stickers effectivement disponibles pour le user courant : default-pour-tous
-  // + stickers unlocked via `user_stickers`. Filtre fait au fetch.
-  remote: StickerDef[];
+  remote: StickerEntry[];
   loaded: boolean;
   fetch: (userId: string | null) => Promise<void>;
 };
@@ -89,15 +95,20 @@ export const useStickerCatalog = create<StickerCatalogState>((set) => ({
       }
     }
 
-    // Phase 1 : sémantique inchangée (everyone OR unlocked). `premium`/`unit`
-    // cachés tant que le wiring paywall n'est pas en place (phase 2).
-    const visible = active.filter(
-      (r) => r.availability === 'everyone' || unlockedKeys.has(r.sticker_key),
-    );
-    const defs = visible
-      .map(rowToDef)
-      .filter((d): d is StickerDef => d !== null);
-    set({ remote: defs, loaded: true });
+    // Cf. border-catalog.ts : `badge` et `unit` filtrés si pas débloqués.
+    const visible = active.filter((r) => {
+      if (r.availability === 'badge' || r.availability === 'unit') {
+        return unlockedKeys.has(r.sticker_key);
+      }
+      return true;
+    });
+    const entries: StickerEntry[] = visible
+      .map<StickerEntry | null>((r) => {
+        const def = rowToDef(r);
+        return def ? { def, availability: r.availability } : null;
+      })
+      .filter((e): e is StickerEntry => e !== null);
+    set({ remote: entries, loaded: true });
   },
 }));
 
@@ -106,5 +117,12 @@ export const useStickerCatalog = create<StickerCatalogState>((set) => ({
 // pas un map indexé pour rester aligné avec borders/fonds.
 export function useAllStickers(): StickerDef[] {
   const remote = useStickerCatalog((s) => s.remote);
-  return [...STATIC_STICKERS, ...remote];
+  const isPremium = usePremium((s) => s.isPremium);
+  const remoteDefs = remote.map(({ def, availability }) => {
+    if (availability === 'premium') {
+      return { ...def, lockReason: 'premium' as const, locked: !isPremium };
+    }
+    return def;
+  });
+  return [...STATIC_STICKERS, ...remoteDefs];
 }

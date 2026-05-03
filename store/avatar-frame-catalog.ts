@@ -3,7 +3,10 @@ import {
   type AvatarFrameDef,
 } from '@/lib/avatar-frames/catalog';
 import { supabase } from '@/lib/supabase';
+import { usePremium } from '@/store/premium';
 import { create } from 'zustand';
+
+type Availability = 'everyone' | 'premium' | 'badge' | 'unit';
 
 type AvatarFrameRow = {
   frame_key: string;
@@ -16,17 +19,20 @@ type AvatarFrameRow = {
   image_height: number;
   image_scale: number;
   image_padding: number;
-  availability: 'everyone' | 'premium' | 'badge' | 'unit';
+  availability: Availability;
   unlock_badge_key: string | null;
   retired_at: string | null;
   active_from: string | null;
   active_until: string | null;
 };
 
+type AvatarFrameEntry = {
+  def: AvatarFrameDef;
+  availability: Availability;
+};
+
 type AvatarFrameCatalogState = {
-  // Cadres effectivement disponibles pour le user courant : default-pour-tous
-  // + cadres unlocked via `user_avatar_frames`. Filtre fait au fetch.
-  remote: AvatarFrameDef[];
+  remote: AvatarFrameEntry[];
   loaded: boolean;
   fetch: (userId: string | null) => Promise<void>;
 };
@@ -88,20 +94,33 @@ export const useAvatarFrameCatalog = create<AvatarFrameCatalogState>((set) => ({
       }
     }
 
-    // Phase 1 : sémantique inchangée (everyone OR unlocked). `premium`/`unit`
-    // cachés tant que le wiring paywall n'est pas en place (phase 2).
-    const visible = active.filter(
-      (r) => r.availability === 'everyone' || unlockedKeys.has(r.frame_key),
-    );
-    const defs = visible
-      .map(rowToDef)
-      .filter((d): d is AvatarFrameDef => d !== null);
-    set({ remote: defs, loaded: true });
+    // Cf. border-catalog.ts : `badge` et `unit` filtrés si pas débloqués.
+    const visible = active.filter((r) => {
+      if (r.availability === 'badge' || r.availability === 'unit') {
+        return unlockedKeys.has(r.frame_key);
+      }
+      return true;
+    });
+    const entries: AvatarFrameEntry[] = visible
+      .map<AvatarFrameEntry | null>((r) => {
+        const def = rowToDef(r);
+        return def ? { def, availability: r.availability } : null;
+      })
+      .filter((e): e is AvatarFrameEntry => e !== null);
+    set({ remote: entries, loaded: true });
   },
 }));
 
-// Helper hook : retourne tous les cadres dispo (sentinel 'none' + DB).
+// Helper hook : retourne tous les cadres dispo (sentinel 'none' + DB), avec
+// `locked`/`lockReason` calculés depuis l'état premium courant.
 export function useAllAvatarFrames(): AvatarFrameDef[] {
   const remote = useAvatarFrameCatalog((s) => s.remote);
-  return [...STATIC_AVATAR_FRAMES, ...remote];
+  const isPremium = usePremium((s) => s.isPremium);
+  const remoteDefs = remote.map(({ def, availability }) => {
+    if (availability === 'premium') {
+      return { ...def, lockReason: 'premium' as const, locked: !isPremium };
+    }
+    return def;
+  });
+  return [...STATIC_AVATAR_FRAMES, ...remoteDefs];
 }
