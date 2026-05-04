@@ -11,3 +11,4 @@ export type { SocialProfile, ProfileResolver } from './profile';
 export type { TargetRef, KindAdapter, UserId } from './types';
 
 export * as Follows from './follows';
+export * as Reactions from './reactions';

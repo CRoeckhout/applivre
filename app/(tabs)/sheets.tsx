@@ -104,7 +104,13 @@ export default function SheetsScreen() {
                       appearance={effective}
                       isCustom={isCustom}
                       headerOnly
-                      onPress={() => router.push(`/sheet/${e.userBook.book.isbn}`)}
+                      onPress={() =>
+                        // Read-only par défaut. Fallback éditeur si pas
+                        // encore sync'ée (id absent).
+                        e.sheet.id
+                          ? router.push(`/sheet/view/${e.sheet.id}`)
+                          : router.push(`/sheet/${e.userBook.book.isbn}`)
+                      }
                     />
                   </Swipeable>
                 </Animated.View>

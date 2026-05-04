@@ -808,7 +808,14 @@ function SheetPreview({
         appearance={effective}
         isCustom={isCustom}
         hideBookHeader={compact}
-        onPress={() => router.push(`/sheet/${isbn}`)}
+        onPress={() =>
+          // Sheet déjà sync'ée (id présent) → vue read-only canonique.
+          // Sheet locale jamais montée jusqu'au serveur → fallback éditeur
+          // pour permettre la 1re sauvegarde.
+          sheet.id
+            ? router.push(`/sheet/view/${sheet.id}`)
+            : router.push(`/sheet/${isbn}`)
+        }
       />
     </View>
   );

@@ -195,12 +195,17 @@ export async function internalDeleteLoan(id: string): Promise<void> {
 }
 
 // Sheets
-export async function internalUpsertSheet(sheet: ReadingSheet): Promise<void> {
-  await throwIfError(
-    supabase
-      .from('reading_sheets')
-      .upsert(sheetToDb(sheet), { onConflict: 'user_book_id' }),
-  );
+// Retourne l'id généré côté DB (uuid). Permet à l'appelant (writers.ts) de
+// le réinjecter dans le store local pour qu'une fiche fraîchement créée soit
+// immédiatement adressable via /sheet/view/[id] sans attendre le prochain pull.
+export async function internalUpsertSheet(sheet: ReadingSheet): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('reading_sheets')
+    .upsert(sheetToDb(sheet), { onConflict: 'user_book_id' })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return (data as { id?: string } | null)?.id ?? null;
 }
 
 export async function internalDeleteSheet(userBookId: string): Promise<void> {

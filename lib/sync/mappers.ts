@@ -243,6 +243,7 @@ export function sheetFromDb(row: DbReadingSheet): ReadingSheet {
   const stickers = row.content?.stickers;
   const hasStickers = Array.isArray(stickers) && stickers.length > 0;
   return {
+    id: row.id,
     userBookId: row.user_book_id,
     sections: row.content?.sections ?? [],
     updatedAt: row.updated_at,

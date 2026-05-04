@@ -146,7 +146,16 @@ const SHEET_DEBOUNCE_MS = 600;
 
 function fireSheetUpsert(sheet: ReadingSheet): Promise<void> {
   return runOrQueue(
-    () => internalUpsertSheet(sheet),
+    async () => {
+      const id = await internalUpsertSheet(sheet);
+      // Réinjecte l'id DB dans le store local — permet à /sheet/view/[id]
+      // d'être adressable dès la 1re sauvegarde, sans attendre un pull.
+      // Import dynamique pour éviter le cycle store ↔ writers à l'init module.
+      if (id) {
+        const { useReadingSheets } = await import('@/store/reading-sheets');
+        useReadingSheets.getState().setSheetId(sheet.userBookId, id);
+      }
+    },
     () => ({ kind: 'upsertSheet', payload: { sheet } }),
   );
 }

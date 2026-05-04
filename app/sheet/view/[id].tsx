@@ -13,6 +13,7 @@
 import { BookCover } from "@/components/book-cover";
 import { SheetSurface } from "@/components/sheet-surface";
 import { StaticStickerLayer } from "@/components/static-sticker-layer";
+import { useAuth } from "@/hooks/use-auth";
 import { newId } from "@/lib/id";
 import {
   DEFAULT_APPEARANCE,
@@ -31,15 +32,13 @@ import type {
   SheetSection,
 } from "@/types/book";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useProfile } from "@grimolia/social";
-import { useQuery } from "@tanstack/react-query";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Reactions, useProfile } from "@grimolia/social";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 type PublicSheetBundle = {
   sheet_id: string;
@@ -49,6 +48,7 @@ type PublicSheetBundle = {
     appearance?: SheetAppearanceOverride;
     stickers?: PlacedSticker[];
   } | null;
+  is_public: boolean;
   updated_at: string;
   owner_id: string;
   book_isbn: string;
@@ -63,6 +63,10 @@ type PublicSheetBundle = {
 // section au body vide ne sautent pas de hauteur en read-only.
 const SECTION_BODY_MIN_HEIGHT = 96;
 const SECTION_BODY_LINE_HEIGHT = 22;
+
+// Espace réservé en bas de la ScrollView pour que la pill sticky ne couvre
+// pas le bas de la fiche. ≈ pill (44 bouton + 10*2 padding) + margin bas 12.
+const PILL_BOTTOM_CLEARANCE = 88;
 
 const SHEET_MAX_WIDTH = 380;
 
@@ -80,14 +84,26 @@ export default function PublicSheetScreen() {
   const router = useRouter();
   const themeInk = usePreferences((s) => s.colorSecondary);
   const themePaper = usePreferences((s) => s.colorBg);
-  const insets = useSafeAreaInsets();
+  const { session } = useAuth();
+  const currentUserId = session?.user.id ?? null;
 
+  const queryClient = useQueryClient();
   const sheetQuery = useQuery({
     queryKey: ["public-sheet", id],
     queryFn: () => fetchPublicSheet(id!),
     enabled: Boolean(id),
     staleTime: 1000 * 60,
   });
+
+  // Invalide au focus pour récupérer les modifs après un Editer→Sauver→Retour.
+  // En native stack le screen reste monté, donc refetchOnMount ne suffit pas.
+  useFocusEffect(
+    useCallback(() => {
+      if (id) {
+        void queryClient.invalidateQueries({ queryKey: ["public-sheet", id] });
+      }
+    }, [queryClient, id]),
+  );
 
   const bundle = sheetQuery.data;
   const ownerProfile = useProfile(bundle?.owner_id);
@@ -123,6 +139,8 @@ export default function PublicSheetScreen() {
     );
   }
 
+  const isOwner = currentUserId !== null && bundle.owner_id === currentUserId;
+
   // Apparence : on prend le snapshot du créateur s'il existe, sinon le default
   // de l'app (PAS le template global de l'utilisateur courant — la fiche
   // partagée est figée).
@@ -150,15 +168,41 @@ export default function PublicSheetScreen() {
           <MaterialIcons name="arrow-back" size={22} color={themeInk} />
         </Pressable>
         <View className="flex-row items-center gap-1">
-          <MaterialIcons name="public" size={14} color={themeInk} />
-          <Text className="font-sans-med text-xs text-ink">Fiche publique</Text>
+          <MaterialIcons
+            name={bundle.is_public ? "public" : "lock-outline"}
+            size={14}
+            color={themeInk}
+          />
+          <Text className="font-sans-med text-xs text-ink">
+            {bundle.is_public ? "Fiche publique" : "Fiche privée"}
+          </Text>
         </View>
-        <View className="h-10 w-10" />
+        {isOwner ? (
+          <Pressable
+            onPress={() => router.push(`/sheet/${bundle.book_isbn}`)}
+            hitSlop={8}
+            accessibilityLabel="Éditer la fiche"
+            className="h-10 flex-row items-center gap-1 rounded-full px-3 active:opacity-60"
+            style={{ borderWidth: 1, borderColor: themeInk }}
+          >
+            <MaterialIcons name="edit" size={14} color={themeInk} />
+            <Text className="font-sans-med text-xs text-ink">Éditer</Text>
+          </Pressable>
+        ) : (
+          <View className="h-10 w-10" />
+        )}
       </View>
 
-      <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 24 }}
-      >
+      <View style={{ flex: 1 }}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            // Réserve la place de la pill sticky pour qu'elle ne masque pas
+            // le bas de la fiche au scroll.
+            paddingBottom: bundle.is_public ? PILL_BOTTOM_CLEARANCE : 24,
+          }}
+        >
         <View className="mb-3 flex-row items-center gap-2">
           <View
             className="h-9 w-9 items-center justify-center rounded-full"
@@ -268,7 +312,44 @@ export default function PublicSheetScreen() {
             <StaticStickerLayer stickers={stickers} />
           </Animated.View>
         </ScrollView>
-      </ScrollView>
+        </ScrollView>
+
+        {/* Pill sticky : ancrée en bas de la viewport, flotte au-dessus du
+            scroll. Cachée si fiche privée (aucune audience pouvant réagir). */}
+        {bundle.is_public ? (
+          <View
+            pointerEvents="box-none"
+            style={{
+              position: "absolute",
+              bottom: 12,
+              left: 0,
+              right: 0,
+              alignItems: "center",
+            }}
+          >
+            <View
+              style={{
+                paddingHorizontal: 20,
+                paddingVertical: 10,
+                borderRadius: 999,
+                backgroundColor: themePaper,
+                borderWidth: 1,
+                borderColor: hexWithAlpha(themeInk, 0.12),
+                shadowColor: "#000",
+                shadowOpacity: 0.12,
+                shadowRadius: 12,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: 4,
+              }}
+            >
+              <Reactions.ReactionBar
+                target={{ kind: "sheet", id: bundle.sheet_id }}
+                currentUserId={currentUserId}
+              />
+            </View>
+          </View>
+        ) : null}
+      </View>
     </SafeAreaView>
   );
 }

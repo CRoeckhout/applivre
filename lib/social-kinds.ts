@@ -8,6 +8,7 @@
 
 import {
   configureProfileResolver,
+  registerKind,
   type SocialProfile,
 } from '@grimolia/social';
 
@@ -28,6 +29,22 @@ configureProfileResolver(async (userIds) => {
   return map;
 });
 
-// Les registerKind('book' / 'sheet' / 'bingo', ...) viendront quand on
-// branchera les features qui en ont besoin (réactions, feed). Pour l'instant
-// la slice "partage de fiches" n'utilise que le profile lens.
+// Kind 'sheet' — fiche de lecture publique. Le fetcher renvoie le bundle
+// minimal exposé par get_public_sheet (titre, auteur, isbn) qui sert à
+// afficher des cards/previews dans le feed ou des notifs. Le rendu visuel
+// fidèle vit dans /sheet/view/[id], pas ici.
+registerKind('sheet', {
+  fetch: async (id: string) => {
+    const { data, error } = await supabase.rpc('get_public_sheet', {
+      p_sheet_id: id,
+    });
+    if (error) throw error;
+    return ((data ?? [])[0] as Record<string, unknown> | undefined) ?? null;
+  },
+  routeTo: (id: string) => `/sheet/view/${id}`,
+  // Cf. ClickUp item 7 : "Possibilité de réaction sur les fiches de lectures (👍 et ♥️)".
+  allowedReactions: ['like', 'love'],
+});
+
+// Les autres registerKind ('book', 'bingo', 'review'…) viendront quand on
+// branchera les features qui en ont besoin (réactions sur livres, feed).

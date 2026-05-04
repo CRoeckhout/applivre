@@ -49,7 +49,11 @@ export async function executeEntry(entry: QueueEntry): Promise<void> {
     case 'deleteLoan':
       return internalDeleteLoan(entry.payload.id);
     case 'upsertSheet':
-      return internalUpsertSheet(entry.payload.sheet);
+      // internalUpsertSheet renvoie maintenant l'id DB ; ici on l'ignore
+      // (la queue est juste une replay-after-failure, le store local a déjà
+      // pu être resynchronisé entre-temps).
+      await internalUpsertSheet(entry.payload.sheet);
+      return;
     case 'deleteSheet':
       return internalDeleteSheet(entry.payload.userBookId);
     case 'upsertChallenge':

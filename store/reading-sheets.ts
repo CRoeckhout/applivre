@@ -75,6 +75,11 @@ type SheetsState = {
   // n'existe pas — passer une fiche "publique" sans contenu n'a pas de sens
   // mais simplifie l'UX (le toggle est visible dès qu'on entre dans l'éditeur).
   setIsPublic: (userBookId: string, value: boolean) => void;
+  // Injecte l'id généré côté DB après un upsert réussi. NE déclenche PAS
+  // afterMutation (ce serait un re-upsert immédiat alors qu'on vient de
+  // recevoir la confirmation). No-op si la fiche n'existe plus localement
+  // ou si l'id est déjà connu.
+  setSheetId: (userBookId: string, id: string) => void;
 };
 
 // Lors de la création d'une fiche, on snapshot le template global courant
@@ -371,6 +376,16 @@ export const useReadingSheets = create<SheetsState>()(
             };
           });
           afterMutation(userBookId);
+        },
+
+        setSheetId: (userBookId, id) => {
+          set((state) => {
+            const sheet = state.sheets[userBookId];
+            if (!sheet || sheet.id === id) return state;
+            return {
+              sheets: { ...state.sheets, [userBookId]: { ...sheet, id } },
+            };
+          });
         },
 
         setStickers: (userBookId, stickers) => {

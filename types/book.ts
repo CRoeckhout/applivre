@@ -203,4 +203,9 @@ export type ReadingSheet = {
   // de reading_sheets. Optionnel pour ascendant-compat avec les fiches
   // persistées avant l'introduction du flag (undefined ⇒ traité comme false).
   isPublic?: boolean;
+  // UUID assigné par la DB (reading_sheets.id). Présent uniquement après
+  // synchronisation (pull ou retour de l'upsert). Sert au routage vers
+  // /sheet/view/[id]. Sa présence atteste que la fiche est connue côté
+  // serveur — utilisable comme proxy "fiche déjà sync'ée".
+  id?: string;
 };
