@@ -1,5 +1,8 @@
 import "@/global.css";
 
+import { configure as configureSocial } from "@grimolia/social";
+import { supabase } from "@/lib/supabase";
+import "@/lib/social-kinds";
 import { ThemeProvider as AppThemeProvider } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -82,6 +85,10 @@ textInputWithProps.defaultProps = {
 import "react-native-reanimated";
 import { BadgeUnlockToastHost } from "@/components/badges/badge-unlock-toast-host";
 import { useBadgeForegroundEval } from "@/hooks/use-badges";
+
+// Injecte le client Supabase dans @grimolia/social. Le package est agnostique
+// du domaine livre et reste réutilisable pour de futures apps (musique, jeux…).
+configureSocial(supabase);
 
 export const unstable_settings = {
   anchor: "(tabs)",

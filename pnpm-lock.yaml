@@ -29,6 +29,9 @@ importers:
       '@expo/vector-icons':
         specifier: ^15.0.3
         version: 15.1.1(expo-font@14.0.11(expo@54.0.33)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
+      '@grimolia/social':
+        specifier: workspace:*
+        version: link:packages/social
       '@lottiefiles/dotlottie-react':
         specifier: ^0.19.0
         version: 0.19.0(react@19.1.0)
@@ -201,6 +204,21 @@ importers:
       typescript:
         specifier: ~5.9.2
         version: 5.9.3
+
+  packages/social:
+    dependencies:
+      '@supabase/supabase-js':
+        specifier: '*'
+        version: 2.104.0
+      '@tanstack/react-query':
+        specifier: '*'
+        version: 5.99.2(react@19.1.0)
+      react:
+        specifier: '*'
+        version: 19.1.0
+      react-native:
+        specifier: '*'
+        version: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
 
 packages:
 

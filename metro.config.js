@@ -10,6 +10,15 @@ const { withNativeWind } = require('nativewind/metro');
 
 const config = getDefaultConfig(__dirname);
 
+// Monorepo : Metro doit watcher les packages workspace pour HMR + résolution.
+// Avec pnpm hoisted, @grimolia/social est symlink dans node_modules ; on
+// ajoute le dossier source pour que les changements dedans déclenchent un
+// rebuild et que Metro résolve correctement les imports relatifs du package.
+config.watchFolders = [
+  ...(Array.isArray(config.watchFolders) ? config.watchFolders : []),
+  path.resolve(__dirname, 'packages'),
+];
+
 // Le dossier `admin/` est une web-app Vite indépendante (backoffice local).
 // On exclut sa node_modules et ses sources du bundle Metro pour éviter que
 // l'autolinking ne tente d'importer des deps web côté natif.
