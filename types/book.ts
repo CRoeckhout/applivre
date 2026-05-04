@@ -199,4 +199,8 @@ export type ReadingSheet = {
   // avec les fiches persistées avant l'introduction des stickers (absent ⇒
   // pas de stickers rendus). Limite max imposée à l'add via le picker.
   stickers?: PlacedSticker[];
+  // Visibilité : true = la fiche est publiable et lisible par tous via la RLS
+  // de reading_sheets. Optionnel pour ascendant-compat avec les fiches
+  // persistées avant l'introduction du flag (undefined ⇒ traité comme false).
+  isPublic?: boolean;
 };

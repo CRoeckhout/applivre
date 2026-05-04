@@ -62,6 +62,7 @@ export default function SheetScreen() {
   const removeSheet = useReadingSheets((s) => s.removeSheet);
   const setSheetAppearance = useReadingSheets((s) => s.setAppearance);
   const setStickers = useReadingSheets((s) => s.setStickers);
+  const setSheetIsPublic = useReadingSheets((s) => s.setIsPublic);
 
   const globalTemplate = useSheetTemplates((s) => s.global);
   const themeInk = usePreferences((s) => s.colorSecondary);
@@ -318,6 +319,19 @@ export default function SheetScreen() {
     // Re-snapshot du global courant, à la demande explicite de l'user.
     setSheetAppearance(userBook.id, undefined);
     setCustomizerOpen(false);
+  };
+
+  const handleTogglePublic = () => {
+    setMenuOpen(false);
+    if (!userBook) return;
+    const next = !(sheet?.isPublic ?? false);
+    setSheetIsPublic(userBook.id, next);
+    Alert.alert(
+      next ? "Fiche publiée" : "Fiche redevenue privée",
+      next
+        ? "Les autres lecteurs peuvent maintenant voir cette fiche depuis la page du livre."
+        : "Plus personne d'autre que toi ne peut la consulter.",
+    );
   };
 
   return (
@@ -607,6 +621,8 @@ export default function SheetScreen() {
         onCustomize={handleCustomize}
         onShare={handleShare}
         onDelete={confirmDelete}
+        onTogglePublic={handleTogglePublic}
+        isPublic={sheet?.isPublic ?? false}
         themePaper={themePaper}
         themeInk={themeInk}
       />
@@ -684,6 +700,8 @@ function ActionMenu({
   onCustomize,
   onShare,
   onDelete,
+  onTogglePublic,
+  isPublic,
   themePaper,
   themeInk,
 }: {
@@ -692,6 +710,8 @@ function ActionMenu({
   onCustomize: () => void;
   onShare: () => void;
   onDelete: () => void;
+  onTogglePublic: () => void;
+  isPublic: boolean;
   themePaper: string;
   themeInk: string;
 }) {
@@ -717,6 +737,17 @@ function ActionMenu({
             sublabel="Cadre, police, couleurs…"
             themeInk={themeInk}
             onPress={onCustomize}
+          />
+          <MenuRow
+            icon={isPublic ? "public" : "lock-outline"}
+            label={isPublic ? "Rendre privée" : "Publier publiquement"}
+            sublabel={
+              isPublic
+                ? "Visible uniquement par toi"
+                : "Lisible par les autres lecteurs"
+            }
+            themeInk={themeInk}
+            onPress={onTogglePublic}
           />
           <MenuRow
             icon="ios-share"

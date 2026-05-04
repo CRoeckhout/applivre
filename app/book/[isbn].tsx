@@ -3,9 +3,11 @@ import { BookStatusBar } from "@/components/book-status-bar";
 import { GenreEditorModal } from "@/components/genre-editor-modal";
 import { LoanTracker } from "@/components/loan-tracker";
 import { PauseBookModal } from "@/components/pause-book-modal";
+import { PublicSheetsForBook } from "@/components/public-sheets-for-book";
 import { ReadingTimer } from "@/components/reading-timer";
 import { SheetCard } from "@/components/sheet-card";
 import { formatDurationHuman } from "@/hooks/use-elapsed-time";
+import { useAuth } from "@/hooks/use-auth";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { fetchBook } from "@/lib/books";
 import { categorySuggestions, displayGenres, normalizeCategory } from "@/lib/genre";
@@ -55,6 +57,8 @@ export default function BookDetailScreen() {
   const debugOpen = useDebug((s) => s.panelsEnabled);
   const setDebugOpen = useDebug((s) => s.setPanelsEnabled);
   const themeColors = useThemeColors();
+  const { session } = useAuth();
+  const currentUserId = session?.user.id ?? null;
 
   // Deeplinks depuis la Live Activity (grimolia://book/<isbn>?action=...).
   // Expo Router résout la route + on consomme `action` ici.
@@ -281,6 +285,9 @@ export default function BookDetailScreen() {
             <CatalogGenreRow categories={data.categories} />
           )}
           {existing && <SheetPreview userBook={existing} />}
+          {isbn ? (
+            <PublicSheetsForBook isbn={isbn} currentUserId={currentUserId} />
+          ) : null}
 
           {existing && existing.status === "paused" && (
             <PausedInfo

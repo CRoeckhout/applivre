@@ -248,12 +248,13 @@ export function sheetFromDb(row: DbReadingSheet): ReadingSheet {
     updatedAt: row.updated_at,
     appearance: hasAppearance ? appearance : undefined,
     stickers: hasStickers ? stickers : undefined,
+    isPublic: row.is_public,
   };
 }
 
 export function sheetToDb(
   sheet: ReadingSheet,
-): Omit<DbReadingSheet, 'id' | 'is_public'> {
+): Omit<DbReadingSheet, 'id'> {
   const content: DbSheetContent = { sections: sheet.sections };
   if (sheet.appearance && Object.keys(sheet.appearance).length > 0) {
     content.appearance = sheet.appearance;
@@ -265,6 +266,7 @@ export function sheetToDb(
     user_book_id: sheet.userBookId,
     content,
     updated_at: sheet.updatedAt,
+    is_public: sheet.isPublic ?? false,
   };
 }
 

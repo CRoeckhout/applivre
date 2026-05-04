@@ -71,6 +71,10 @@ type SheetsState = {
   // Tableau vide ⇒ on supprime la clé `stickers` de la fiche (pas de tableau
   // vide persisté). Limite max appliquée silencieusement (truncate).
   setStickers: (userBookId: string, stickers: PlacedSticker[]) => void;
+  // Bascule la visibilité publique de la fiche. Crée la fiche (vide) si elle
+  // n'existe pas — passer une fiche "publique" sans contenu n'a pas de sens
+  // mais simplifie l'UX (le toggle est visible dès qu'on entre dans l'éditeur).
+  setIsPublic: (userBookId: string, value: boolean) => void;
 };
 
 // Lors de la création d'une fiche, on snapshot le template global courant
@@ -344,6 +348,23 @@ export const useReadingSheets = create<SheetsState>()(
                 [userBookId]: {
                   ...sheet,
                   stickers,
+                  updatedAt: new Date().toISOString(),
+                },
+              },
+            };
+          });
+          afterMutation(userBookId);
+        },
+
+        setIsPublic: (userBookId, value) => {
+          set((state) => {
+            const sheet = ensureSheet(state.sheets, userBookId);
+            return {
+              sheets: {
+                ...state.sheets,
+                [userBookId]: {
+                  ...sheet,
+                  isPublic: value,
                   updatedAt: new Date().toISOString(),
                 },
               },
