@@ -60,6 +60,30 @@ export function outerCardStyle(a: SheetAppearance, padding = 20) {
   } as const;
 }
 
+// Construit une SheetAppearance pleinement résolue pour le rendu côté
+// LECTEUR PUBLIC (autre user que l'auteur). Pas d'accès au template global
+// de l'auteur ni à ses préférences — on force fond.fondId et fond.opacity à
+// des valeurs explicites pour empêcher SheetSurface de retomber sur les
+// prefs du visiteur. Un snapshot incomplet (auteur n'avait jamais customisé
+// son fond) tombe sur fondId='none' + opacity=1 — déterministe et neutre.
+//
+// L'auteur, lui, voit bien sa fiche dans son éditeur via mergeAppearance(
+// globalTemplate, override) qui résout depuis ses propres préférences.
+export function resolvePublicAppearance(
+  override: SheetAppearanceOverride | null | undefined,
+): SheetAppearance {
+  const ov = override ?? {};
+  return {
+    ...DEFAULT_APPEARANCE,
+    ...ov,
+    fond: {
+      fondId: ov.fond?.fondId ?? 'none',
+      opacity: ov.fond?.opacity ?? 1,
+      colorOverrides: ov.fond?.colorOverrides,
+    },
+  };
+}
+
 // Décale légèrement la couleur vers le blanc pour distinguer la carte du fond global.
 export function shiftTowardsPaper(hex: string): string {
   const m = hex.replace('#', '');

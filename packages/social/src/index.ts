@@ -7,7 +7,11 @@ export {
   useProfile,
   useProfiles,
 } from './profile';
-export type { SocialProfile, ProfileResolver } from './profile';
+export type {
+  SocialProfile,
+  SocialProfileAppearance,
+  ProfileResolver,
+} from './profile';
 export type { TargetRef, KindAdapter, UserId } from './types';
 
 export * as Follows from './follows';

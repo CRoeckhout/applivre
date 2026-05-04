@@ -1,21 +1,27 @@
--- 0049 — Bundles de lecture pour fiches publiques.
+-- 0049 — Bundles de lecture pour fiches partagées.
 --
--- La RLS de reading_sheets autorise déjà la lecture des fiches is_public,
--- mais user_books reste self-only. Pour afficher la fiche d'un autre user
--- on a besoin d'accéder à (book_isbn, owner_id) qui vivent dans user_books.
--- On expose donc deux fonctions SECURITY DEFINER bundlant la donnée
--- nécessaire — figées sur les colonnes publiques uniquement (pas de status,
--- rating, finished_at, started_at, etc. qui sont privés au lecteur).
+-- /sheet/view/[id] est devenu le viewer canonique d'une fiche, y compris
+-- pour le propriétaire. La RLS de reading_sheets autorise déjà la lecture
+-- des fiches is_public ET la lecture par leur owner ; mais la jointure
+-- vers user_books (qui donne book_isbn et owner_id) est gated self-only
+-- côté user_books. On expose donc deux fonctions SECURITY DEFINER qui
+-- bundlent (sheet + book + author_id) en figeant les colonnes publiques.
 
 -- ---------------------------------------------------------------------------
--- Bundle d'une fiche publique par UUID — pour l'écran read-only
--- /sheet/view/[id].
+-- Bundle d'une fiche par UUID — pour /sheet/view/[id].
+--
+-- Visible si :
+--   - rs.is_public = true (n'importe quel authentifié peut voir une fiche
+--     publiée), OU
+--   - ub.user_id = auth.uid() (l'owner accède à ses propres fiches privées
+--     via la même route que les fiches publiques).
 -- ---------------------------------------------------------------------------
 create or replace function public.get_public_sheet(p_sheet_id uuid)
 returns table (
   sheet_id      uuid,
   user_book_id  uuid,
   content       jsonb,
+  is_public     boolean,
   updated_at    timestamptz,
   owner_id      uuid,
   book_isbn     text,
@@ -33,6 +39,7 @@ as $$
     rs.id          as sheet_id,
     rs.user_book_id,
     rs.content,
+    rs.is_public,
     rs.updated_at,
     ub.user_id     as owner_id,
     ub.book_isbn,
@@ -44,24 +51,28 @@ as $$
   join public.user_books     ub on ub.id = rs.user_book_id
   join public.books          b  on b.isbn = ub.book_isbn
   where rs.id = p_sheet_id
-    and rs.is_public = true;
+    and (rs.is_public = true or ub.user_id = auth.uid());
 $$;
 
 grant execute on function public.get_public_sheet(uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- Liste des fiches publiques portant sur un ISBN donné — pour la section
--- découverte sur /book/[isbn].
+-- Liste des fiches publiques pour un ISBN — section découverte sur
+-- /book/[isbn]. Renvoie l'apparence snapshotée + les colonnes book_*
+-- nécessaires pour rendre une SheetCard compacte (cf. consumer
+-- app/sheet/by-book/[isbn].tsx). PAS de content.sections — la liste est
+-- visuelle uniquement, la consultation détaillée passe par get_public_sheet.
 -- ---------------------------------------------------------------------------
 create or replace function public.list_public_sheets_for_book(p_isbn text)
 returns table (
-  sheet_id     uuid,
-  owner_id     uuid,
-  updated_at   timestamptz,
-  -- Contenu allégé : juste de quoi générer un aperçu (titre + 1re ligne).
-  -- Pas le content complet pour ne pas balayer tout en une requête.
-  preview      text,
-  section_count integer
+  sheet_id      uuid,
+  owner_id      uuid,
+  updated_at    timestamptz,
+  book_isbn     text,
+  book_title    text,
+  book_cover_url text,
+  book_authors  text[],
+  appearance    jsonb
 )
 language sql
 security definer
@@ -72,19 +83,14 @@ as $$
     rs.id        as sheet_id,
     ub.user_id   as owner_id,
     rs.updated_at,
-    -- Concat des premiers titres comme aperçu, séparés par " · ".
-    (
-      select string_agg(s->>'title', ' · ' order by ord)
-      from (
-        select s, ord
-        from jsonb_array_elements(rs.content->'sections') with ordinality as t(s, ord)
-        limit 3
-      ) sub
-      where (s->>'title') is not null
-    ) as preview,
-    coalesce(jsonb_array_length(rs.content->'sections'), 0) as section_count
+    ub.book_isbn,
+    b.title      as book_title,
+    b.cover_url  as book_cover_url,
+    b.authors    as book_authors,
+    rs.content->'appearance' as appearance
   from public.reading_sheets rs
   join public.user_books     ub on ub.id = rs.user_book_id
+  join public.books          b  on b.isbn = ub.book_isbn
   where ub.book_isbn = p_isbn
     and rs.is_public = true
   order by rs.updated_at desc;

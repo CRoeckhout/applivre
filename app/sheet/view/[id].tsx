@@ -13,12 +13,13 @@
 import { BookCover } from "@/components/book-cover";
 import { SheetSurface } from "@/components/sheet-surface";
 import { StaticStickerLayer } from "@/components/static-sticker-layer";
+import { UserCard } from "@/components/user-card";
 import { useAuth } from "@/hooks/use-auth";
 import { newId } from "@/lib/id";
 import {
-  DEFAULT_APPEARANCE,
   ficheTextStyle,
   hexWithAlpha,
+  resolvePublicAppearance,
   resolveSectionIcon,
   SHEET_TEXT_SHADOW,
 } from "@/lib/sheet-appearance";
@@ -32,11 +33,17 @@ import type {
   SheetSection,
 } from "@/types/book";
 import { MaterialIcons } from "@expo/vector-icons";
-import { Reactions, useProfile } from "@grimolia/social";
+import { Reactions } from "@grimolia/social";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -70,7 +77,9 @@ const PILL_BOTTOM_CLEARANCE = 88;
 
 const SHEET_MAX_WIDTH = 380;
 
-async function fetchPublicSheet(sheetId: string): Promise<PublicSheetBundle | null> {
+async function fetchPublicSheet(
+  sheetId: string,
+): Promise<PublicSheetBundle | null> {
   const { data, error } = await supabase.rpc("get_public_sheet", {
     p_sheet_id: sheetId,
   });
@@ -84,6 +93,7 @@ export default function PublicSheetScreen() {
   const router = useRouter();
   const themeInk = usePreferences((s) => s.colorSecondary);
   const themePaper = usePreferences((s) => s.colorBg);
+  const themeFontId = usePreferences((s) => s.fontId);
   const { session } = useAuth();
   const currentUserId = session?.user.id ?? null;
 
@@ -106,7 +116,6 @@ export default function PublicSheetScreen() {
   );
 
   const bundle = sheetQuery.data;
-  const ownerProfile = useProfile(bundle?.owner_id);
 
   if (sheetQuery.isLoading) {
     return (
@@ -141,21 +150,20 @@ export default function PublicSheetScreen() {
 
   const isOwner = currentUserId !== null && bundle.owner_id === currentUserId;
 
-  // Apparence : on prend le snapshot du créateur s'il existe, sinon le default
-  // de l'app (PAS le template global de l'utilisateur courant — la fiche
-  // partagée est figée).
-  const appearance: SheetAppearance = {
-    ...DEFAULT_APPEARANCE,
-    ...(bundle.content?.appearance ?? {}),
-  };
-  const fontFamily = getFont(appearance.fontId as never).variants.display;
+  // Apparence : snapshot de l'auteur, fond figé via resolvePublicAppearance
+  // (sinon SheetSurface retomberait sur les prefs du visiteur pour fond.fondId
+  // et fond.opacity quand l'auteur ne les a pas explicitement set).
+  const appearance: SheetAppearance = resolvePublicAppearance(
+    bundle.content?.appearance,
+  );
+  // Police effective des catégories : on privilégie celle snapshotée par
+  // l'auteur (appearance.fontId), sinon on retombe sur la police du thème
+  // courant du lecteur — pas sur le hardcoded DEFAULT_APPEARANCE.fontId.
+  const sheetFontId = bundle.content?.appearance?.fontId;
+  const fontFamily = getFont((sheetFontId ?? themeFontId) as never).variants
+    .display;
   const sections = bundle.content?.sections ?? [];
   const stickers = bundle.content?.stickers ?? [];
-
-  const ownerLabel =
-    ownerProfile.data?.display_name ||
-    ownerProfile.data?.username ||
-    "Anonyme";
 
   return (
     <SafeAreaView className="flex-1 bg-paper" edges={["top", "bottom"]}>
@@ -203,115 +211,115 @@ export default function PublicSheetScreen() {
             paddingBottom: bundle.is_public ? PILL_BOTTOM_CLEARANCE : 24,
           }}
         >
-        <View className="mb-3 flex-row items-center gap-2">
-          <View
-            className="h-9 w-9 items-center justify-center rounded-full"
-            style={{ backgroundColor: hexWithAlpha(themeInk, 0.08) }}
-          >
-            <MaterialIcons name="person" size={18} color={themeInk} />
-          </View>
-          <View className="flex-1">
-            <Text className="text-xs text-ink-muted">Par</Text>
-            <Text className="font-sans-med text-ink">{ownerLabel}</Text>
-          </View>
-        </View>
+          {isOwner ? null : (
+            <View className="mb-4">
+              <Text className="mb-2 font-sans-med text-sm text-ink-soft">
+                Publiée par :
+              </Text>
+              <UserCard userId={bundle.owner_id} variant="rich" />
+            </View>
+          )}
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ minWidth: "100%", justifyContent: "center" }}
-        >
-          <Animated.View
-            entering={FadeInDown.duration(400)}
-            style={{ width: SHEET_MAX_WIDTH, marginTop: 4, position: "relative" }}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              minWidth: "100%",
+              justifyContent: "center",
+            }}
           >
-            <SheetSurface
-              appearance={appearance}
+            <Animated.View
+              entering={FadeInDown.duration(400)}
               style={{
-                shadowColor: "#000",
-                shadowOpacity: 0.12,
-                shadowRadius: 14,
-                shadowOffset: { width: 0, height: 6 },
-                elevation: 6,
+                width: SHEET_MAX_WIDTH,
+                marginTop: 4,
+                position: "relative",
               }}
             >
-              <View className="flex-row items-start gap-3">
-                <BookCover
-                  isbn={bundle.book_isbn}
-                  coverUrl={bundle.book_cover_url ?? undefined}
-                  style={{ width: 48, height: 72, borderRadius: 6 }}
-                />
-                <View className="flex-1">
-                  <Text
-                    style={[
-                      { color: appearance.mutedColor },
-                      SHEET_TEXT_SHADOW,
-                    ]}
-                    className="text-xs uppercase tracking-wider"
-                  >
-                    Fiche de lecture
-                  </Text>
-                  <Text
-                    numberOfLines={2}
-                    style={[
-                      { color: appearance.textColor, fontFamily },
-                      SHEET_TEXT_SHADOW,
-                    ]}
-                    className="text-xl"
-                  >
-                    {bundle.book_title}
-                  </Text>
-                  {bundle.book_authors && bundle.book_authors.length > 0 ? (
+              <SheetSurface
+                appearance={appearance}
+                style={{
+                  shadowColor: "#000",
+                  shadowOpacity: 0.12,
+                  shadowRadius: 14,
+                  shadowOffset: { width: 0, height: 6 },
+                  elevation: 6,
+                }}
+              >
+                <View className="flex-row items-start gap-3">
+                  <BookCover
+                    isbn={bundle.book_isbn}
+                    coverUrl={bundle.book_cover_url ?? undefined}
+                    style={{ width: 48, height: 72, borderRadius: 6 }}
+                  />
+                  <View className="justify-center flex-auto">
                     <Text
+                      numberOfLines={2}
                       style={[
-                        { color: appearance.mutedColor, ...ficheTextStyle(11) },
+                        { color: appearance.textColor, fontFamily },
                         SHEET_TEXT_SHADOW,
                       ]}
+                      className="text-xl"
                     >
-                      {bundle.book_authors.join(", ")}
+                      {bundle.book_title}
                     </Text>
-                  ) : null}
+                    {bundle.book_authors && bundle.book_authors.length > 0 ? (
+                      <Text
+                        style={[
+                          {
+                            color: appearance.mutedColor,
+                            ...ficheTextStyle(11),
+                          },
+                          SHEET_TEXT_SHADOW,
+                        ]}
+                      >
+                        {bundle.book_authors.join(", ")}
+                      </Text>
+                    ) : null}
+                  </View>
                 </View>
-              </View>
 
-              {sections.length === 0 ? (
-                <Text
-                  style={[
-                    { color: appearance.mutedColor, marginTop: 24 },
-                    SHEET_TEXT_SHADOW,
-                  ]}
-                  className="text-center"
-                >
-                  Cette fiche est vide.
-                </Text>
-              ) : (
-                <View className="mt-6">
-                  {sections.map((section, i) => (
-                    <Animated.View
-                      key={section.id ?? `section-${i}-${newId()}`}
-                      entering={FadeIn.duration(300).delay(i * 40)}
-                      style={{
-                        paddingVertical: 14,
-                        borderTopWidth: i === 0 ? 0 : 1,
-                        borderTopColor: hexWithAlpha(appearance.mutedColor, 0.22),
-                      }}
-                    >
-                      <ReadOnlySection
-                        section={section}
-                        appearance={appearance}
-                        fontFamily={fontFamily}
-                      />
-                    </Animated.View>
-                  ))}
-                </View>
-              )}
-            </SheetSurface>
-            {/* Sibling de SheetSurface (cf. l'éditeur) — bornes alignées via
+                {sections.length === 0 ? (
+                  <Text
+                    style={[
+                      { color: appearance.mutedColor, marginTop: 24 },
+                      SHEET_TEXT_SHADOW,
+                    ]}
+                    className="text-center"
+                  >
+                    Cette fiche est vide.
+                  </Text>
+                ) : (
+                  <View className="mt-6">
+                    {sections.map((section, i) => (
+                      <Animated.View
+                        key={section.id ?? `section-${i}-${newId()}`}
+                        entering={FadeIn.duration(300).delay(i * 40)}
+                        style={{
+                          paddingVertical: 14,
+                          borderTopWidth: i === 0 ? 0 : 1,
+                          borderTopColor: hexWithAlpha(
+                            appearance.mutedColor,
+                            0.22,
+                          ),
+                        }}
+                      >
+                        <ReadOnlySection
+                          section={section}
+                          appearance={appearance}
+                          fontFamily={fontFamily}
+                        />
+                      </Animated.View>
+                    ))}
+                  </View>
+                )}
+              </SheetSurface>
+              {/* Sibling de SheetSurface (cf. l'éditeur) — bornes alignées via
                 le wrapper position:relative au-dessus, pour que les positions
                 relatives (x/y dans [0,1]) tombent sur les mêmes pixels. */}
-            <StaticStickerLayer stickers={stickers} />
-          </Animated.View>
-        </ScrollView>
+              <StaticStickerLayer stickers={stickers} />
+            </Animated.View>
+          </ScrollView>
         </ScrollView>
 
         {/* Pill sticky : ancrée en bas de la viewport, flotte au-dessus du
@@ -408,6 +416,7 @@ function ReadOnlySection({
         style={[
           {
             color: appearance.textColor,
+            fontFamily,
             minHeight: SECTION_BODY_MIN_HEIGHT,
             lineHeight: SECTION_BODY_LINE_HEIGHT,
           },

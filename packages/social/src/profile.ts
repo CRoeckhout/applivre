@@ -8,11 +8,23 @@ import { useQuery } from '@tanstack/react-query';
 
 import type { UserId } from './types';
 
+// Sous-ensemble visuel des préférences publié par l'app hôte. Le package
+// ne fait que transporter le blob ; chaque clé est optionnelle parce que
+// d'autres apps (musique, jeux) auront un set de champs différent. Le
+// rendu (CardFrame, AvatarFrame, fonts) reste entièrement côté hôte.
+export type SocialProfileAppearance = Record<string, unknown>;
+
 export type SocialProfile = {
   id: UserId;
   username: string | null;
   display_name: string | null;
   avatar_url: string | null;
+  // Apparence visuelle publique (cadre photo, fond, bordure, police,
+  // couleurs). Whitelist côté DB — aucune donnée privée.
+  appearance?: SocialProfileAppearance | null;
+  // IDs des badges débloqués, triés du plus récent au plus ancien. Le
+  // package ne connaît pas le catalog de badges (entièrement TS côté hôte).
+  badge_keys?: string[];
 };
 
 export type ProfileResolver = (

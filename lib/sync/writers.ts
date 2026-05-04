@@ -26,7 +26,7 @@ import {
   internalUpsertUsername,
 } from '@/lib/sync/internals';
 import type { Bingo, BingoCompletion, BingoPill } from '@/types/bingo';
-import type { Preferences } from '@/store/preferences';
+import { usePreferences, type Preferences } from '@/store/preferences';
 import { scheduleBadgeEval } from '@/lib/sync/eval-badges';
 import { flushQueue } from '@/lib/sync/queue';
 import { useSyncQueue, type QueuedOp } from '@/store/sync-queue';
@@ -144,10 +144,32 @@ export function syncDeleteLoan(id: string): Promise<void> {
 const sheetTimers = new Map<string, { timer: ReturnType<typeof setTimeout>; latest: ReadingSheet }>();
 const SHEET_DEBOUNCE_MS = 600;
 
+// Snapshot le fond effectif (fondId + opacity) à partir des préférences
+// courantes de l'auteur. Une fiche persistée doit être self-contained pour
+// le rendu côté lecteur public — sinon SheetSurface retombe sur les prefs
+// du VISITEUR à la lecture, pas celles de l'auteur.
+function enrichSheetForPersist(sheet: ReadingSheet): ReadingSheet {
+  const prefs = usePreferences.getState();
+  const currentFond = sheet.appearance?.fond;
+  const resolvedFond = {
+    fondId: currentFond?.fondId ?? prefs.fondId,
+    opacity: currentFond?.opacity ?? prefs.fondOpacity,
+    colorOverrides: currentFond?.colorOverrides,
+  };
+  return {
+    ...sheet,
+    appearance: {
+      ...sheet.appearance,
+      fond: resolvedFond,
+    },
+  };
+}
+
 function fireSheetUpsert(sheet: ReadingSheet): Promise<void> {
+  const enriched = enrichSheetForPersist(sheet);
   return runOrQueue(
     async () => {
-      const id = await internalUpsertSheet(sheet);
+      const id = await internalUpsertSheet(enriched);
       // Réinjecte l'id DB dans le store local — permet à /sheet/view/[id]
       // d'être adressable dès la 1re sauvegarde, sans attendre un pull.
       // Import dynamique pour éviter le cycle store ↔ writers à l'init module.
@@ -156,7 +178,7 @@ function fireSheetUpsert(sheet: ReadingSheet): Promise<void> {
         useReadingSheets.getState().setSheetId(sheet.userBookId, id);
       }
     },
-    () => ({ kind: 'upsertSheet', payload: { sheet } }),
+    () => ({ kind: 'upsertSheet', payload: { sheet: enriched } }),
   );
 }
 
