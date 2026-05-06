@@ -231,6 +231,33 @@ export type UserCardData = {
   account_created_at: string | null;
 };
 
+// ═══════════════ Music themes (reading session ambient) ═══════════════
+
+// Bibliothèque de musiques d'ambiance jouées pendant les sessions de lecture.
+// Feature gatée premium côté app : seuls les abonnés peuvent récupérer les
+// pistes via la RPC get_music_theme_tracks. Côté admin, les rows sont gérées
+// via RLS admin classique.
+
+export type MusicThemeRow = {
+  id: string;
+  key: string;
+  display_name: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type MusicThemeTrackRow = {
+  id: string;
+  theme_id: string;
+  title: string;
+  storage_path: string;
+  sort_order: number;
+  is_active: boolean;
+  duration_ms: number | null;
+  created_at: string;
+};
+
 // ═══════════════ Freemium settings (singleton) ═══════════════
 
 // Limites du plan freemium éditables depuis l'admin (section Abonnements).

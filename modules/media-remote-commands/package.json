@@ -1,0 +1,8 @@
+{
+  "name": "grimolia-media-remote-commands",
+  "version": "0.0.0",
+  "description": "Local Expo module — bridges MPRemoteCommandCenter next/previous track commands to JS (complement to expo-audio's lock-screen integration).",
+  "main": "index.ts",
+  "types": "index.ts",
+  "private": true
+}

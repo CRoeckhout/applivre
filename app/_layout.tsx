@@ -84,6 +84,7 @@ textInputWithProps.defaultProps = {
 };
 import "react-native-reanimated";
 import { BadgeUnlockToastHost } from "@/components/badges/badge-unlock-toast-host";
+import { ReadingMusicEngine } from "@/components/reading-music/reading-music-engine";
 import { useBadgeForegroundEval } from "@/hooks/use-badges";
 
 // Injecte le client Supabase dans @grimolia/social. Le package est agnostique
@@ -338,6 +339,7 @@ function AuthGate() {
       )}
 
       <BadgeUnlockToastHost />
+      <ReadingMusicEngine />
     </View>
   );
 }

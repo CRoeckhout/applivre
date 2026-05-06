@@ -42,6 +42,25 @@ npx supabase db dump --local --data-only --schema public  -f "backups/local-publ
 
 Expect a `pg_dump` warning about circular FKs (e.g. `social_comments.parent_id`). It's a hint, not an error — handled by `session_replication_role = replica` at restore.
 
+#### Optional: `--with-files` to also tar the storage volume
+
+If the user passes `--with-files` (or otherwise asks for "fichiers physiques", "binaires", "vraie sauvegarde complète"), add this dump step:
+
+```bash
+docker exec supabase_storage_grimolia \
+  tar -cf - -C /mnt/stub/stub . \
+  | gzip > "backups/local-storage-files-$TS.tar.gz"
+```
+
+When to recommend this:
+- Disaster recovery (Docker volume could be wiped, machine reinstall)
+- Sharing a complete snapshot with a collègue / second dev machine
+- Before risky Docker operations (`supabase stop --no-backup`, `docker volume rm`)
+
+When to skip (default):
+- Just testing migrations — physical files survive `db reset` because the volume is untouched, so the cycle works without this step
+- Disk-constrained — the tar can be hundreds of MB once buckets fill up
+
 ### 2. Reset
 
 ```bash
@@ -102,6 +121,13 @@ restore "backups/local-public-$TS.sql"
 
 Order matters: `public` rows often FK into `auth.users`, so auth must come first.
 
+If `--with-files` was used at dump time, also restore the storage volume contents (run anytime after `supabase start`, before or after the SQL restore — the `version_id` matching is preserved by the tar):
+
+```bash
+gunzip -c "backups/local-storage-files-$TS.tar.gz" \
+  | docker exec -i supabase_storage_grimolia tar -xf - -C /mnt/stub/stub
+```
+
 ### 5. Verify
 
 Spot-check counts on the tables that matter:
@@ -119,12 +145,63 @@ ORDER BY tbl;"
 
 Compare with what the user expects. If a table is unexpectedly empty, suspect a silent failure in step 4 — re-run restore for that schema and read the full psql output.
 
+## Storage buckets with binary files (audio, images, …)
+
+Buckets like `music-theme-tracks`, `avatars`, `book-covers` keep two pieces of state:
+
+1. **DB rows** in `storage.buckets` and `storage.objects` (path, version, size, mimetype, owner) — these ARE in the storage dump.
+2. **Physical files** at `/mnt/stub/stub/<bucket>/<storage_path>/<version_id>` inside the `supabase_storage_<project>` Docker volume — these are NOT in the dump.
+
+`supabase db reset` only resets Postgres. The storage volume is untouched, so physical files survive the reset. After truncate + restore the DB rows come back, with `version_id` matching the existing files on disk → signed URLs work, downloads succeed. Verified end-to-end with 28/28 music tracks.
+
+**Pre-reset integrity check** (run inside the `supabase_storage_*` container, busybox find — no `-printf`):
+
+```bash
+docker exec supabase_storage_grimolia sh -c 'find /mnt/stub/stub/<bucket-name> -type f' | wc -l
+```
+
+Compare with `SELECT count(*) FROM storage.objects WHERE bucket_id='<bucket-name>'` — should match.
+
+**Post-restore integrity check** (verifies version IDs line up with files on disk):
+
+```bash
+DB_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+ok=0; missing=0
+while IFS=$'\t' read -r name ver; do
+  if docker exec supabase_storage_grimolia sh -c "test -f '/mnt/stub/stub/<bucket-name>/$name/$ver'"; then
+    ok=$((ok+1)); else missing=$((missing+1)); echo "MISSING: $name v=$ver"
+  fi
+done < <(psql "$DB_URL" -At -F$'\t' -c "SELECT name, version FROM storage.objects WHERE bucket_id='<bucket-name>'")
+echo "OK=$ok MISSING=$missing"
+```
+
+**Danger zones** — physical files can disappear and break this:
+- `supabase stop --no-backup` → wipes ALL volumes including storage
+- `docker volume rm supabase_storage_<project>` → same
+- A failed/recreated container that lost its volume mount (recovery from a Docker disk-full or network corruption — see "Docker environment is broken" below)
+
+If physical files are gone but DB rows have been restored, signed URLs return 404. **There is no recovery from the dump** — re-upload via the app/admin is the only path. Tell the user explicitly when this happens.
+
+## Docker environment is broken
+
+If `npx supabase status` shows the DB as exited but `docker inspect` says running (or vice versa), the CLI cache and Docker reality have diverged. Check:
+
+1. **Disk space** — `df -h /` and `docker system df`. If host filesystem is < 1 GB free or build cache > 5 GB, Docker can't start containers (`no space left on device`). Fix order: `docker builder prune -af` (safe, big gain), then remove old project containers (`docker ps -a --filter "name=_<old-project-name>"` then `docker rm`).
+2. **Zombie network endpoints** — error `endpoint with name X already exists in network`. Fix:
+   ```bash
+   docker network disconnect -f supabase_network_<project> <ghost-container>
+   docker network rm supabase_network_<project>   # then supabase start recreates it
+   ```
+   Volumes (i.e. data) are preserved across this — only the network and stopped containers go away.
+3. **Stale containers from a renamed project** — if `config.toml` `project_id` was changed, old `supabase_*_<old-name>` containers linger. Safe to `docker rm -f` them, the volumes are independent.
+
 ## Common failure modes
 
 - **`duplicate key` aborting a restore transaction** → the TRUNCATE in step 3 was incomplete. Check which schema, add to the truncate list, retry.
 - **`relation does not exist` during restore** → migrations weren't applied (step 2 failed). Re-run `supabase db reset` and check migration output.
 - **Circular FK still erroring** → `session_replication_role = replica` requires superuser; the local `postgres` role has it, but if the session was opened differently this fails. Make sure you're connecting as `postgres` (default).
 - **A migration changes an existing column type/name** → data-only restore will fail. Tell the user this skill assumes additive migrations only; for breaking schema changes, take a full schema+data dump and restore that instead (skipping `db reset`).
+- **Storage 404 on a path that's in `storage.objects`** → physical file missing from the volume (see "Storage buckets with binary files" above). Cross-check `name` + `version` against `/mnt/stub/stub/<bucket>/...` to confirm.
 
 ## Output expectations
 

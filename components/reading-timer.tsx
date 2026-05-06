@@ -1,4 +1,5 @@
 import { BookCover } from "@/components/book-cover";
+import { MusicPlayerPanel } from "@/components/reading-music/music-player-panel";
 import { formatDuration, useElapsedTime } from "@/hooks/use-elapsed-time";
 import { useBookshelf } from "@/store/bookshelf";
 import { useTimer } from "@/store/timer";
@@ -263,6 +264,8 @@ export function ActiveTimerPanel({
           <Text className="text-center font-sans-med text-paper">Terminer</Text>
         </Pressable>
       </View>
+
+      <MusicPlayerPanel />
 
       <FinishSessionModal
         open={finishOpen}

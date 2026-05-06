@@ -5,6 +5,7 @@ import { BingoPillsSection } from "./sections/bingo-pills-section";
 import { BooksSection } from "./sections/books-section";
 import { BordersSection } from "./sections/borders-section";
 import { FondsSection } from "./sections/fonds-section";
+import { MusiquesSection } from "./sections/musiques-section";
 import { StickersSection } from "./sections/stickers-section";
 import { SubscriptionsSection } from "./sections/subscriptions-section";
 import { LoginForm } from "./components/login";
@@ -24,6 +25,7 @@ type Tab =
   | "avatar-frames"
   | "books"
   | "pills"
+  | "musiques"
   | "subscriptions";
 type Theme = "light" | "dark";
 
@@ -35,6 +37,7 @@ const TABS: Tab[] = [
   "avatar-frames",
   "books",
   "pills",
+  "musiques",
   "subscriptions",
 ];
 const TAB_LABELS: Record<Tab, string> = {
@@ -45,6 +48,7 @@ const TAB_LABELS: Record<Tab, string> = {
   "avatar-frames": "Cadres photo",
   books: "Livres",
   pills: "Défis bingo",
+  musiques: "Musiques",
   subscriptions: "Abonnements",
 };
 const TAB_ICONS: Record<Tab, JSX.Element> = {
@@ -89,6 +93,13 @@ const TAB_ICONS: Record<Tab, JSX.Element> = {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="3" width="18" height="18" rx="2" />
       <path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
+    </svg>
+  ),
+  musiques: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 18V5l12-2v13" />
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="18" cy="16" r="3" />
     </svg>
   ),
   subscriptions: (
@@ -306,6 +317,9 @@ export function App() {
         )}
         {route.tab === "pills" && (
           <BingoPillsSection itemId={route.itemId} onItemChange={selectItem} />
+        )}
+        {route.tab === "musiques" && (
+          <MusiquesSection itemId={route.itemId} onItemChange={selectItem} />
         )}
         {route.tab === "subscriptions" && (
           <SubscriptionsSection itemId={route.itemId} onItemChange={selectItem} />
