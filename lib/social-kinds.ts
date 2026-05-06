@@ -9,6 +9,7 @@
 import {
   configureProfileResolver,
   registerKind,
+  Reviews,
   type SocialProfile,
 } from '@grimolia/social';
 
@@ -46,5 +47,20 @@ registerKind('sheet', {
   allowedReactions: ['like', 'love'],
 });
 
-// Les autres registerKind ('book', 'bingo', 'review'…) viendront quand on
-// branchera les features qui en ont besoin (réactions sur livres, feed).
+// Kind 'review' — avis public sur livre. Le feed renvoie target_kind='review'
+// + meta { book_isbn, rating, post_text } ; le fetcher hydrate le contenu
+// (comment + score) si l'UI a besoin de plus que ce que le meta porte.
+// La route mène vers la page du livre (l'avis y est ancré, pas de page
+// dédiée pour l'instant).
+registerKind('review', {
+  fetch: async (id: string) => Reviews.fetchReview(id),
+  // Pas de routeTo synchrone : la cible est /book/[isbn] mais l'isbn est
+  // dans meta.book_isbn (côté feed entry), pas dérivable de l'id seul.
+  // Le feed UI lira le meta directement pour router.
+  //
+  // Pas de réactions emoji sur les reviews — les votes up/down vivent dans
+  // book_reviews_votes, distincts de social_reactions.
+});
+
+// Les autres registerKind ('book', 'bingo'…) viendront quand on branchera
+// les features qui en ont besoin.

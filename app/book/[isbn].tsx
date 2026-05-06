@@ -1,4 +1,5 @@
 import { BookCover } from "@/components/book-cover";
+import { ReviewsSection } from "@/components/book-reviews/reviews-section";
 import { BookStatusBar } from "@/components/book-status-bar";
 import { GenreEditorModal } from "@/components/genre-editor-modal";
 import { LoanTracker } from "@/components/loan-tracker";
@@ -324,6 +325,9 @@ export default function BookDetailScreen() {
           {existing && <SheetPreview userBook={existing} />}
           {isbn ? (
             <PublicSheetsForBook isbn={isbn} currentUserId={currentUserId} />
+          ) : null}
+          {isbn ? (
+            <ReviewsSection bookIsbn={isbn} bookTitle={data.title} />
           ) : null}
 
           {existing && (
