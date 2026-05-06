@@ -18,9 +18,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-export type HomeCardId = 'library' | 'sheets' | 'defi';
+export type HomeCardId = 'library' | 'sheets' | 'defi' | 'start_reading';
 
-export const AVAILABLE_HOME_CARDS: HomeCardId[] = ['library', 'sheets', 'defi'];
+export const AVAILABLE_HOME_CARDS: HomeCardId[] = [
+  'start_reading',
+  'library',
+  'sheets',
+  'defi',
+];
 
 export type Preferences = {
   dailyReadingGoalMinutes: number;

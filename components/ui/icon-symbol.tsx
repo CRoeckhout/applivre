@@ -23,6 +23,7 @@ const MAPPING = {
   'person.fill': 'person',
   'note.text': 'edit-note',
   'flame.fill': 'local-fire-department',
+  'newspaper.fill': 'dynamic-feed',
 } as IconMapping;
 
 /**

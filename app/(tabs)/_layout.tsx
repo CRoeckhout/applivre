@@ -40,6 +40,15 @@ export default function TabLayout() {
           name="index"
           options={{
             title: 'Accueil',
+            tabBarIcon: ({ color }) => (
+              <IconSymbol size={26} name="newspaper.fill" color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="home"
+          options={{
+            title: 'Chez moi',
             tabBarIcon: ({ color }) => <IconSymbol size={26} name="house.fill" color={color} />,
           }}
         />
@@ -50,13 +59,6 @@ export default function TabLayout() {
             tabBarIcon: ({ color }) => (
               <IconSymbol size={26} name="barcode.viewfinder" color={color} />
             ),
-          }}
-        />
-        <Tabs.Screen
-          name="sheets"
-          options={{
-            title: 'Fiches',
-            tabBarIcon: ({ color }) => <IconSymbol size={26} name="note.text" color={color} />,
           }}
         />
         <Tabs.Screen

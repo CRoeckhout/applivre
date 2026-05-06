@@ -1,8 +1,9 @@
+import { BookCover } from "@/components/book-cover";
 import { formatDuration, useElapsedTime } from "@/hooks/use-elapsed-time";
 import { useBookshelf } from "@/store/bookshelf";
 import { useTimer } from "@/store/timer";
 import { useEffect, useState } from "react";
-import { Modal, Pressable, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 
 type Props = {
@@ -24,8 +25,6 @@ export function ReadingTimer({
 }: Props) {
   const active = useTimer((s) => s.active);
   const start = useTimer((s) => s.start);
-  const pause = useTimer((s) => s.pause);
-  const resume = useTimer((s) => s.resume);
   const cancel = useTimer((s) => s.cancel);
 
   const bookStatus = useBookshelf(
@@ -36,17 +35,15 @@ export function ReadingTimer({
   const isActiveElsewhere = !!active && !isActiveHere;
 
   if (!active) {
-    const isReread = bookStatus === 'read';
+    const isReread = bookStatus === "read";
     return (
-      <Pressable
-        onPress={() => start(userBookId)}
-        className="mt-6 flex-row items-center justify-center gap-2 rounded-full bg-ink px-6 py-4 active:opacity-80"
-      >
-        <Text className="text-xl text-paper">{isReread ? '💖' : '▶'}</Text>
-        <Text className="font-sans-med text-paper">
-          {isReread ? 'Relire mon livre' : 'Commencer à lire'}
-        </Text>
-      </Pressable>
+      <View className="mt-6">
+        <StartReadingButton
+          label={isReread ? "Relire mon livre" : "Commencer à lire"}
+          icon={isReread ? "💖" : "▶"}
+          onPress={() => start(userBookId)}
+        />
+      </View>
     );
   }
 
@@ -69,32 +66,118 @@ export function ReadingTimer({
   }
 
   return (
-    <ActiveTimerPanel
-      paused={active.pausedAt !== null}
-      onPause={pause}
-      onResume={resume}
-      autoOpenFinish={autoOpenFinish}
-      onFinishAutoOpenConsumed={onFinishAutoOpenConsumed}
-      onBookFinished={onBookFinished}
-    />
+    <View className="mt-6">
+      <ActiveTimerPanel
+        autoOpenFinish={autoOpenFinish}
+        onFinishAutoOpenConsumed={onFinishAutoOpenConsumed}
+        onBookFinished={onBookFinished}
+      />
+    </View>
   );
 }
 
-function ActiveTimerPanel({
-  paused,
-  onPause,
-  onResume,
+type StartReadingBookContext = {
+  isbn: string;
+  coverUrl?: string;
+  title: string;
+  authors: string[];
+};
+
+export function StartReadingButton({
+  label,
+  icon,
+  onPress,
+  onLongPress,
+  book,
+  subtitle,
+}: {
+  label: string;
+  icon: string;
+  onPress: () => void;
+  onLongPress?: () => void;
+  // Affiche couverture + titre du livre dans le bouton, sous le texte du
+  // CTA. Activé sur la home (où aucun autre composant ne montre le livre
+  // visé). Sur la fiche livre, omis car le détail affiche déjà le livre.
+  book?: StartReadingBookContext;
+  // Texte affiché sous le CTA quand `book` n'est pas fourni (ex: "3 livres
+  // en cours" sur la home avec plusieurs livres en lecture).
+  subtitle?: string;
+}) {
+  const hasFooter = !!book || !!subtitle;
+
+  if (!hasFooter) {
+    return (
+      <Pressable
+        onPress={onPress}
+        onLongPress={onLongPress}
+        delayLongPress={onLongPress ? 280 : undefined}
+        className="flex-row items-center justify-center gap-2 rounded-full bg-ink px-6 py-4 active:opacity-80"
+      >
+        <Text className="text-xl text-paper">{icon}</Text>
+        <Text className="font-sans-med text-paper">{label}</Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={onLongPress ? 280 : undefined}
+      className="rounded-3xl bg-ink px-5 py-4 active:opacity-80"
+    >
+      <View className="flex-row items-center justify-center gap-2">
+        <Text className="text-xl text-paper">{icon}</Text>
+        <Text className="font-sans-med text-paper  text-xl">{label}</Text>
+      </View>
+      {book ? (
+        <View className="mt-3 flex-row items-center justify-center gap-2">
+          <BookCover
+            isbn={book.isbn}
+            coverUrl={book.coverUrl}
+            style={{ width: 32, height: 48, borderRadius: 4 }}
+          />
+          <Text
+            numberOfLines={1}
+            className="flex-shrink text-sm text-paper-shade"
+          >
+            {book.title}
+          </Text>
+        </View>
+      ) : (
+        <Text className="mt-2 text-center text-sm text-paper-shade">
+          {subtitle}
+        </Text>
+      )}
+    </Pressable>
+  );
+}
+
+export function ActiveTimerPanel({
   autoOpenFinish,
   onFinishAutoOpenConsumed,
   onBookFinished,
+  showBook = false,
+  onPressBook,
+  onLongPress,
 }: {
-  paused: boolean;
-  onPause: () => void;
-  onResume: () => void;
   autoOpenFinish?: boolean;
   onFinishAutoOpenConsumed?: () => void;
   onBookFinished?: (finalPage?: number) => void;
+  // Affiche un en-tête livre (couverture + titre + auteur) au-dessus du
+  // panneau du timer. Sur la fiche livre, le détail affiche déjà le livre,
+  // donc on garde ce flag à false. Sur la home, où la session vit hors
+  // contexte du livre, on l'active pour montrer ce qui est en cours.
+  showBook?: boolean;
+  onPressBook?: () => void;
+  onLongPress?: () => void;
 }) {
+  const active = useTimer((s) => s.active);
+  const pause = useTimer((s) => s.pause);
+  const resume = useTimer((s) => s.resume);
+  const ub = useBookshelf((s) =>
+    active ? s.books.find((b) => b.id === active.userBookId) : undefined,
+  );
   const elapsed = useElapsedTime();
   const [finishOpen, setFinishOpen] = useState(false);
 
@@ -105,11 +188,46 @@ function ActiveTimerPanel({
     }
   }, [autoOpenFinish, onFinishAutoOpenConsumed]);
 
+  if (!active) return null;
+  const paused = active.pausedAt !== null;
+  const showBookHeader = showBook && !!ub;
+
   return (
     <Animated.View
       entering={FadeIn.duration(300)}
-      className="mt-6 rounded-3xl bg-ink p-8"
+      className="rounded-3xl bg-ink p-8"
     >
+      {showBookHeader && (
+        <>
+          <Pressable
+            onPress={onPressBook}
+            onLongPress={onLongPress}
+            delayLongPress={280}
+            className="flex-row items-center gap-3 active:opacity-80"
+          >
+            <BookCover
+              isbn={ub.book.isbn}
+              coverUrl={ub.book.coverUrl}
+              style={{ width: 44, height: 66, borderRadius: 6 }}
+            />
+            <View className="flex-1">
+              <Text
+                numberOfLines={2}
+                className="font-display text-lg text-paper"
+              >
+                {ub.book.title}
+              </Text>
+              {ub.book.authors[0] ? (
+                <Text numberOfLines={1} className="text-sm text-paper-shade">
+                  {ub.book.authors[0]}
+                </Text>
+              ) : null}
+            </View>
+          </Pressable>
+          <View className="my-6 h-px bg-paper/15" />
+        </>
+      )}
+
       <Text
         style={{ fontVariant: ["tabular-nums"] }}
         className="text-center font-display text-6xl text-paper"
@@ -123,7 +241,7 @@ function ActiveTimerPanel({
       <View className="mt-8 flex-row justify-center gap-3">
         {paused ? (
           <Pressable
-            onPress={onResume}
+            onPress={resume}
             className="flex-1 rounded-full bg-accent px-6 py-3 active:opacity-80"
           >
             <Text className="text-center font-sans-med text-paper">
@@ -132,7 +250,7 @@ function ActiveTimerPanel({
           </Pressable>
         ) : (
           <Pressable
-            onPress={onPause}
+            onPress={pause}
             className="flex-1 rounded-full bg-paper/15 px-6 py-3 active:opacity-80"
           >
             <Text className="text-center font-sans-med text-paper">Pause</Text>
@@ -224,9 +342,12 @@ function FinishSessionModal({
     >
       <Pressable
         onPress={onClose}
-        className="flex-1 bg-ink/60 px-6"
-        style={{ justifyContent: "center" }}
+        className="flex-1 bg-ink/60"
       >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1, justifyContent: "center", paddingHorizontal: 24 }}
+        >
         <Pressable
           className="rounded-3xl bg-paper p-6"
           onPress={(e) => e.stopPropagation()}
@@ -294,6 +415,7 @@ function FinishSessionModal({
             </Pressable>
           </View>
         </Pressable>
+        </KeyboardAvoidingView>
       </Pressable>
     </Modal>
   );

@@ -64,6 +64,13 @@ export default function SheetsScreen() {
         <Animated.View
           entering={FadeInDown.duration(500)}
           className="flex-row items-center gap-3">
+          <Pressable
+            onPress={() => router.back()}
+            accessibilityLabel="Retour"
+            hitSlop={8}
+            className="h-11 w-11 items-center justify-center rounded-full active:opacity-60">
+            <MaterialIcons name="arrow-back" size={22} color={theme.ink} />
+          </Pressable>
           <View className="flex-1">
             <Text className="font-display text-3xl text-ink">Mes fiches</Text>
             <Text className="mt-1 text-sm text-ink-muted">

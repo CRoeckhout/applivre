@@ -291,6 +291,7 @@ function AuthGate() {
           name="library"
           options={{ title: "Ma bibliothèque", headerBackTitle: "Retour" }}
         />
+        <Stack.Screen name="sheets" options={{ headerShown: false }} />
         <Stack.Screen
           name="book-manual"
           options={{ title: "Saisie manuelle", headerBackTitle: "Retour" }}

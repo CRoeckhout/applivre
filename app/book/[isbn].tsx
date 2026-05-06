@@ -6,11 +6,15 @@ import { PauseBookModal } from "@/components/pause-book-modal";
 import { PublicSheetsForBook } from "@/components/public-sheets-for-book";
 import { ReadingTimer } from "@/components/reading-timer";
 import { SheetCard } from "@/components/sheet-card";
-import { formatDurationHuman } from "@/hooks/use-elapsed-time";
 import { useAuth } from "@/hooks/use-auth";
+import { formatDurationHuman } from "@/hooks/use-elapsed-time";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { fetchBook } from "@/lib/books";
-import { categorySuggestions, displayGenres, normalizeCategory } from "@/lib/genre";
+import {
+  categorySuggestions,
+  displayGenres,
+  normalizeCategory,
+} from "@/lib/genre";
 import { newId } from "@/lib/id";
 import { isCustomAppearance, mergeAppearance } from "@/lib/sheet-appearance";
 import { useBookshelf } from "@/store/bookshelf";
@@ -199,7 +203,10 @@ export default function BookDetailScreen() {
     }
   };
 
-  const onPauseConfirm = (page: number | undefined, summary: string | undefined) => {
+  const onPauseConfirm = (
+    page: number | undefined,
+    summary: string | undefined,
+  ) => {
     if (!existing) return;
     // Pas de finishCycle : la pause garde le cycle ouvert. Si une session
     // timer est active sur ce livre, on la met aussi en pause.
@@ -284,10 +291,6 @@ export default function BookDetailScreen() {
           ) : (
             <CatalogGenreRow categories={data.categories} />
           )}
-          {existing && <SheetPreview userBook={existing} />}
-          {isbn ? (
-            <PublicSheetsForBook isbn={isbn} currentUserId={currentUserId} />
-          ) : null}
 
           {existing && existing.status === "paused" && (
             <PausedInfo
@@ -317,6 +320,12 @@ export default function BookDetailScreen() {
               }}
             />
           )}
+
+          {existing && <SheetPreview userBook={existing} />}
+          {isbn ? (
+            <PublicSheetsForBook isbn={isbn} currentUserId={currentUserId} />
+          ) : null}
+
           {existing && (
             <ReadingStats
               userBookId={existing.id}
@@ -393,17 +402,13 @@ export default function BookDetailScreen() {
       {navigation?.prev && (
         <NavArrow
           direction="left"
-          onPress={() =>
-            router.replace(`/book/${navigation.prev!.book.isbn}`)
-          }
+          onPress={() => router.replace(`/book/${navigation.prev!.book.isbn}`)}
         />
       )}
       {navigation?.next && (
         <NavArrow
           direction="right"
-          onPress={() =>
-            router.replace(`/book/${navigation.next!.book.isbn}`)
-          }
+          onPress={() => router.replace(`/book/${navigation.next!.book.isbn}`)}
         />
       )}
       <BookStatusBar
@@ -433,7 +438,7 @@ function NavArrow({
       style={{
         position: "absolute",
         [direction]: 8,
-        top: "40%",
+        top: "20%",
         width: 44,
         height: 44,
         borderRadius: 22,
