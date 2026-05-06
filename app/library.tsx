@@ -6,7 +6,7 @@ import type { ReadingStatus, UserBook } from '@/types/book';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -500,7 +500,11 @@ function PickerModal({
 }) {
   return (
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable onPress={onClose} className="flex-1 bg-ink/60 px-6" style={{ justifyContent: 'center' }}>
+      <Pressable onPress={onClose} className="flex-1 bg-ink/60">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 24 }}
+        >
         <Pressable
           onPress={(e) => e.stopPropagation()}
           className="rounded-3xl bg-paper p-5"
@@ -533,6 +537,7 @@ function PickerModal({
             <Text className="text-center text-ink-muted">Fermer</Text>
           </Pressable>
         </Pressable>
+        </KeyboardAvoidingView>
       </Pressable>
     </Modal>
   );

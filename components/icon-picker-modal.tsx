@@ -70,12 +70,12 @@ export function IconPickerModal({
 
   return (
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}>
       <Pressable
         onPress={onClose}
-        className="flex-1 items-center justify-end bg-ink/50 px-4 pb-6">
+        className="flex-1 bg-ink/50">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 24 }}>
         <Pressable
           onPress={(e) => e.stopPropagation()}
           className="w-full max-w-xl rounded-3xl bg-paper p-4"
@@ -122,8 +122,8 @@ export function IconPickerModal({
             </Pressable>
           </View>
         </Pressable>
+        </KeyboardAvoidingView>
       </Pressable>
-      </KeyboardAvoidingView>
     </Modal>
   );
 }

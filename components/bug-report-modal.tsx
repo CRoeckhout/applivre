@@ -9,7 +9,9 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -84,9 +86,12 @@ export function BugReportModal({ open, onClose }: Props) {
     >
       <Pressable
         onPress={onClose}
-        className="flex-1 bg-ink/60 px-6"
-        style={{ justifyContent: "center" }}
+        className="flex-1 bg-ink/60"
       >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1, justifyContent: "center", paddingHorizontal: 24 }}
+        >
         <Pressable
           className="rounded-3xl bg-paper p-6"
           onPress={(e) => e.stopPropagation()}
@@ -214,6 +219,7 @@ export function BugReportModal({ open, onClose }: Props) {
             </View>
           </ScrollView>
         </Pressable>
+        </KeyboardAvoidingView>
       </Pressable>
     </Modal>
   );

@@ -2,8 +2,10 @@ import { isValidHex, normalizeHex } from '@/lib/theme/colors';
 import { useEffect, useState } from 'react';
 import {
   type GestureResponderEvent,
+  KeyboardAvoidingView,
   type LayoutChangeEvent,
   Modal,
+  Platform,
   Pressable,
   Text,
   TextInput,
@@ -100,8 +102,11 @@ export function ColorPickerModal({
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable
         onPress={onClose}
-        className="flex-1 bg-ink/60 px-6"
-        style={{ justifyContent: 'center' }}>
+        className="flex-1 bg-ink/60">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 24 }}
+        >
         <Pressable
           onPress={(e) => e.stopPropagation()}
           className="rounded-3xl bg-paper p-5">
@@ -188,6 +193,7 @@ export function ColorPickerModal({
             </Pressable>
           </View>
         </Pressable>
+        </KeyboardAvoidingView>
       </Pressable>
     </Modal>
   );

@@ -2,7 +2,7 @@ import { useCardFrame } from '@/components/card-frame-context';
 import { useBookshelf } from '@/store/bookshelf';
 import { useChallenges } from '@/store/challenges';
 import { useMemo, useState } from 'react';
-import { Modal, Pressable, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 const PRESETS = [12, 25, 50, 100];
@@ -170,8 +170,11 @@ function EditChallengeModal({
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable
         onPress={onClose}
-        className="flex-1 bg-ink/60 px-6"
-        style={{ justifyContent: 'center' }}>
+        className="flex-1 bg-ink/60">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 24 }}
+        >
         <Pressable className="rounded-3xl bg-paper p-6" onPress={(e) => e.stopPropagation()}>
           <Text className="font-display text-2xl text-ink">Défi {year}</Text>
           <Text className="mt-2 text-ink-muted">Combien de livres cette année ?</Text>
@@ -218,6 +221,7 @@ function EditChallengeModal({
             )}
           </View>
         </Pressable>
+        </KeyboardAvoidingView>
       </Pressable>
     </Modal>
   );

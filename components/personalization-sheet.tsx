@@ -16,7 +16,7 @@ import { usePersonalization } from '@/store/personalization';
 import { usePreferences } from '@/store/preferences';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -469,8 +469,11 @@ function SaveThemeModal({
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable
         onPress={onClose}
-        className="flex-1 bg-ink/60 px-6"
-        style={{ justifyContent: 'center' }}>
+        className="flex-1 bg-ink/60">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 24 }}
+        >
         <Pressable
           onPress={(e) => e.stopPropagation()}
           className="rounded-3xl bg-paper p-5">
@@ -532,6 +535,7 @@ function SaveThemeModal({
             </Pressable>
           </View>
         </Pressable>
+        </KeyboardAvoidingView>
       </Pressable>
     </Modal>
   );

@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 type Props = {
   open: boolean;
@@ -72,8 +72,11 @@ export function GenreEditorModal({ open, initial, suggestions, onClose, onSave }
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable
         onPress={onClose}
-        className="flex-1 bg-ink/60 px-6"
-        style={{ justifyContent: 'center' }}>
+        className="flex-1 bg-ink/60">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 24 }}
+        >
         <Pressable
           onPress={(e) => e.stopPropagation()}
           className="rounded-3xl bg-paper p-5"
@@ -175,6 +178,7 @@ export function GenreEditorModal({ open, initial, suggestions, onClose, onSave }
             </Pressable>
           </View>
         </Pressable>
+        </KeyboardAvoidingView>
       </Pressable>
     </Modal>
   );

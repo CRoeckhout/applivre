@@ -9,7 +9,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   Text,
   TextInput,
@@ -92,9 +94,12 @@ export function UsernameEditorModal({ open, onClose }: Props) {
     >
       <Pressable
         onPress={onClose}
-        className="flex-1 bg-ink/60 px-6"
-        style={{ justifyContent: "center" }}
+        className="flex-1 bg-ink/60"
       >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1, justifyContent: "center", paddingHorizontal: 24 }}
+        >
         <Pressable
           className="rounded-3xl bg-paper p-6"
           onPress={(e) => e.stopPropagation()}
@@ -171,6 +176,7 @@ export function UsernameEditorModal({ open, onClose }: Props) {
             </Pressable>
           </View>
         </Pressable>
+        </KeyboardAvoidingView>
       </Pressable>
     </Modal>
   );

@@ -13,7 +13,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useAudioPlayer } from "expo-audio";
 import * as Haptics from "expo-haptics";
 import { useMemo, useState } from "react";
-import { Modal, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 
 const CHIME_SOURCE = require("@/assets/sounds/chime.mp3");
@@ -328,9 +328,12 @@ function StreakSettingsModal({
     >
       <Pressable
         onPress={onClose}
-        className="flex-1 bg-ink/60 px-6"
-        style={{ justifyContent: "center" }}
+        className="flex-1 bg-ink/60"
       >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1, justifyContent: "center", paddingHorizontal: 24 }}
+        >
         <Pressable
           className="rounded-3xl bg-paper p-6"
           onPress={(e) => e.stopPropagation()}
@@ -412,6 +415,7 @@ function StreakSettingsModal({
             </Pressable>
           </View>
         </Pressable>
+        </KeyboardAvoidingView>
       </Pressable>
     </Modal>
   );
