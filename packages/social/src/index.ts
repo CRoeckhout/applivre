@@ -16,6 +16,7 @@ export type { TargetRef, KindAdapter, UserId } from './types';
 
 export * as Comments from './comments';
 export * as Discover from './discover';
+export * as Feed from './feed';
 export * as Follows from './follows';
 export * as Messaging from './messaging';
 export * as Reactions from './reactions';

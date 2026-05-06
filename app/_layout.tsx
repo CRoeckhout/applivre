@@ -304,6 +304,7 @@ function AuthGate() {
         <Stack.Screen name="sheet/view/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="sheet/by-book/[isbn]" options={{ headerShown: false }} />
         <Stack.Screen name="profile/[userId]" options={{ headerShown: false }} />
+        <Stack.Screen name="feed/[entryId]" options={{ headerShown: false }} />
         <Stack.Screen name="messages/index" options={{ headerShown: false }} />
         <Stack.Screen name="messages/[threadId]" options={{ headerShown: false }} />
         <Stack.Screen name="bingo/index" options={{ headerShown: false }} />
