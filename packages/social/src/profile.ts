@@ -19,6 +19,9 @@ export type SocialProfile = {
   username: string | null;
   display_name: string | null;
   avatar_url: string | null;
+  // Statut premium effectif. Cosmétique (mention "Premium" affichée à côté
+  // des badges). La date d'expiration reste privée côté DB.
+  is_premium?: boolean | null;
   // Apparence visuelle publique (cadre photo, fond, bordure, police,
   // couleurs). Whitelist côté DB — aucune donnée privée.
   appearance?: SocialProfileAppearance | null;
@@ -46,7 +49,7 @@ function getResolver(): ProfileResolver {
   return _resolver;
 }
 
-async function resolveProfiles(
+export async function resolveProfiles(
   userIds: UserId[],
 ): Promise<Record<UserId, SocialProfile>> {
   if (userIds.length === 0) return {};

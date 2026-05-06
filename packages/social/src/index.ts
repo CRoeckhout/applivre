@@ -6,6 +6,7 @@ export {
   configureProfileResolver,
   useProfile,
   useProfiles,
+  resolveProfiles,
 } from './profile';
 export type {
   SocialProfile,

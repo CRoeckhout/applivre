@@ -24,6 +24,11 @@
 --     (dailyReadingGoalMinutes, homeCardOrder, customThemes…) restent
 --     privées.
 --
+-- Statut premium : `is_premium` est exposé publiquement (mention "Premium"
+-- affichée dans les cards user et items de feed). C'est une information
+-- d'achievement / cosmétique au même titre que les badges. `premium_until`
+-- (date d'expiration) reste privé.
+--
 -- Badges : la table user_badges a une RLS self-only mais SECURITY DEFINER
 -- bypass cela. Considéré comme info publique (achievement showcase).
 
@@ -33,6 +38,7 @@ returns table (
   username text,
   display_name text,
   avatar_url text,
+  is_premium boolean,
   appearance jsonb,
   badge_keys text[]
 )
@@ -46,6 +52,7 @@ as $$
     p.username,
     p.display_name,
     p.avatar_url,
+    coalesce(p.is_premium, false) as is_premium,
     jsonb_strip_nulls(jsonb_build_object(
       'fontId',         p.preferences->'fontId',
       'colorPrimary',   p.preferences->'colorPrimary',

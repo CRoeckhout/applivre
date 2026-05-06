@@ -19,12 +19,14 @@
 import { AvatarFrame } from "@/components/avatar-frame";
 import { Badge } from "@/components/badges/badge";
 import { FondLayer } from "@/components/fond-layer";
+import { PremiumChip } from "@/components/premium-chip";
 import { useAuth } from "@/hooks/use-auth";
+import { useThemeColors } from "@/hooks/use-theme-colors";
 import { hexWithAlpha } from "@/lib/sheet-appearance";
 import { getFont } from "@/lib/theme/fonts";
 import { usePreferences } from "@/store/preferences";
 import { MaterialIcons } from "@expo/vector-icons";
-import { Follows, useProfile } from "@grimolia/social";
+import { Follows, Messaging, useProfile } from "@grimolia/social";
 import type { BadgeKey } from "@/types/badge";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
@@ -201,14 +203,21 @@ function UserCardRich({
   const router = useRouter();
   const themeAccent = usePreferences((s) => s.colorPrimary);
   const themeInk = usePreferences((s) => s.colorSecondary);
-  const themePaper = usePreferences((s) => s.colorBg);
+  // paperWarm = teinte exacte des cards de la home (cf. CardFrame default).
+  // Sert quand l'auteur n'a PAS de fond image — on ignore son colorBg perso
+  // pour rester visuellement cohérent avec les cards de la home du visiteur.
+  const themePaperWarm = useThemeColors().paperWarm;
   const { session } = useAuth();
   const currentUserId = session?.user.id ?? null;
   const isSelf = currentUserId !== null && currentUserId === userId;
 
   const profileQuery = useProfile(userId);
   const isFollowingQuery = Follows.useIsFollowing(currentUserId, userId);
+  // Sens inverse : le user consulté me suit-il ? Combiné avec isFollowing,
+  // donne le statut "mutual" requis pour pouvoir démarrer une conversation.
+  const followsMeQuery = Follows.useIsFollowing(userId, currentUserId);
   const toggleFollow = Follows.useToggleFollow(currentUserId);
+  const ensureThread = Messaging.useEnsureThread();
 
   const profile = profileQuery.data;
   // Mirror du dashboard : line 1 = username (favorisé), fallback display_name.
@@ -234,7 +243,12 @@ function UserCardRich({
 
   const fontFamily =
     ownerFontId ? getFont(ownerFontId as never).variants.display : undefined;
-  const cardBg = ownerColorBg ?? themePaper;
+  const hasFond = !!ownerFondId && ownerFondId !== "none";
+  // Avec fond image : on respecte le colorBg de l'auteur en backdrop (le
+  // fond a été dessiné avec cette couleur en référence).
+  // Sans fond : on tombe sur paperWarm — même teinte que les cards de la
+  // home du visiteur, pour blender avec son thème courant.
+  const cardBg = hasFond ? (ownerColorBg ?? themePaperWarm) : themePaperWarm;
   const fondColorOverrides =
     ownerColorPrimary && ownerColorSecondary && ownerColorBg
       ? {
@@ -245,8 +259,57 @@ function UserCardRich({
       : undefined;
 
   const isFollowing = isFollowingQuery.data ?? false;
+  const followsMe = followsMeQuery.data ?? false;
+  const isMutual = !isSelf && isFollowing && followsMe;
   const navProfile = onPress ?? (() => router.push(`/profile/${userId}`));
 
+  const openConversation = async () => {
+    if (!currentUserId || ensureThread.isPending) return;
+    try {
+      const threadId = await ensureThread.mutateAsync(userId);
+      // `other` en param pour rendre l'écran utilisable AVANT que le thread
+      // n'apparaisse dans list_my_threads — qui filtre les threads vides
+      // (sans last_message_at). Sans ce param, un thread fraîchement créé
+      // n'a aucun moyen de savoir qui est l'interlocuteur.
+      router.push({
+        pathname: '/messages/[threadId]',
+        params: { threadId, other: userId },
+      });
+    } catch {
+      // Échec silencieux : si la policy a changé entre le calcul UI et l'appel
+      // SQL, on n'ouvre pas la conv. L'UI restera juste sans feedback v1.
+    }
+  };
+
+  const messageBtn =
+    isMutual && currentUserId ? (
+      <Pressable
+        onPress={openConversation}
+        disabled={ensureThread.isPending}
+        accessibilityLabel="Envoyer un message"
+        style={({ pressed }) => ({
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          borderRadius: 999,
+          borderWidth: 1,
+          borderColor: themeAccent,
+          backgroundColor: "transparent",
+          opacity: ensureThread.isPending ? 0.6 : pressed ? 0.85 : 1,
+        })}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <MaterialIcons name="chat-bubble-outline" size={16} color={themeAccent} />
+          <Text
+            className="font-sans-med"
+            style={{ fontSize: 14, color: themeAccent }}
+          >
+            Message
+          </Text>
+        </View>
+      </Pressable>
+    ) : null;
+
+  const isPremium = profile?.is_premium === true;
   const badgeKeys = profile?.badge_keys ?? [];
   const visibleBadges = badgeKeys.slice(0, RICH_BADGE_COUNT);
 
@@ -263,11 +326,8 @@ function UserCardRich({
         accessibilityLabel={isFollowing ? "Ne plus suivre" : "Suivre"}
         accessibilityState={{ selected: isFollowing }}
         style={({ pressed }) => ({
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 4,
-          paddingHorizontal: 10,
-          paddingVertical: 4,
+          paddingHorizontal: 14,
+          paddingVertical: 8,
           borderRadius: 999,
           borderWidth: 1,
           borderColor: themeAccent,
@@ -280,17 +340,26 @@ function UserCardRich({
                 : 1,
         })}
       >
-        <MaterialIcons
-          name={isFollowing ? "check" : "person-add"}
-          size={12}
-          color={isFollowing ? themeAccent : "#fff"}
-        />
-        <Text
-          className="font-sans-med text-xs"
-          style={{ color: isFollowing ? themeAccent : "#fff" }}
+        {/* Wrapper explicite : flexDirection sur la style function du
+            Pressable n'est pas toujours fiable (label tombe sous l'icône). */}
+        <View
+          style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
         >
-          {isFollowing ? "Suivi" : "Suivre"}
-        </Text>
+          <MaterialIcons
+            name={isFollowing ? "check" : "person-add"}
+            size={16}
+            color={isFollowing ? themeAccent : "#fff"}
+          />
+          <Text
+            className="font-sans-med"
+            style={{
+              fontSize: 14,
+              color: isFollowing ? themeAccent : "#fff",
+            }}
+          >
+            {isFollowing ? "Suivi" : "Suivre"}
+          </Text>
+        </View>
       </Pressable>
     ) : null;
 
@@ -307,7 +376,7 @@ function UserCardRich({
     >
       {/* Fond image du owner posé en absolute fill — visible derrière le
           contenu, ne change pas la silhouette de la card. */}
-      {ownerFondId && ownerFondId !== "none" ? (
+      {hasFond ? (
         <FondLayer
           bgColor={cardBg}
           fondId={ownerFondId}
@@ -359,18 +428,28 @@ function UserCardRich({
               )}
             </AvatarFrame>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text
-                numberOfLines={1}
+              <View
                 style={{
-                  fontFamily,
-                  fontSize: 15,
-                  fontWeight: "600",
-                  color: ownerColorSecondary ?? themeInk,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
                   marginBottom: 2,
                 }}
               >
-                {primary}
-              </Text>
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    fontFamily,
+                    fontSize: 15,
+                    fontWeight: "600",
+                    color: ownerColorSecondary ?? themeInk,
+                    flexShrink: 1,
+                  }}
+                >
+                  {primary}
+                </Text>
+                {isPremium ? <PremiumChip /> : null}
+              </View>
               {secondary ? (
                 <Text
                   numberOfLines={1}
@@ -400,7 +479,12 @@ function UserCardRich({
             </View>
           </Pressable>
 
-          {followBtn}
+          {followBtn || messageBtn ? (
+            <View style={{ alignItems: "flex-end", gap: 6 }}>
+              {followBtn}
+              {messageBtn}
+            </View>
+          ) : null}
         </View>
 
         {stats && stats.length > 0 ? (
