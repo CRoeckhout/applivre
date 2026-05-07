@@ -30,9 +30,13 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { spawnSync } from 'node:child_process'
 
 const BUCKET = 'music-theme-tracks'
 const DRY_RUN = process.argv.includes('--dry-run')
+// Fallback : si l'API storage local plante (ex: xattrs perdus après tar/untar),
+// lire les fichiers directement depuis le volume Docker via `docker exec`.
+const STORAGE_CONTAINER = process.env.SUPABASE_STORAGE_CONTAINER ?? 'supabase_storage_grimolia'
 
 const LOCAL_URL = process.env.SUPABASE_LOCAL_URL ?? 'http://127.0.0.1:54321'
 const LOCAL_KEY = process.env.SUPABASE_LOCAL_SERVICE_ROLE_KEY
@@ -172,14 +176,38 @@ for (const tr of localTracks) {
       console.log(`  [DRY] would upload ${path}`)
       filesUploaded++
     } else {
+      // Try API first; fall back to direct filesystem read if xattrs are broken
+      let buffer
       const { data: blob, error: dlErr } = await local.storage
         .from(BUCKET)
         .download(path)
       if (dlErr) {
-        warnings.push(`download local ${path}: ${dlErr.message}`)
-        continue
+        // Lookup version_id via psql (storage schema isn't exposed via PostgREST locally)
+        const safe = path.replace(/'/g, "''")
+        const q = spawnSync(
+          'psql',
+          ['postgresql://postgres:postgres@127.0.0.1:54322/postgres', '-At',
+           '-c', `SELECT version FROM storage.objects WHERE bucket_id = '${BUCKET}' AND name = '${safe}'`],
+          { encoding: 'utf8' },
+        )
+        const version = q.stdout?.trim()
+        if (q.status !== 0 || !version) {
+          warnings.push(`lookup version for ${path}: ${q.stderr?.trim() || 'no row'} (api: ${dlErr.message})`)
+          continue
+        }
+        const physPath = `/mnt/stub/stub/${BUCKET}/${path}/${version}`
+        const r = spawnSync('docker', ['exec', STORAGE_CONTAINER, 'cat', physPath], {
+          maxBuffer: 1024 * 1024 * 1024, // 1 GB — covers large audio/video
+        })
+        if (r.status !== 0) {
+          warnings.push(`docker exec cat ${physPath}: ${r.stderr?.toString() ?? 'failed'}`)
+          continue
+        }
+        buffer = r.stdout
+        console.log(`  (fallback docker exec for ${path})`)
+      } else {
+        buffer = Buffer.from(await blob.arrayBuffer())
       }
-      const buffer = Buffer.from(await blob.arrayBuffer())
       const { error: upErr } = await prod.storage
         .from(BUCKET)
         .upload(path, buffer, {
