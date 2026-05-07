@@ -4,8 +4,23 @@ import ExpoModulesCore
 public class LiveActivityModule: Module {
   private var activity: Any?
 
+  // Pointers Darwin pour pouvoir add/remove proprement les observers.
+  // Stockés ici pour qu'OnDestroy puisse les retirer (sinon callbacks dangling).
+  private var pauseObserverPtr: UnsafeMutableRawPointer?
+  private var resumeObserverPtr: UnsafeMutableRawPointer?
+
   public func definition() -> ModuleDefinition {
     Name("LiveActivityModule")
+
+    Events("onPause", "onResume")
+
+    OnCreate {
+      self.registerDarwinObservers()
+    }
+
+    OnDestroy {
+      self.unregisterDarwinObservers()
+    }
 
     Function("isAvailable") { () -> Bool in
       if #available(iOS 16.2, *) {
@@ -115,6 +130,68 @@ public class LiveActivityModule: Module {
         self.activity = nil
         promise.resolve(nil)
       }
+    }
+  }
+
+  // MARK: - Darwin notifications (instant pause/resume from Live Activity)
+  //
+  // Les LiveActivityIntent du widget (iOS 17+) postent une Darwin notification
+  // quand l'utilisateur tape pause/resume. On l'intercepte ici pour la
+  // forwarder à JS via Events. Le hook JS applique alors timer.pause/resume,
+  // et useReadingLiveActivity → update() → resync de l'Activity côté OS.
+
+  private static let pauseDarwinName = "com.corentin.grimolia.liveactivity.pause"
+  private static let resumeDarwinName = "com.corentin.grimolia.liveactivity.resume"
+
+  private func registerDarwinObservers() {
+    let center = CFNotificationCenterGetDarwinNotifyCenter()
+
+    // Le callback C ne capture pas self → on passe un opaque pointer vers
+    // le module et on le récupère dans le callback. `passUnretained` car
+    // on garde nous-mêmes le ptr et on le libère dans OnDestroy via remove.
+    let modulePtr = Unmanaged.passUnretained(self).toOpaque()
+    pauseObserverPtr = modulePtr
+    resumeObserverPtr = modulePtr
+
+    let pauseCallback: CFNotificationCallback = { _, observer, _, _, _ in
+      guard let observer = observer else { return }
+      let module = Unmanaged<LiveActivityModule>.fromOpaque(observer).takeUnretainedValue()
+      module.sendEvent("onPause", [:])
+    }
+
+    let resumeCallback: CFNotificationCallback = { _, observer, _, _, _ in
+      guard let observer = observer else { return }
+      let module = Unmanaged<LiveActivityModule>.fromOpaque(observer).takeUnretainedValue()
+      module.sendEvent("onResume", [:])
+    }
+
+    CFNotificationCenterAddObserver(
+      center, modulePtr, pauseCallback,
+      Self.pauseDarwinName as CFString, nil, .deliverImmediately
+    )
+    CFNotificationCenterAddObserver(
+      center, modulePtr, resumeCallback,
+      Self.resumeDarwinName as CFString, nil, .deliverImmediately
+    )
+  }
+
+  private func unregisterDarwinObservers() {
+    let center = CFNotificationCenterGetDarwinNotifyCenter()
+    if let ptr = pauseObserverPtr {
+      CFNotificationCenterRemoveObserver(
+        center, ptr,
+        CFNotificationName(Self.pauseDarwinName as CFString),
+        nil
+      )
+      pauseObserverPtr = nil
+    }
+    if let ptr = resumeObserverPtr {
+      CFNotificationCenterRemoveObserver(
+        center, ptr,
+        CFNotificationName(Self.resumeDarwinName as CFString),
+        nil
+      )
+      resumeObserverPtr = nil
     }
   }
 }

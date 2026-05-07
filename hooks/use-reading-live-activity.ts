@@ -2,6 +2,8 @@ import {
   endReadingActivity,
   hasActiveReadingActivity,
   isLiveActivityAvailable,
+  onPauseRequested,
+  onResumeRequested,
   startReadingActivity,
   updateReadingActivity,
 } from 'grimolia-live-activity';
@@ -9,13 +11,16 @@ import { useBookshelf } from '@/store/bookshelf';
 import { useTimer } from '@/store/timer';
 import { useEffect, useRef } from 'react';
 
-// Pilote la Live Activity iOS depuis le store timer. No-op en Expo Go
-// ou hors iOS (le module natif n'est pas lié → isLiveActivityAvailable
-// renvoie false).
+// Pilote la Live Activity (iOS) / la notification ongoing (Android) depuis
+// le store timer. No-op en Expo Go ou sur plateforme sans module natif.
 //
 // Astuce elapsed : on passe une `startedAt` virtuelle = wallStart +
-// accumulatedPausedMs. SwiftUI `Text(timerInterval:)` calcule ensuite
-// l'elapsed réel depuis cette ancre, tick-seconde gratuit côté OS.
+// accumulatedPausedMs. Le timer côté OS calcule ensuite l'elapsed réel
+// depuis cette ancre, tick-seconde gratuit.
+//
+// Android-only : subscribe aux events `onPause` / `onResume` envoyés par les
+// boutons de la notification (broadcast natif → instant, sans ouvrir l'app).
+// Sur iOS, ces boutons utilisent un deep link qui ouvre la fiche livre.
 export function useReadingLiveActivity() {
   const active = useTimer((s) => s.active);
   const books = useBookshelf((s) => s.books);
@@ -23,7 +28,6 @@ export function useReadingLiveActivity() {
 
   useEffect(() => {
     const available = isLiveActivityAvailable();
-    console.log('[live-activity] available=', available, 'active=', !!active);
     if (!available) return;
 
     if (!active) {
@@ -36,7 +40,6 @@ export function useReadingLiveActivity() {
 
     const ub = books.find((b) => b.id === active.userBookId);
     if (!ub) return;
-    console.log('[live-activity] starting/updating for', ub.book.title);
 
     const virtualStartMs = active.startedAt + active.accumulatedPausedMs;
     const isPaused = active.pausedAt !== null;
@@ -56,6 +59,7 @@ export function useReadingLiveActivity() {
           bookTitle: ub.book.title,
           bookAuthor: ub.book.authors[0] ?? '',
           bookIsbn: ub.book.isbn,
+          bookCoverUrl: ub.book.coverUrl ?? null,
           startedAtMs: virtualStartMs,
         });
       }
@@ -68,4 +72,19 @@ export function useReadingLiveActivity() {
       });
     }
   }, [active, books]);
+
+  // Une seule subscription pour les events Android (pause/resume depuis la
+  // notification). Sur iOS et hors Expo, no-op silencieux.
+  useEffect(() => {
+    const unsubPause = onPauseRequested(() => {
+      useTimer.getState().pause();
+    });
+    const unsubResume = onResumeRequested(() => {
+      useTimer.getState().resume();
+    });
+    return () => {
+      unsubPause();
+      unsubResume();
+    };
+  }, []);
 }
