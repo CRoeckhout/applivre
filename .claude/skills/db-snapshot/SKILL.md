@@ -47,8 +47,16 @@ Expect a `pg_dump` warning about circular FKs (e.g. `social_comments.parent_id`)
 If the user passes `--with-files` (or otherwise asks for "fichiers physiques", "binaires", "vraie sauvegarde complète"), add this dump step:
 
 ```bash
+# busybox tar (default in the alpine container) does NOT support --xattrs.
+# Without xattrs the restore loses user.supabase.{content-type,cache-control,etag}
+# and Storage v3 returns 500 ENODATA on every GET. Install GNU tar first.
+docker exec supabase_storage_grimolia sh -c \
+  'command -v setfattr >/dev/null || apk add --no-cache attr; \
+   /bin/tar --version 2>&1 | grep -q "GNU tar" || apk add --no-cache tar'
+
 docker exec supabase_storage_grimolia \
-  tar -cf - -C /mnt/stub/stub . \
+  tar --xattrs --xattrs-include='user.supabase.*' \
+      -cf - -C /mnt/stub/stub . \
   | gzip > "backups/local-storage-files-$TS.tar.gz"
 ```
 
@@ -124,9 +132,20 @@ Order matters: `public` rows often FK into `auth.users`, so auth must come first
 If `--with-files` was used at dump time, also restore the storage volume contents (run anytime after `supabase start`, before or after the SQL restore — the `version_id` matching is preserved by the tar):
 
 ```bash
+# Same constraint as the dump step: GNU tar required to restore xattrs.
+docker exec supabase_storage_grimolia sh -c \
+  'command -v setfattr >/dev/null || apk add --no-cache attr; \
+   /bin/tar --version 2>&1 | grep -q "GNU tar" || apk add --no-cache tar'
+
 gunzip -c "backups/local-storage-files-$TS.tar.gz" \
-  | docker exec -i supabase_storage_grimolia tar -xf - -C /mnt/stub/stub
+  | docker exec -i supabase_storage_grimolia \
+      tar --xattrs --xattrs-include='user.supabase.*' -xf - -C /mnt/stub/stub
 ```
+
+**Recovery if xattrs were lost** (e.g. older snapshot taken with busybox tar): all
+storage GETs return 500 with `code: ENODATA`. Run `node scripts/regen-storage-xattrs.mjs`
+to rebuild `user.supabase.{content-type,cache-control,etag}` from `storage.objects.metadata`.
+No re-upload needed — the physical files are intact, only metadata sidecars need restoring.
 
 ### 5. Verify
 
@@ -202,6 +221,7 @@ If `npx supabase status` shows the DB as exited but `docker inspect` says runnin
 - **Circular FK still erroring** → `session_replication_role = replica` requires superuser; the local `postgres` role has it, but if the session was opened differently this fails. Make sure you're connecting as `postgres` (default).
 - **A migration changes an existing column type/name** → data-only restore will fail. Tell the user this skill assumes additive migrations only; for breaking schema changes, take a full schema+data dump and restore that instead (skipping `db reset`).
 - **Storage 404 on a path that's in `storage.objects`** → physical file missing from the volume (see "Storage buckets with binary files" above). Cross-check `name` + `version` against `/mnt/stub/stub/<bucket>/...` to confirm.
+- **Storage 500 with `code: ENODATA` on every GET** → xattrs `user.supabase.*` were stripped (older snapshot taken/restored with busybox tar, or untar across a filesystem that doesn't preserve them). Run `node scripts/regen-storage-xattrs.mjs` to rebuild them from `storage.objects.metadata`. Physical files are fine — no re-upload needed.
 
 ## Output expectations
 
