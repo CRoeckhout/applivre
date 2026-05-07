@@ -107,6 +107,7 @@ export function BooksPanel({ userId }: Props) {
               <Th>Commencé</Th>
               <Th>Terminé</Th>
               <Th>Genres</Th>
+              <Th>Ajouté</Th>
             </tr>
           </thead>
           <tbody>
@@ -209,6 +210,7 @@ export function BooksPanel({ userId }: Props) {
                     <span className="muted">—</span>
                   )}
                 </Td>
+                <Td>{new Date(b.created_at).toLocaleDateString()}</Td>
               </tr>
             ))}
           </tbody>
