@@ -43,6 +43,10 @@ app-example
 /ios
 /android
 
+# generated gradle artifacts dans les modules locaux (Android side)
+modules/**/build/
+modules/**/.gradle/
+
 # Supabase local runtime
 supabase/.temp/
 backups

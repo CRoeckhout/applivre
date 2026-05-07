@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Layout COMPACT de la notification (collapsed mode). Contraint à ~64dp de
+  hauteur par Android quand utilisé avec DecoratedCustomViewStyle. Tout
+  tient sur une seule rangée :
+    [icon] [title (ellipsize) | timer] [pause] [stop]
+  Le titre prend l'espace dispo (weight=1, ellipsize end), le timer reste
+  fixé à droite. L'auteur est sacrifié — sera ajouté plus tard dans une
+  big content view séparée si nécessaire.
+
+  Les boutons ont leurs PendingIntents posés via setOnClickPendingIntent
+  côté Kotlin — ils ne sont PAS des actions NotificationCompat (qui ne
+  s'afficheraient pas en collapsed).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp">
+
+    <ImageView
+        android:id="@+id/book_icon"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_marginEnd="10dp"
+        android:src="@drawable/ic_book" />
+
+    <TextView
+        android:id="@+id/book_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginEnd="8dp"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:singleLine="true"
+        android:ellipsize="end" />
+
+    <Chronometer
+        android:id="@+id/timer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="6dp"
+        android:textSize="13sp"
+        android:singleLine="true" />
+
+    <TextView
+        android:id="@+id/paused_timer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="6dp"
+        android:textSize="13sp"
+        android:singleLine="true"
+        android:visibility="gone" />
+
+    <ImageButton
+        android:id="@+id/btn_pause"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginEnd="2dp"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:padding="4dp"
+        android:scaleType="fitCenter"
+        android:src="@android:drawable/ic_media_pause"
+        android:contentDescription="Pause" />
+
+    <ImageButton
+        android:id="@+id/btn_stop"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:padding="4dp"
+        android:scaleType="fitCenter"
+        android:src="@android:drawable/ic_menu_close_clear_cancel"
+        android:contentDescription="Terminer" />
+</LinearLayout>

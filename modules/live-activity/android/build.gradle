@@ -1,0 +1,28 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.grimolia.liveactivity'
+version = '0.0.0'
+
+android {
+  namespace "expo.modules.grimolia.liveactivity"
+  defaultConfig {
+    versionCode 1
+    versionName "0.0.0"
+  }
+
+  compileOptions {
+    targetCompatibility JavaVersion.VERSION_1_8
+  }
+}
+
+repositories {
+  mavenCentral()
+}
+
+dependencies {
+  implementation 'androidx.appcompat:appcompat:1.7.1'
+  implementation 'androidx.core:core-ktx:1.13.1'
+}
