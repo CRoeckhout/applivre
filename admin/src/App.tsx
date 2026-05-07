@@ -8,6 +8,7 @@ import { FondsSection } from "./sections/fonds-section";
 import { MusiquesSection } from "./sections/musiques-section";
 import { StickersSection } from "./sections/stickers-section";
 import { SubscriptionsSection } from "./sections/subscriptions-section";
+import { UsersSection } from "./sections/users-section";
 import { LoginForm } from "./components/login";
 import { supabase } from "./lib/supabase";
 
@@ -18,6 +19,7 @@ type AuthState =
   | { kind: "admin" };
 
 type Tab =
+  | "users"
   | "badges"
   | "borders"
   | "fonds"
@@ -30,6 +32,7 @@ type Tab =
 type Theme = "light" | "dark";
 
 const TABS: Tab[] = [
+  "users",
   "badges",
   "borders",
   "fonds",
@@ -41,6 +44,7 @@ const TABS: Tab[] = [
   "subscriptions",
 ];
 const TAB_LABELS: Record<Tab, string> = {
+  users: "Utilisateurs",
   badges: "Badges",
   borders: "Cadres",
   fonds: "Fonds",
@@ -52,6 +56,14 @@ const TAB_LABELS: Record<Tab, string> = {
   subscriptions: "Abonnements",
 };
 const TAB_ICONS: Record<Tab, JSX.Element> = {
+  users: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  ),
   badges: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="9" r="6" />
@@ -109,7 +121,7 @@ const TAB_ICONS: Record<Tab, JSX.Element> = {
     </svg>
   ),
 };
-const DEFAULT_TAB: Tab = "badges";
+const DEFAULT_TAB: Tab = "users";
 const THEME_KEY = "admin-theme";
 
 function readInitialTheme(): Theme {
@@ -297,6 +309,9 @@ export function App() {
       </aside>
 
       <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden" }}>
+        {route.tab === "users" && (
+          <UsersSection itemId={route.itemId} onItemChange={selectItem} />
+        )}
         {route.tab === "badges" && (
           <BadgesSection itemId={route.itemId} onItemChange={selectItem} />
         )}

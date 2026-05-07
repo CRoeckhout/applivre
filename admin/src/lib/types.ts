@@ -258,6 +258,173 @@ export type MusicThemeTrackRow = {
   created_at: string;
 };
 
+// ═══════════════ Admin users section ═══════════════
+
+// Statuts possibles d'un livre dans l'étagère utilisateur. `wishlist` ajouté
+// en 0015, `paused` en 0029. Source : public.reading_status enum.
+export type ReadingStatus =
+  | 'wishlist'
+  | 'to_read'
+  | 'reading'
+  | 'paused'
+  | 'read'
+  | 'abandoned';
+
+export const READING_STATUSES: ReadingStatus[] = [
+  'wishlist',
+  'to_read',
+  'reading',
+  'paused',
+  'read',
+  'abandoned',
+];
+
+export const READING_STATUS_LABELS: Record<ReadingStatus, string> = {
+  wishlist: 'Wishlist',
+  to_read: 'À lire',
+  reading: 'En cours',
+  paused: 'En pause',
+  read: 'Lu',
+  abandoned: 'Abandonné',
+};
+
+// Mirror du return de la RPC admin_users_list (cf. 0059). `total_count` est
+// le COUNT(*) OVER () du résultat filtré, dupliqué sur chaque ligne pour
+// économiser un round-trip.
+export type AdminUserListItem = {
+  user_id: string;
+  email: string | null;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  is_premium: boolean;
+  is_admin: boolean;
+  account_created_at: string;
+  last_activity_at: string | null;
+  books_count: number;
+  sheets_count: number;
+  total_count: number;
+};
+
+// Whitelist d'apparence stockée dans profiles.preferences (cf. 0048
+// get_public_profiles). Toutes les clés sont optionnelles — un user peut
+// n'avoir customisé aucun élément. `avatarFrameId = 'none'` signifie
+// explicitement "pas de cadre".
+export type AdminUserAppearance = {
+  fontId?: string;
+  colorPrimary?: string;
+  colorSecondary?: string;
+  colorBg?: string;
+  borderId?: string;
+  fondId?: string;
+  fondOpacity?: number;
+  avatarFrameId?: string;
+};
+
+// Profile + preferences décodées + flags admin/premium. Lecture admin via
+// la policy "profiles admin select" (cf. 0059).
+export type AdminUserProfile = {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  is_premium: boolean;
+  is_admin: boolean;
+  premium_until: string | null;
+  preferences: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type UserBookRow = {
+  id: string;
+  user_id: string;
+  book_isbn: string;
+  status: ReadingStatus;
+  rating: number | null;
+  favorite: boolean;
+  started_at: string | null;
+  finished_at: string | null;
+  paused_page: number | null;
+  paused_summary: string | null;
+  genres: string[];
+  created_at: string;
+};
+
+export type ReadingSessionRow = {
+  id: string;
+  user_book_id: string;
+  duration_sec: number;
+  pages_read: number;
+  started_at: string;
+};
+
+export type LoanDirection = 'lent' | 'borrowed';
+
+export type BookLoanRow = {
+  id: string;
+  user_book_id: string;
+  contact_name: string;
+  direction: LoanDirection;
+  date_out: string;
+  date_back: string | null;
+  note: string | null;
+};
+
+export type ReadingSheetRow = {
+  id: string;
+  user_book_id: string;
+  content: Record<string, unknown>;
+  is_public: boolean;
+  updated_at: string;
+};
+
+export type BingoRow = {
+  id: string;
+  user_id: string;
+  title: string;
+  grid: unknown;
+  created_at: string;
+};
+
+export type BingoCompletionRow = {
+  id: string;
+  bingo_id: string;
+  cell_index: number;
+  user_book_id: string | null;
+  completed_at: string;
+};
+
+export type ReadingChallengeRow = {
+  id: string;
+  user_id: string;
+  year: number;
+  target_count: number;
+};
+
+export type ReadingStreakDayRow = {
+  user_id: string;
+  day: string;
+  goal_minutes: number | null;
+  created_at: string;
+};
+
+export type UserBadgeRow = {
+  user_id: string;
+  badge_key: string;
+  earned_at: string;
+};
+
+export type SocialFeedEntryRow = {
+  id: string;
+  actor_id: string;
+  verb: string;
+  target_kind: string | null;
+  target_id: string | null;
+  meta: Record<string, unknown>;
+  visibility: 'public' | 'followers' | 'private';
+  created_at: string;
+};
+
 // ═══════════════ Freemium settings (singleton) ═══════════════
 
 // Limites du plan freemium éditables depuis l'admin (section Abonnements).
