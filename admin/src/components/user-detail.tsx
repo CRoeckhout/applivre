@@ -62,6 +62,11 @@ export function UserDetail({ listItem, userId }: Props) {
   const [border, setBorder] = useState<BorderCatalogRow | null>(null);
   const [fond, setFond] = useState<FondCatalogRow | null>(null);
   const [frame, setFrame] = useState<AvatarFrameCatalogRow | null>(null);
+  // Compteurs de follows (un par sens). Fetchés en `head: true` → pas de
+  // payload, juste le COUNT. RLS `social_follows_select_all` autorise la
+  // lecture sans condition.
+  const [followingCount, setFollowingCount] = useState<number | null>(null);
+  const [followersCount, setFollowersCount] = useState<number | null>(null);
   const [subTab, setSubTab] = useState<SubTab>("overview");
 
   // Reset du sub-tab quand on change d'utilisateur — sinon on reste sur
@@ -81,6 +86,8 @@ export function UserDetail({ listItem, userId }: Props) {
     setFond(null);
     setFrame(null);
     setUnlockedBadges([]);
+    setFollowingCount(null);
+    setFollowersCount(null);
 
     void (async () => {
       const { data: p, error: pErr } = await supabase
@@ -165,6 +172,25 @@ export function UserDetail({ listItem, userId }: Props) {
           }),
       );
 
+      tasks.push(
+        supabase
+          .from("social_follows")
+          .select("follower_id", { count: "exact", head: true })
+          .eq("follower_id", userId)
+          .then(({ count }) => {
+            if (!cancelled) setFollowingCount(count ?? 0);
+          }),
+      );
+      tasks.push(
+        supabase
+          .from("social_follows")
+          .select("followed_id", { count: "exact", head: true })
+          .eq("followed_id", userId)
+          .then(({ count }) => {
+            if (!cancelled) setFollowersCount(count ?? 0);
+          }),
+      );
+
       await Promise.all(tasks);
     })();
 
@@ -202,6 +228,8 @@ export function UserDetail({ listItem, userId }: Props) {
                 { label: "Livres", value: listItem.books_count },
                 { label: "Fiches", value: listItem.sheets_count },
                 { label: "Badges", value: unlockedBadges.length },
+                { label: "Abonnements", value: followingCount ?? "…" },
+                { label: "Abonnés", value: followersCount ?? "…" },
               ]
             : undefined
         }

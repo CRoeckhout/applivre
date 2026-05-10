@@ -67,6 +67,12 @@ export type BorderKind = 'png_9slice' | 'svg_9slice' | 'lottie_9slice';
 
 export type BorderRepeatMode = 'stretch' | 'round';
 
+// Mode de rendu d'une bande N-slice. `stretch`/`round` étendent les notions
+// 9-slice existantes ; `fixed` = largeur source = largeur rendue (la bande
+// garde sa taille pixel native, comme un coin), utilisé pour ancrer un
+// ornement au milieu d'un edge sans le déformer.
+export type BorderBandMode = 'stretch' | 'round' | 'fixed';
+
 export type BorderCatalogRow = {
   border_key: string;
   title: string;
@@ -85,6 +91,14 @@ export type BorderCatalogRow = {
   bg_inset_bottom: number | null;
   bg_inset_left: number | null;
   repeat_mode: BorderRepeatMode;
+  // N-slice étendu : cuts supplémentaires sur les axes X/Y et mode par bande.
+  // Tous null ⇒ comportement 9-slice classique avec `repeat_mode` global.
+  // Si extra_cuts_x est non-null, band_modes_x doit avoir length = cuts+1
+  // (validé en DB et côté admin avant save).
+  extra_cuts_x: number[] | null;
+  extra_cuts_y: number[] | null;
+  band_modes_x: BorderBandMode[] | null;
+  band_modes_y: BorderBandMode[] | null;
   card_padding: number;
   tokens: Record<string, string>;
   availability: CatalogAvailability;
@@ -213,10 +227,31 @@ export const BOOK_SOURCES: BookSource[] = ['isbndb', 'openlibrary', 'googlebooks
 
 // ═══════════════ Bingo pills (user-owned challenges) ═══════════════
 
+export type BingoPillStatus = 'private' | 'proposed' | 'public' | 'disabled';
+
+export const BINGO_PILL_STATUSES: BingoPillStatus[] = [
+  'private',
+  'proposed',
+  'public',
+  'disabled',
+];
+
+export const BINGO_PILL_STATUS_LABELS: Record<BingoPillStatus, string> = {
+  private: 'Privé',
+  proposed: 'Proposé',
+  public: 'Public',
+  disabled: 'Désactivé',
+};
+
 export type BingoPillRow = {
   id: string;
   user_id: string;
   label: string;
+  status: BingoPillStatus;
+  proposal_message: string | null;
+  decision_reason: string | null;
+  decided_at: string | null;
+  decided_by: string | null;
   created_at: string;
 };
 
@@ -354,8 +389,12 @@ export type ReadingSessionRow = {
   id: string;
   user_book_id: string;
   duration_sec: number;
-  pages_read: number;
+  // Renommée en 0002 : `pages_read` (delta) → `stopped_at_page` (page
+  // absolue à laquelle l'user s'est arrêté). Pour le total cumulé il faut
+  // dérouler les cycles (cf. 0010_read_cycles.sql).
+  stopped_at_page: number;
   started_at: string;
+  cycle_id: string | null;
 };
 
 export type LoanDirection = 'lent' | 'borrowed';

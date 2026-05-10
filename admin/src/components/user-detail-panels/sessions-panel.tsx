@@ -42,7 +42,21 @@ export function SessionsPanel({ userId }: Props) {
     if (!sessions || sessions.length === 0)
       return { totalSec: 0, totalPages: 0, count: 0, avgSec: 0 };
     const totalSec = sessions.reduce((acc, s) => acc + s.duration_sec, 0);
-    const totalPages = sessions.reduce((acc, s) => acc + s.pages_read, 0);
+    // `stopped_at_page` est une page absolue par session (cf. 0002).
+    // Pages lues = max(stopped_at_page) par livre, sommé sur tous les
+    // livres. Hypothèse : page de départ = 1, donc max == pages lues du
+    // livre. Une relecture remontera artificiellement le compteur — accepté
+    // pour V1, on dérouera par read_cycles si besoin.
+    const maxByBook = new Map<string, number>();
+    for (const s of sessions) {
+      const cur = maxByBook.get(s.user_book_id) ?? 0;
+      if (s.stopped_at_page > cur)
+        maxByBook.set(s.user_book_id, s.stopped_at_page);
+    }
+    const totalPages = [...maxByBook.values()].reduce(
+      (acc, p) => acc + p,
+      0,
+    );
     return {
       totalSec,
       totalPages,
@@ -85,7 +99,7 @@ export function SessionsPanel({ userId }: Props) {
               <Th>Démarrée</Th>
               <Th>Livre</Th>
               <Th>Durée</Th>
-              <Th>Pages</Th>
+              <Th>Page atteinte</Th>
             </tr>
           </thead>
           <tbody>
@@ -105,7 +119,7 @@ export function SessionsPanel({ userId }: Props) {
                   </div>
                 </Td>
                 <Td>{formatDuration(s.duration_sec)}</Td>
-                <Td>{s.pages_read}</Td>
+                <Td>{s.stopped_at_page}</Td>
               </tr>
             ))}
           </tbody>
