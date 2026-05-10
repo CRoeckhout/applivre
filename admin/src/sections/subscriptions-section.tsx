@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
+import {
+  AsideCollapseButton,
+  CollapsedAsideStrip,
+  MOBILE_ASIDE_OVERLAY_STYLE,
+  MobileAsideBackdrop,
+} from "../components/collapsible-aside";
 import { supabase } from "../lib/supabase";
 import type { FreemiumSettingsRow } from "../lib/types";
+import { useCollapsibleAside } from "../lib/use-collapsible-aside";
 
 // Section "Abonnements" — pour l'instant, une seule sous-section "Freemium"
 // éditant les limites du plan gratuit (table freemium_settings, singleton id=1).
@@ -23,6 +30,7 @@ export function SubscriptionsSection({ itemId, onItemChange }: Props) {
   const sub: SubTab = (SUBTABS as string[]).includes(itemId ?? "")
     ? (itemId as SubTab)
     : "freemium";
+  const [collapsed, toggleCollapsed, isMobile] = useCollapsibleAside();
 
   function selectSub(next: SubTab) {
     if (next === sub) return;
@@ -31,6 +39,12 @@ export function SubscriptionsSection({ itemId, onItemChange }: Props) {
 
   return (
     <div style={{ display: "flex", height: "100%" }}>
+      {collapsed ? (
+        <CollapsedAsideStrip onExpand={toggleCollapsed} label="abonnements" />
+      ) : (
+      <>
+      {isMobile && <CollapsedAsideStrip onExpand={toggleCollapsed} label="abonnements" />}
+      {isMobile && <MobileAsideBackdrop onClose={toggleCollapsed} />}
       <aside
         style={{
           width: 220,
@@ -41,16 +55,25 @@ export function SubscriptionsSection({ itemId, onItemChange }: Props) {
           display: "flex",
           flexDirection: "column",
           gap: 4,
+          ...(isMobile ? MOBILE_ASIDE_OVERLAY_STYLE : null),
         }}>
         <div
           style={{
-            fontSize: 11,
-            fontWeight: 700,
-            color: "var(--ink-muted)",
-            textTransform: "uppercase",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
             padding: "4px 8px 8px",
           }}>
-          Abonnements
+          <AsideCollapseButton onCollapse={toggleCollapsed} />
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: "var(--ink-muted)",
+              textTransform: "uppercase",
+            }}>
+            Abonnements
+          </span>
         </div>
         {SUBTABS.map((s) => (
           <button
@@ -73,6 +96,8 @@ export function SubscriptionsSection({ itemId, onItemChange }: Props) {
           </button>
         ))}
       </aside>
+      </>
+      )}
       <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}>
         {sub === "freemium" && <FreemiumPanel />}
       </div>

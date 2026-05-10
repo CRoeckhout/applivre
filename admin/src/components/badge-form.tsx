@@ -231,8 +231,33 @@ export function BadgeForm({ initial, onSaved, onDeleted }: Props) {
   }
 
   return (
-    <main style={{ flex: 1, padding: 24, overflow: 'auto' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 32, alignItems: 'start' }}>
+    <main style={{ flex: 1, padding: 0, overflowY: 'auto', overflowX: 'hidden' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', maxWidth: 720, margin: '0 auto', padding: '0 24px 24px' }}>
+        <div
+          style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 5,
+            background: 'var(--paper)',
+            paddingTop: 16,
+            paddingBottom: 12,
+            borderBottom: '1px solid var(--line)',
+            marginBottom: 16,
+          }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--line)', padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, overflow: 'hidden' }}>
+            <BadgeGraphicWeb kind={graphicKind} payload={graphicPayload} tokens={parsedTokens} size={140} />
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <BadgeGraphicWeb kind={graphicKind} payload={graphicPayload} tokens={parsedTokens} size={32} />
+              <BadgeGraphicWeb kind={graphicKind} payload={graphicPayload} tokens={parsedTokens} size={48} />
+              <BadgeGraphicWeb kind={graphicKind} payload={graphicPayload} tokens={parsedTokens} size={64} />
+            </div>
+            <div style={{ borderTop: '1px solid var(--line)', width: '100%', paddingTop: 12, textAlign: 'center' }}>
+              <div style={{ fontWeight: 600 }}>{title || '—'}</div>
+              <div className="muted">{description || '—'}</div>
+            </div>
+          </div>
+        </div>
+
         <div>
           <h2 style={{ marginTop: 0 }}>{isNew ? 'Nouveau badge' : badgeKey}</h2>
 
@@ -383,21 +408,6 @@ export function BadgeForm({ initial, onSaved, onDeleted }: Props) {
           </div>
         </div>
 
-        <div style={{ position: 'sticky', top: 24 }}>
-          <h3 style={{ marginTop: 0 }}>Preview</h3>
-          <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--line)', padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-            <BadgeGraphicWeb kind={graphicKind} payload={graphicPayload} tokens={parsedTokens} size={140} />
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              <BadgeGraphicWeb kind={graphicKind} payload={graphicPayload} tokens={parsedTokens} size={32} />
-              <BadgeGraphicWeb kind={graphicKind} payload={graphicPayload} tokens={parsedTokens} size={48} />
-              <BadgeGraphicWeb kind={graphicKind} payload={graphicPayload} tokens={parsedTokens} size={64} />
-            </div>
-            <div style={{ borderTop: '1px solid var(--line)', width: '100%', paddingTop: 12, textAlign: 'center' }}>
-              <div style={{ fontWeight: 600 }}>{title || '—'}</div>
-              <div className="muted">{description || '—'}</div>
-            </div>
-          </div>
-        </div>
       </div>
     </main>
   );

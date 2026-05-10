@@ -1,5 +1,13 @@
 import { SUPABASE_URL } from '../lib/supabase';
 import type { BorderCatalogRow } from '../lib/types';
+import { useCollapsibleAside } from '../lib/use-collapsible-aside';
+import {
+  AsideCollapseButton,
+  CollapsedAsideItem,
+  CollapsedAsideStrip,
+  MOBILE_ASIDE_OVERLAY_STYLE,
+  MobileAsideBackdrop,
+} from './collapsible-aside';
 import { AvailabilityBadge } from './decoration-fields';
 
 type Props = {
@@ -19,6 +27,7 @@ export function BorderList({
   onSelect,
   onNew,
 }: Props) {
+  const [collapsed, toggleCollapsed, isMobile] = useCollapsibleAside();
   const now = new Date();
   const filtered = borders.filter((b) => {
     if (filter === 'retired') return b.retired_at !== null;
@@ -30,10 +39,52 @@ export function BorderList({
     return true;
   });
 
+  function renderCollapsedItems() {
+    return filtered.map((b) => {
+      const thumbUrl = b.storage_path
+        ? `${SUPABASE_URL}/storage/v1/object/public/border-graphics/${b.storage_path}`
+        : null;
+      return (
+        <CollapsedAsideItem
+          key={b.border_key}
+          onClick={() => onSelect(b.border_key)}
+          selected={selectedKey === b.border_key}
+          dimmed={b.retired_at !== null}
+          title={b.title}>
+          {thumbUrl ? (
+            <img
+              src={thumbUrl}
+              alt=""
+              style={{ maxWidth: '100%', maxHeight: '100%', imageRendering: 'pixelated' }}
+            />
+          ) : (
+            <span className="muted" style={{ fontSize: 10 }}>?</span>
+          )}
+        </CollapsedAsideItem>
+      );
+    });
+  }
+
+  if (collapsed) {
+    return (
+      <CollapsedAsideStrip onExpand={toggleCollapsed} label="cadres">
+        {renderCollapsedItems()}
+      </CollapsedAsideStrip>
+    );
+  }
+
   return (
-    <aside style={{ width: 320, borderRight: '1px solid var(--line)', overflow: 'auto', background: 'var(--surface)' }}>
+    <>
+      {isMobile && (
+        <CollapsedAsideStrip onExpand={toggleCollapsed} label="cadres">
+          {renderCollapsedItems()}
+        </CollapsedAsideStrip>
+      )}
+      {isMobile && <MobileAsideBackdrop onClose={toggleCollapsed} />}
+    <aside style={{ width: 320, borderRight: '1px solid var(--line)', overflow: 'auto', background: 'var(--surface)', ...(isMobile ? MOBILE_ASIDE_OVERLAY_STYLE : null) }}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+          <AsideCollapseButton onCollapse={toggleCollapsed} />
           <button className="btn btn-primary" onClick={onNew}>+ Nouveau</button>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
@@ -109,5 +160,6 @@ export function BorderList({
         )}
       </ul>
     </aside>
+    </>
   );
 }

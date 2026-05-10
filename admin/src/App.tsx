@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AvatarFramesSection } from "./sections/avatar-frames-section";
 import { BadgesSection } from "./sections/badges-section";
 import { BingoPillsSection } from "./sections/bingo-pills-section";
@@ -10,6 +10,11 @@ import { StickersSection } from "./sections/stickers-section";
 import { SubscriptionsSection } from "./sections/subscriptions-section";
 import { UsersSection } from "./sections/users-section";
 import { LoginForm } from "./components/login";
+import {
+  MOBILE_ASIDE_OVERLAY_STYLE,
+  MobileAsideBackdrop,
+} from "./components/collapsible-aside";
+import { useIsMobile } from "./lib/use-collapsible-aside";
 import { supabase } from "./lib/supabase";
 
 type AuthState =
@@ -123,11 +128,19 @@ const TAB_ICONS: Record<Tab, JSX.Element> = {
 };
 const DEFAULT_TAB: Tab = "users";
 const THEME_KEY = "admin-theme";
+const SIDEBAR_COLLAPSED_KEY = "admin-sidebar-collapsed";
 
 function readInitialTheme(): Theme {
   const saved = localStorage.getItem(THEME_KEY);
   if (saved === "light" || saved === "dark") return saved;
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function readInitialSidebarCollapsed(): boolean {
+  const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+  if (saved === "1") return true;
+  if (saved === "0") return false;
+  return window.matchMedia?.("(max-width: 768px)").matches ?? false;
 }
 
 function applyTheme(theme: Theme) {
@@ -166,12 +179,49 @@ export function App() {
     applyTheme(initial);
     return initial;
   });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() =>
+    readInitialSidebarCollapsed(),
+  );
+  const isMobile = useIsMobile();
+  const prevIsMobile = useRef(isMobile);
+  useEffect(() => {
+    if (prevIsMobile.current && !isMobile) {
+      setSidebarCollapsed(false);
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "0");
+    }
+    prevIsMobile.current = isMobile;
+  }, [isMobile]);
+  // Compteur de pills "proposed" pour le badge sur le tab. Initial fetch +
+  // updates pushed depuis BingoPillsSection via callback.
+  const [proposedPillsCount, setProposedPillsCount] = useState(0);
+
+  useEffect(() => {
+    if (auth.kind !== "admin") return;
+    let cancelled = false;
+    void (async () => {
+      const { count } = await supabase
+        .from("bingo_pills")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "proposed");
+      if (!cancelled && typeof count === "number")
+        setProposedPillsCount(count);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.kind]);
 
   function toggleTheme() {
     const next: Theme = theme === "dark" ? "light" : "dark";
     setTheme(next);
     applyTheme(next);
     localStorage.setItem(THEME_KEY, next);
+  }
+
+  function toggleSidebar() {
+    const next = !sidebarCollapsed;
+    setSidebarCollapsed(next);
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0");
   }
 
   useEffect(() => {
@@ -195,6 +245,12 @@ export function App() {
     const hash = buildHash(nextRoute.tab, nextRoute.itemId);
     if (window.location.hash !== hash) {
       window.history.replaceState(null, "", hash);
+    }
+    // Sur mobile, on referme la sidebar overlay après navigation pour
+    // dégager le body.
+    if (isMobile && !sidebarCollapsed) {
+      setSidebarCollapsed(true);
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "1");
     }
   }
 
@@ -253,42 +309,94 @@ export function App() {
     );
   }
 
+  const sidebarOverlay = isMobile && !sidebarCollapsed;
+
   return (
     <div style={{ display: "flex", height: "100vh" }}>
+      {sidebarOverlay && (
+        <div
+          aria-hidden
+          style={{
+            width: 64,
+            flexShrink: 0,
+            borderRight: "1px solid var(--line)",
+            background: "var(--surface)",
+          }}
+        />
+      )}
+      {sidebarOverlay && <MobileAsideBackdrop onClose={toggleSidebar} />}
       <aside
         style={{
-          width: 220,
+          width: sidebarCollapsed ? 64 : 220,
           flexShrink: 0,
           borderRight: "1px solid var(--line)",
           background: "var(--surface)",
           display: "flex",
           flexDirection: "column",
+          transition: "width 180ms ease",
+          ...(sidebarOverlay ? MOBILE_ASIDE_OVERLAY_STYLE : null),
         }}
       >
         <div
           style={{
-            padding: "16px 20px",
+            padding: sidebarCollapsed ? "12px 8px" : "12px 12px",
             borderBottom: "1px solid var(--line)",
-            fontWeight: 700,
-            fontSize: 15,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            justifyContent: sidebarCollapsed ? "center" : "flex-start",
+            minHeight: 52,
           }}
         >
-          Grimolia — admin
+          <button
+            onClick={toggleSidebar}
+            title={sidebarCollapsed ? "Déplier le menu" : "Replier le menu"}
+            aria-label={sidebarCollapsed ? "Déplier le menu" : "Replier le menu"}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 32,
+              height: 32,
+              padding: 0,
+              borderRadius: 8,
+              border: "1px solid var(--line)",
+              background: "transparent",
+              color: "var(--ink-muted)",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--surface-2)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            <ChevronIcon direction={sidebarCollapsed ? "right" : "left"} />
+          </button>
+          {!sidebarCollapsed && (
+            <span style={{ fontWeight: 700, fontSize: 15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              Grimolia — admin
+            </span>
+          )}
         </div>
-        <nav style={{ display: "flex", flexDirection: "column", gap: 2, padding: 12, flex: 1, minHeight: 0, overflowY: "auto" }}>
+        <nav style={{ display: "flex", flexDirection: "column", gap: 2, padding: sidebarCollapsed ? 8 : 12, flex: 1, minHeight: 0, overflowY: "auto" }}>
           {TABS.map((tab) => (
             <SidebarItem
               key={tab}
               label={TAB_LABELS[tab]}
               icon={TAB_ICONS[tab]}
               active={route.tab === tab}
+              collapsed={sidebarCollapsed}
+              badge={tab === "pills" && proposedPillsCount > 0 ? proposedPillsCount : null}
               onClick={() => selectTab(tab)}
             />
           ))}
         </nav>
         <div
           style={{
-            padding: 12,
+            padding: sidebarCollapsed ? 8 : 12,
             borderTop: "1px solid var(--line)",
             display: "flex",
             flexDirection: "column",
@@ -298,11 +406,13 @@ export function App() {
           <SidebarAction
             label={theme === "dark" ? "Mode clair" : "Mode sombre"}
             icon={theme === "dark" ? <SunIcon /> : <MoonIcon />}
+            collapsed={sidebarCollapsed}
             onClick={toggleTheme}
           />
           <SidebarAction
             label="Se déconnecter"
             icon={<LogoutIcon />}
+            collapsed={sidebarCollapsed}
             onClick={() => supabase.auth.signOut()}
           />
         </div>
@@ -331,7 +441,11 @@ export function App() {
           <BooksSection itemId={route.itemId} onItemChange={selectItem} />
         )}
         {route.tab === "pills" && (
-          <BingoPillsSection itemId={route.itemId} onItemChange={selectItem} />
+          <BingoPillsSection
+            itemId={route.itemId}
+            onItemChange={selectItem}
+            onProposedCountChange={setProposedPillsCount}
+          />
         )}
         {route.tab === "musiques" && (
           <MusiquesSection itemId={route.itemId} onItemChange={selectItem} />
@@ -348,22 +462,29 @@ function SidebarItem({
   label,
   icon,
   active,
+  collapsed,
+  badge,
   onClick,
 }: {
   label: string;
   icon: JSX.Element;
   active: boolean;
+  collapsed: boolean;
+  badge?: number | null;
   onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
+      title={collapsed ? label : undefined}
+      aria-label={collapsed ? label : undefined}
       style={{
         display: "flex",
         alignItems: "center",
         gap: 10,
         textAlign: "left",
-        padding: "8px 12px",
+        padding: collapsed ? "8px 0" : "8px 12px",
+        justifyContent: collapsed ? "center" : "flex-start",
         borderRadius: 8,
         border: "1px solid transparent",
         borderColor: active ? "var(--accent)" : "transparent",
@@ -373,6 +494,7 @@ function SidebarItem({
         fontSize: 13,
         cursor: "pointer",
         width: "100%",
+        position: "relative",
       }}
       onMouseEnter={(e) => {
         if (!active) e.currentTarget.style.background = "var(--surface-2)";
@@ -382,7 +504,50 @@ function SidebarItem({
       }}
     >
       <span style={{ display: "inline-flex", flexShrink: 0, color: active ? "white" : "var(--ink-muted)" }}>{icon}</span>
-      <span>{label}</span>
+      {!collapsed && <span style={{ flex: 1 }}>{label}</span>}
+      {badge != null && badge > 0 ? (
+        collapsed ? (
+          <span
+            style={{
+              position: "absolute",
+              top: 2,
+              right: 2,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minWidth: 16,
+              height: 16,
+              padding: "0 4px",
+              borderRadius: 999,
+              background: "#ef4444",
+              color: "white",
+              fontSize: 10,
+              fontWeight: 700,
+            }}
+          >
+            {badge}
+          </span>
+        ) : (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minWidth: 20,
+              height: 20,
+              padding: "0 6px",
+              borderRadius: 999,
+              background: active ? "white" : "#ef4444",
+              color: active ? "var(--accent)" : "white",
+              fontSize: 11,
+              fontWeight: 700,
+              flexShrink: 0,
+            }}
+          >
+            {badge}
+          </span>
+        )
+      ) : null}
     </button>
   );
 }
@@ -390,21 +555,26 @@ function SidebarItem({
 function SidebarAction({
   label,
   icon,
+  collapsed,
   onClick,
 }: {
   label: string;
   icon: JSX.Element;
+  collapsed: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
+      title={collapsed ? label : undefined}
+      aria-label={collapsed ? label : undefined}
       style={{
         display: "flex",
         alignItems: "center",
         gap: 10,
         textAlign: "left",
-        padding: "8px 12px",
+        padding: collapsed ? "8px 0" : "8px 12px",
+        justifyContent: collapsed ? "center" : "flex-start",
         borderRadius: 8,
         border: "1px solid transparent",
         background: "transparent",
@@ -422,8 +592,16 @@ function SidebarAction({
       }}
     >
       <span style={{ display: "inline-flex", flexShrink: 0, color: "var(--ink-muted)" }}>{icon}</span>
-      <span>{label}</span>
+      {!collapsed && <span>{label}</span>}
     </button>
+  );
+}
+
+function ChevronIcon({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {direction === "left" ? <polyline points="15 18 9 12 15 6" /> : <polyline points="9 18 15 12 9 6" />}
+    </svg>
   );
 }
 

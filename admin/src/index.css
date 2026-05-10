@@ -179,3 +179,13 @@ fieldset {
 .tag-active { background: var(--tag-active-bg); color: var(--ok); }
 .tag-retired { background: var(--tag-retired-bg); color: var(--danger); }
 .tag-pending { background: var(--tag-pending-bg); color: var(--ink-muted); }
+
+@keyframes admin-aside-slide-in {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes admin-aside-backdrop-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

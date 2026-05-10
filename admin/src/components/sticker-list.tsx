@@ -1,5 +1,13 @@
 import { SUPABASE_URL } from '../lib/supabase';
 import type { StickerCatalogRow } from '../lib/types';
+import { useCollapsibleAside } from '../lib/use-collapsible-aside';
+import {
+  AsideCollapseButton,
+  CollapsedAsideItem,
+  CollapsedAsideStrip,
+  MOBILE_ASIDE_OVERLAY_STYLE,
+  MobileAsideBackdrop,
+} from './collapsible-aside';
 import { AvailabilityBadge } from './decoration-fields';
 
 type Props = {
@@ -19,6 +27,7 @@ export function StickerList({
   onSelect,
   onNew,
 }: Props) {
+  const [collapsed, toggleCollapsed, isMobile] = useCollapsibleAside();
   const now = new Date();
   const filtered = stickers.filter((s) => {
     if (filter === 'retired') return s.retired_at !== null;
@@ -30,10 +39,57 @@ export function StickerList({
     return true;
   });
 
+  function renderCollapsedItems() {
+    return filtered.map((s) => {
+      const thumbUrl = s.storage_path
+        ? `${SUPABASE_URL}/storage/v1/object/public/sticker-graphics/${s.storage_path}`
+        : null;
+      const inlineSvgUrl =
+        !thumbUrl && s.kind === 'svg' && s.payload
+          ? `data:image/svg+xml;utf8,${encodeURIComponent(s.payload)}`
+          : null;
+      const previewSrc = thumbUrl ?? inlineSvgUrl;
+      return (
+        <CollapsedAsideItem
+          key={s.sticker_key}
+          onClick={() => onSelect(s.sticker_key)}
+          selected={selectedKey === s.sticker_key}
+          dimmed={s.retired_at !== null}
+          title={s.title}>
+          {previewSrc ? (
+            <img
+              src={previewSrc}
+              alt=""
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
+          ) : (
+            <span className="muted" style={{ fontSize: 10 }}>?</span>
+          )}
+        </CollapsedAsideItem>
+      );
+    });
+  }
+
+  if (collapsed) {
+    return (
+      <CollapsedAsideStrip onExpand={toggleCollapsed} label="stickers">
+        {renderCollapsedItems()}
+      </CollapsedAsideStrip>
+    );
+  }
+
   return (
-    <aside style={{ width: 320, borderRight: '1px solid var(--line)', overflow: 'auto', background: 'var(--surface)' }}>
+    <>
+      {isMobile && (
+        <CollapsedAsideStrip onExpand={toggleCollapsed} label="stickers">
+          {renderCollapsedItems()}
+        </CollapsedAsideStrip>
+      )}
+      {isMobile && <MobileAsideBackdrop onClose={toggleCollapsed} />}
+    <aside style={{ width: 320, borderRight: '1px solid var(--line)', overflow: 'auto', background: 'var(--surface)', ...(isMobile ? MOBILE_ASIDE_OVERLAY_STYLE : null) }}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+          <AsideCollapseButton onCollapse={toggleCollapsed} />
           <button className="btn btn-primary" onClick={onNew}>+ Nouveau</button>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
@@ -119,5 +175,6 @@ export function StickerList({
         )}
       </ul>
     </aside>
+    </>
   );
 }

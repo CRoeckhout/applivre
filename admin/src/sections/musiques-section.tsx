@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
+import {
+  AsideCollapseButton,
+  CollapsedAsideStrip,
+  MOBILE_ASIDE_OVERLAY_STYLE,
+  MobileAsideBackdrop,
+} from '../components/collapsible-aside';
 import { MusicThemeForm } from '../components/music-theme-form';
 import { MusicTrackForm } from '../components/music-track-form';
 import { supabase } from '../lib/supabase';
 import type { MusicThemeRow, MusicThemeTrackRow } from '../lib/types';
+import { useCollapsibleAside } from '../lib/use-collapsible-aside';
 
 type Props = {
   itemId: string | null;
@@ -242,13 +249,23 @@ function ThemesList({
   onSelect: (key: string) => void;
   onNew: () => void;
 }) {
+  const [collapsed, toggleCollapsed, isMobile] = useCollapsibleAside();
+
+  if (collapsed) {
+    return <CollapsedAsideStrip onExpand={toggleCollapsed} label="thèmes musicaux" />;
+  }
+
   return (
+    <>
+      {isMobile && <CollapsedAsideStrip onExpand={toggleCollapsed} label="thèmes musicaux" />}
+      {isMobile && <MobileAsideBackdrop onClose={toggleCollapsed} />}
     <aside
       style={{
         width: 320,
         borderRight: '1px solid var(--line)',
         overflow: 'auto',
         background: 'var(--surface)',
+        ...(isMobile ? MOBILE_ASIDE_OVERLAY_STYLE : null),
       }}
     >
       <div
@@ -261,7 +278,8 @@ function ThemesList({
           zIndex: 1,
         }}
       >
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+          <AsideCollapseButton onCollapse={toggleCollapsed} />
           <button className="btn btn-primary" onClick={onNew}>
             + Nouveau thème
           </button>
@@ -332,6 +350,7 @@ function ThemesList({
         )}
       </ul>
     </aside>
+    </>
   );
 }
 

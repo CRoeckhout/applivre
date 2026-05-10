@@ -1,5 +1,13 @@
 import { useEffect, useRef } from "react";
 import type { AdminUserListItem } from "../lib/types";
+import { useCollapsibleAside } from "../lib/use-collapsible-aside";
+import {
+  AsideCollapseButton,
+  CollapsedAsideItem,
+  CollapsedAsideStrip,
+  MOBILE_ASIDE_OVERLAY_STYLE,
+  MobileAsideBackdrop,
+} from "./collapsible-aside";
 
 export type UserListFilter = "premium" | "admin" | "active";
 export const USER_FILTERS: UserListFilter[] = ["premium", "admin", "active"];
@@ -53,6 +61,7 @@ export function UserList({
   total,
 }: Props) {
   const scrollerRef = useRef<HTMLElement | null>(null);
+  const [collapsed, toggleCollapsed, isMobile] = useCollapsibleAside();
 
   useEffect(() => {
     const el = scrollerRef.current;
@@ -66,7 +75,62 @@ export function UserList({
     return () => el.removeEventListener("scroll", onScroll);
   }, [hasMore, loadingMore, onLoadMore]);
 
+  function renderCollapsedItems() {
+    return users.map((u) => {
+      const name = u.username || u.display_name || u.email || "(anonyme)";
+      const initials = initialsOf(name);
+      return (
+        <CollapsedAsideItem
+          key={u.user_id}
+          onClick={() => onSelect(u.user_id)}
+          selected={selectedUserId === u.user_id}
+          title={name}>
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              borderRadius: "50%",
+              background: "var(--surface-3)",
+              border: "1px solid var(--line)",
+              overflow: "hidden",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 10,
+              fontWeight: 600,
+              color: "var(--ink-muted)",
+            }}>
+            {u.avatar_url ? (
+              <img
+                src={u.avatar_url}
+                alt=""
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            ) : (
+              initials
+            )}
+          </div>
+        </CollapsedAsideItem>
+      );
+    });
+  }
+
+  if (collapsed) {
+    return (
+      <CollapsedAsideStrip onExpand={toggleCollapsed} label="utilisateurs">
+        {renderCollapsedItems()}
+      </CollapsedAsideStrip>
+    );
+  }
+
   return (
+    <>
+      {isMobile && (
+        <CollapsedAsideStrip onExpand={toggleCollapsed} label="utilisateurs">
+          {renderCollapsedItems()}
+        </CollapsedAsideStrip>
+      )}
+      {isMobile && <MobileAsideBackdrop onClose={toggleCollapsed} />}
     <aside
       ref={scrollerRef}
       style={{
@@ -74,6 +138,7 @@ export function UserList({
         borderRight: "1px solid var(--line)",
         overflow: "auto",
         background: "var(--surface)",
+        ...(isMobile ? MOBILE_ASIDE_OVERLAY_STYLE : null),
       }}>
       <div
         style={{
@@ -84,20 +149,24 @@ export function UserList({
           background: "var(--surface)",
           zIndex: 1,
         }}>
-        <input
-          type="search"
-          placeholder="username, display name, email…"
-          value={query}
-          onChange={(e) => onQueryChange(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "6px 10px",
-            border: "1px solid var(--line)",
-            borderRadius: 6,
-            fontSize: 13,
-            boxSizing: "border-box",
-          }}
-        />
+        <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+          <AsideCollapseButton onCollapse={toggleCollapsed} />
+          <input
+            type="search"
+            placeholder="username, display name, email…"
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              padding: "6px 10px",
+              border: "1px solid var(--line)",
+              borderRadius: 6,
+              fontSize: 13,
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
         <div
           style={{
             display: "flex",
@@ -285,6 +354,7 @@ export function UserList({
         )}
       </ul>
     </aside>
+    </>
   );
 }
 

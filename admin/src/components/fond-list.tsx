@@ -1,5 +1,13 @@
 import { SUPABASE_URL } from '../lib/supabase';
 import type { FondCatalogRow } from '../lib/types';
+import { useCollapsibleAside } from '../lib/use-collapsible-aside';
+import {
+  AsideCollapseButton,
+  CollapsedAsideItem,
+  CollapsedAsideStrip,
+  MOBILE_ASIDE_OVERLAY_STYLE,
+  MobileAsideBackdrop,
+} from './collapsible-aside';
 import { AvailabilityBadge } from './decoration-fields';
 
 type Props = {
@@ -19,6 +27,7 @@ export function FondList({
   onSelect,
   onNew,
 }: Props) {
+  const [collapsed, toggleCollapsed, isMobile] = useCollapsibleAside();
   const now = new Date();
   const filtered = fonds.filter((f) => {
     if (filter === 'retired') return f.retired_at !== null;
@@ -30,10 +39,56 @@ export function FondList({
     return true;
   });
 
+  function renderCollapsedItems() {
+    return filtered.map((f) => {
+      const thumbUrl = f.storage_path
+        ? `${SUPABASE_URL}/storage/v1/object/public/fond-graphics/${f.storage_path}`
+        : null;
+      return (
+        <CollapsedAsideItem
+          key={f.fond_key}
+          onClick={() => onSelect(f.fond_key)}
+          selected={selectedKey === f.fond_key}
+          dimmed={f.retired_at !== null}
+          title={f.title}>
+          {thumbUrl ? (
+            <img
+              src={thumbUrl}
+              alt=""
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: f.repeat_mode === 'cover' ? 'cover' : 'none',
+              }}
+            />
+          ) : (
+            <span className="muted" style={{ fontSize: 10 }}>?</span>
+          )}
+        </CollapsedAsideItem>
+      );
+    });
+  }
+
+  if (collapsed) {
+    return (
+      <CollapsedAsideStrip onExpand={toggleCollapsed} label="fonds">
+        {renderCollapsedItems()}
+      </CollapsedAsideStrip>
+    );
+  }
+
   return (
-    <aside style={{ width: 320, borderRight: '1px solid var(--line)', overflow: 'auto', background: 'var(--surface)' }}>
+    <>
+      {isMobile && (
+        <CollapsedAsideStrip onExpand={toggleCollapsed} label="fonds">
+          {renderCollapsedItems()}
+        </CollapsedAsideStrip>
+      )}
+      {isMobile && <MobileAsideBackdrop onClose={toggleCollapsed} />}
+    <aside style={{ width: 320, borderRight: '1px solid var(--line)', overflow: 'auto', background: 'var(--surface)', ...(isMobile ? MOBILE_ASIDE_OVERLAY_STYLE : null) }}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+          <AsideCollapseButton onCollapse={toggleCollapsed} />
           <button className="btn btn-primary" onClick={onNew}>+ Nouveau</button>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
@@ -113,5 +168,6 @@ export function FondList({
         )}
       </ul>
     </aside>
+    </>
   );
 }

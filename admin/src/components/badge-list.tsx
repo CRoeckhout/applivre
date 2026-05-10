@@ -1,5 +1,13 @@
 import { BadgeGraphicWeb } from '../lib/badge-graphic';
 import type { BadgeCatalogRow } from '../lib/types';
+import { useCollapsibleAside } from '../lib/use-collapsible-aside';
+import {
+  AsideCollapseButton,
+  CollapsedAsideItem,
+  CollapsedAsideStrip,
+  MOBILE_ASIDE_OVERLAY_STYLE,
+  MobileAsideBackdrop,
+} from './collapsible-aside';
 
 type Props = {
   badges: BadgeCatalogRow[];
@@ -18,6 +26,7 @@ export function BadgeList({
   onSelect,
   onNew,
 }: Props) {
+  const [collapsed, toggleCollapsed, isMobile] = useCollapsibleAside();
   const now = new Date();
   const filtered = badges.filter((b) => {
     if (filter === 'retired') return b.retired_at !== null;
@@ -29,10 +38,44 @@ export function BadgeList({
     return true;
   });
 
+  function renderCollapsedItems() {
+    return filtered.map((b) => (
+      <CollapsedAsideItem
+        key={b.badge_key}
+        onClick={() => onSelect(b.badge_key)}
+        selected={selectedKey === b.badge_key}
+        dimmed={b.retired_at !== null}
+        title={b.title}>
+        <BadgeGraphicWeb
+          kind={b.graphic_kind}
+          payload={b.graphic_payload}
+          tokens={b.graphic_tokens ?? {}}
+          size={34}
+        />
+      </CollapsedAsideItem>
+    ));
+  }
+
+  if (collapsed) {
+    return (
+      <CollapsedAsideStrip onExpand={toggleCollapsed} label="badges">
+        {renderCollapsedItems()}
+      </CollapsedAsideStrip>
+    );
+  }
+
   return (
-    <aside style={{ width: 320, borderRight: '1px solid var(--line)', overflow: 'auto', background: 'var(--surface)' }}>
+    <>
+      {isMobile && (
+        <CollapsedAsideStrip onExpand={toggleCollapsed} label="badges">
+          {renderCollapsedItems()}
+        </CollapsedAsideStrip>
+      )}
+      {isMobile && <MobileAsideBackdrop onClose={toggleCollapsed} />}
+    <aside style={{ width: 320, borderRight: '1px solid var(--line)', overflow: 'auto', background: 'var(--surface)', ...(isMobile ? MOBILE_ASIDE_OVERLAY_STYLE : null) }}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+          <AsideCollapseButton onCollapse={toggleCollapsed} />
           <button className="btn btn-primary" onClick={onNew}>+ Nouveau</button>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
@@ -88,5 +131,6 @@ export function BadgeList({
         )}
       </ul>
     </aside>
+    </>
   );
 }

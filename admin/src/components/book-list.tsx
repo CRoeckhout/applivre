@@ -1,5 +1,13 @@
 import { useEffect, useRef } from 'react';
 import type { BookCatalogRow } from '../lib/types';
+import { useCollapsibleAside } from '../lib/use-collapsible-aside';
+import {
+  AsideCollapseButton,
+  CollapsedAsideItem,
+  CollapsedAsideStrip,
+  MOBILE_ASIDE_OVERLAY_STYLE,
+  MobileAsideBackdrop,
+} from './collapsible-aside';
 
 export type QuickFilter =
   | 'no_cover'
@@ -63,6 +71,7 @@ export function BookList({
   onNew,
 }: Props) {
   const scrollerRef = useRef<HTMLElement | null>(null);
+  const [collapsed, toggleCollapsed, isMobile] = useCollapsibleAside();
 
   // Scroll handler : déclenche `onLoadMore` quand on approche du fond.
   // Re-attaché à chaque changement de hasMore/loadingMore — sinon le handler
@@ -79,16 +88,54 @@ export function BookList({
     return () => el.removeEventListener('scroll', onScroll);
   }, [hasMore, loadingMore, onLoadMore]);
 
+  function renderCollapsedItems() {
+    return books.map((b) => (
+      <CollapsedAsideItem
+        key={b.isbn}
+        onClick={() => onSelect(b.isbn)}
+        selected={selectedIsbn === b.isbn}
+        title={b.title || b.isbn}>
+        {b.cover_url ? (
+          <img
+            src={b.cover_url}
+            alt=""
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        ) : (
+          <span className="muted" style={{ fontSize: 10 }}>?</span>
+        )}
+      </CollapsedAsideItem>
+    ));
+  }
+
+  if (collapsed) {
+    return (
+      <CollapsedAsideStrip onExpand={toggleCollapsed} label="livres">
+        {renderCollapsedItems()}
+      </CollapsedAsideStrip>
+    );
+  }
+
   return (
-    <aside ref={scrollerRef} style={{ width: 360, borderRight: '1px solid var(--line)', overflow: 'auto', background: 'var(--surface)' }}>
+    <>
+      {isMobile && (
+        <CollapsedAsideStrip onExpand={toggleCollapsed} label="livres">
+          {renderCollapsedItems()}
+        </CollapsedAsideStrip>
+      )}
+      {isMobile && <MobileAsideBackdrop onClose={toggleCollapsed} />}
+    <aside ref={scrollerRef} style={{ width: 360, borderRight: '1px solid var(--line)', overflow: 'auto', background: 'var(--surface)', ...(isMobile ? MOBILE_ASIDE_OVERLAY_STYLE : null) }}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
-        <button
-          onClick={onNew}
-          className="btn btn-primary"
-          style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
-        >
-          + Nouveau livre
-        </button>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+          <AsideCollapseButton onCollapse={toggleCollapsed} />
+          <button
+            onClick={onNew}
+            className="btn btn-primary"
+            style={{ flex: 1, fontSize: 13 }}
+          >
+            + Nouveau livre
+          </button>
+        </div>
         <input
           type="search"
           placeholder="ISBN, titre, auteur…"
@@ -205,5 +252,6 @@ export function BookList({
         )}
       </ul>
     </aside>
+    </>
   );
 }

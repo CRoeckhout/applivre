@@ -8,6 +8,7 @@ import {
 } from "../lib/types";
 import { AiCleanupModal } from "./ai-cleanup-modal";
 import { UserCard } from "./user-card";
+import { UserRichCardLoader } from "./user-rich-card-loader";
 
 type Props = {
   initial: BookCatalogRow;
@@ -230,15 +231,60 @@ export function BookForm({ initial, onSaved, onDeleted }: Props) {
   }
 
   return (
-    <main style={{ flex: 1, padding: 24, overflow: "auto" }}>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 240px",
-          gap: 32,
-          alignItems: "start",
-        }}
-      >
+    <main style={{ flex: 1, padding: 0, overflowY: "auto", overflowX: "hidden" }}>
+      <div style={{ display: "flex", flexDirection: "column", maxWidth: 720, margin: "0 auto", padding: "0 24px 24px" }}>
+        <div
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 5,
+            background: "var(--paper)",
+            paddingTop: 16,
+            paddingBottom: 12,
+            borderBottom: "1px solid var(--line)",
+            marginBottom: 16,
+          }}>
+          <div
+            style={{
+              background: "var(--surface)",
+              borderRadius: 12,
+              border: "1px solid var(--line)",
+              padding: 16,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 12,
+              overflow: "hidden",
+            }}
+          >
+            {coverUrl ? (
+              <img
+                src={coverUrl}
+                alt=""
+                style={{
+                  width: 160,
+                  maxHeight: 240,
+                  objectFit: "contain",
+                  borderRadius: 6,
+                  border: "1px solid var(--line)",
+                }}
+              />
+            ) : (
+              <div className="muted" style={{ fontSize: 12 }}>
+                Pas de couverture
+              </div>
+            )}
+            <div style={{ width: "100%", textAlign: "center" }}>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>
+                {title || "—"}
+              </div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                {parseCsv(authorsText).join(", ") || "—"}
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div>
           <h2 style={{ marginTop: 0, fontFamily: "monospace" }}>
             {initial.isbn}
@@ -331,47 +377,25 @@ export function BookForm({ initial, onSaved, onDeleted }: Props) {
           </div>
 
           <div style={{ marginBottom: 12 }}>
-            <UserCard
-              user={
-                uploader
-                  ? {
-                      user_id: uploader.user_id,
-                      email: uploader.email,
-                      username: uploader.username,
-                      display_name: uploader.display_name,
-                      avatar_url: uploader.avatar_url,
-                      account_created_at: uploader.account_created_at,
-                    }
-                  : null
-              }
-              loading={uploaderLoading}
-              error={uploaderError}
-              emptyLabel="Aucun utilisateur n'a encore ajouté ce livre."
-              stats={
-                uploader
-                  ? [
-                      {
-                        label: "Ajoutés au catalogue",
-                        value: uploader.added_count,
-                      },
-                      {
-                        label: "Bibliothèque",
-                        value: uploader.library_count,
-                      },
-                    ]
-                  : undefined
-              }
-              footer={
-                uploader && (
-                  <span className="muted">
-                    Livre ajouté le :{" "}
-                    <strong style={{ color: "var(--text)" }}>
-                      {new Date(uploader.added_at).toLocaleDateString()}
-                    </strong>
-                  </span>
-                )
-              }
-            />
+            {uploader ? (
+              <UserRichCardLoader
+                userId={uploader.user_id}
+                stats={[
+                  {
+                    label: "Ajoutés au catalogue",
+                    value: uploader.added_count,
+                  },
+                  { label: "Bibliothèque", value: uploader.library_count },
+                ]}
+              />
+            ) : (
+              <UserCard
+                user={null}
+                loading={uploaderLoading}
+                error={uploaderError}
+                emptyLabel="Aucun utilisateur n'a encore ajouté ce livre."
+              />
+            )}
           </div>
 
           {error && (
@@ -410,47 +434,6 @@ export function BookForm({ initial, onSaved, onDeleted }: Props) {
           </div>
         </div>
 
-        <div style={{ position: "sticky", top: 24 }}>
-          <h3 style={{ marginTop: 0 }}>Aperçu</h3>
-          <div
-            style={{
-              background: "var(--surface)",
-              borderRadius: 12,
-              border: "1px solid var(--line)",
-              padding: 16,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 12,
-            }}
-          >
-            {coverUrl ? (
-              <img
-                src={coverUrl}
-                alt=""
-                style={{
-                  width: 160,
-                  maxHeight: 240,
-                  objectFit: "contain",
-                  borderRadius: 6,
-                  border: "1px solid var(--line)",
-                }}
-              />
-            ) : (
-              <div className="muted" style={{ fontSize: 12 }}>
-                Pas de couverture
-              </div>
-            )}
-            <div style={{ width: "100%", textAlign: "center" }}>
-              <div style={{ fontWeight: 600, fontSize: 14 }}>
-                {title || "—"}
-              </div>
-              <div className="muted" style={{ fontSize: 12 }}>
-                {parseCsv(authorsText).join(", ") || "—"}
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       {aiProposal && (
