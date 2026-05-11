@@ -67,11 +67,32 @@ export type BorderKind = 'png_9slice' | 'svg_9slice' | 'lottie_9slice';
 
 export type BorderRepeatMode = 'stretch' | 'round';
 
-// Mode de rendu d'une bande N-slice. `stretch`/`round` étendent les notions
-// 9-slice existantes ; `fixed` = largeur source = largeur rendue (la bande
-// garde sa taille pixel native, comme un coin), utilisé pour ancrer un
-// ornement au milieu d'un edge sans le déformer.
+// Mode de rendu d'une cellule de la grille N-slice. `stretch`/`round`
+// étendent les notions 9-slice existantes ; `fixed` = la cellule garde sa
+// taille pixel source (comme un coin), pour ancrer un ornement non-déformable.
 export type BorderBandMode = 'stretch' | 'round' | 'fixed';
+
+// Configuration N-slice flat : un seul jeu de cuts X et Y produit une grille
+// (cutsY+1) × (cutsX+1) de cellules. Chaque cellule a son mode propre. 9-slice
+// classique = 2 cuts X + 2 cuts Y donnant 9 cellules. Ajouter un cut crée
+// une colonne/row supplémentaire dans la grille.
+//
+// Cuts en coordonnées source, asc, dans [0, imageWidth] / [0, imageHeight].
+// modes[j][i] = mode de la cellule à row j, col i.
+// length(modes) = cutsY.length + 1, length(modes[j]) = cutsX.length + 1.
+//
+// Sizing :
+//   - col i a width = source si AU MOINS UNE cellule de la col est fixed,
+//     sinon flex proportionnel à sa width source.
+//   - row j a height = source si AU MOINS UNE cellule de la row est fixed,
+//     sinon flex.
+// Permet aux ornements (fixed) d'imposer leur taille source à toute la
+// colonne/row, les autres cells s'adaptant visuellement.
+export type BorderSliceExtras = {
+  cutsX: number[];
+  cutsY: number[];
+  modes: BorderBandMode[][];
+};
 
 export type BorderCatalogRow = {
   border_key: string;
@@ -91,14 +112,9 @@ export type BorderCatalogRow = {
   bg_inset_bottom: number | null;
   bg_inset_left: number | null;
   repeat_mode: BorderRepeatMode;
-  // N-slice étendu : cuts supplémentaires sur les axes X/Y et mode par bande.
-  // Tous null ⇒ comportement 9-slice classique avec `repeat_mode` global.
-  // Si extra_cuts_x est non-null, band_modes_x doit avoir length = cuts+1
-  // (validé en DB et côté admin avant save).
-  extra_cuts_x: number[] | null;
-  extra_cuts_y: number[] | null;
-  band_modes_x: BorderBandMode[] | null;
-  band_modes_y: BorderBandMode[] | null;
+  // N-slice étendu : 5 zones indépendantes (4 edges + center). null ⇒
+  // comportement 9-slice classique avec `repeat_mode` global.
+  slice_extras: BorderSliceExtras | null;
   card_padding: number;
   tokens: Record<string, string>;
   availability: CatalogAvailability;

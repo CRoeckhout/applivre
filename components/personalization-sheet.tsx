@@ -628,6 +628,7 @@ function BorderCard({
           slice={def.slice}
           padding={{ top: 0, right: 0, bottom: 0, left: 0 }}
           repeat={def.repeat}
+          sliceExtras={def.sliceExtras}
           fillCenter={false}
           style={{ flex: 1 }}>
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>

@@ -2,6 +2,23 @@ import type { ImageSourcePropType } from 'react-native';
 
 export type BorderInsets = { top: number; right: number; bottom: number; left: number };
 
+// Mode de rendu d'une cellule N-slice. `stretch`/`round` = équivalents des
+// modes 9-slice existants ; `fixed` = taille source rendue à l'identique
+// (la cellule ne s'adapte pas, comme un coin). Permet d'ancrer un ornement
+// non-déformable.
+export type BorderBandMode = 'stretch' | 'round' | 'fixed';
+
+// Configuration N-slice flat : un seul jeu de cuts X et Y produit une grille
+// (cutsY+1) × (cutsX+1) de cellules, chacune avec son mode. 9-slice classique
+// = 2v + 2h cuts donnant 9 cells. Ajouter un cut crée une row/col additionnelle.
+// Sizing : col fixed-width si AU MOINS UNE cell de la col a mode='fixed',
+// idem row. Voir admin/src/lib/types.ts pour la doc complète.
+export type BorderSliceExtras = {
+  cutsX: number[];
+  cutsY: number[];
+  modes: BorderBandMode[][];
+};
+
 // Raison pour laquelle un item de catalog est verrouillé côté user. Seul
 // `premium` côté front : c'est la seule catégorie qui déclenche un paywall.
 // `badge` et `unit` sont gérés serveur (unlock via user_<asset>) — invisibles
@@ -26,6 +43,12 @@ export type BorderDef = {
   // `round` le tile avec count entier (équivalent CSS border-image-repeat).
   // Absent ⇒ stretch.
   repeat?: 'stretch' | 'round';
+  // N-slice étendu : 5 zones indépendantes au-dessus du 9-slice de base.
+  // Top/bottom edges : cuts X parallèles à l'edge, modes par segment 1D.
+  // Left/right edges : cuts Y parallèles, modes par segment 1D.
+  // Center : cuts X/Y et modes par cellule (matrice 2D).
+  // Absent ou zone undefined ⇒ 9-slice classique (un segment, repeat global).
+  sliceExtras?: BorderSliceExtras;
   // Tokens de couleur pour SVG : map `name → defaultHex`. Le SVG contient
   // `{{name}}` aux endroits à thémer ; à l'app, `name` est résolu contre le
   // theme courant (slot homonyme), fallback sur defaultHex si pas de match.

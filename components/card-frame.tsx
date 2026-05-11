@@ -134,6 +134,7 @@ export function CardFrame({
       padding={def.padding}
       bgInsets={def.bgInsets}
       repeat={def.repeat}
+      sliceExtras={def.sliceExtras}
       fillCenter={false}
       // Sans fond image : `bgColor` peint dans la zone `bgInsets` du cadre
       // (= la zone "intérieure" définie par l'admin). Au-delà de bgInsets,

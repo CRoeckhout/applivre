@@ -1,6 +1,11 @@
-import { BORDERS as STATIC_BORDERS, type BorderDef } from '@/lib/borders/catalog';
+import {
+  BORDERS as STATIC_BORDERS,
+  type BorderDef,
+  type BorderSliceExtras,
+} from '@/lib/borders/catalog';
 import { supabase } from '@/lib/supabase';
 import { usePremium } from '@/store/premium';
+import { Image as ExpoImage } from 'expo-image';
 import { create } from 'zustand';
 
 type Availability = 'everyone' | 'premium' | 'badge' | 'unit';
@@ -23,6 +28,7 @@ type BorderRow = {
   bg_inset_bottom: number | null;
   bg_inset_left: number | null;
   repeat_mode: 'stretch' | 'round';
+  slice_extras: BorderSliceExtras | null;
   tokens: Record<string, string> | null;
   card_padding: number;
   availability: Availability;
@@ -68,6 +74,18 @@ function rowToDef(r: BorderRow): BorderDef | null {
     left: r.bg_inset_left ?? Math.round(r.slice_left / 2),
   };
 
+  // Valide le shape de slice_extras avant propagation : une row peut venir
+  // d'une version antérieure du schema (ex. shape 5-zones) ; les shapes
+  // invalides sont ignorés et la bordure retombe en 9-slice classique.
+  const sliceExtras =
+    r.slice_extras &&
+    typeof r.slice_extras === 'object' &&
+    Array.isArray((r.slice_extras as Record<string, unknown>).cutsX) &&
+    Array.isArray((r.slice_extras as Record<string, unknown>).cutsY) &&
+    Array.isArray((r.slice_extras as Record<string, unknown>).modes)
+      ? r.slice_extras
+      : undefined;
+
   const baseDef = {
     id: r.border_key,
     label: r.title,
@@ -81,6 +99,7 @@ function rowToDef(r: BorderRow): BorderDef | null {
     padding: { top: 0, right: 0, bottom: 0, left: 0 },
     bgInsets,
     repeat: r.repeat_mode,
+    sliceExtras,
     tokens: r.tokens ?? undefined,
     cardPadding: r.card_padding,
   };
@@ -157,6 +176,24 @@ export const useBorderCatalog = create<BorderCatalogState>((set) => ({
         return def ? { def, availability: r.availability } : null;
       })
       .filter((e): e is BorderEntry => e !== null);
+
+    // Prefetch des PNG : déclenche le download et le décode en RAM/disk
+    // avant que NineSliceFrame ait besoin de les rendre. Pour les bordures
+    // N-slice avec ~30 cells, ça évite un flash de loading sur la première
+    // frame de chaque card. Fire-and-forget, pas de waiter.
+    const uris = entries
+      .map((e) => {
+        const src = e.def.source;
+        if (src && typeof src === 'object' && 'uri' in src && typeof src.uri === 'string') {
+          return src.uri;
+        }
+        return null;
+      })
+      .filter((u): u is string => u !== null);
+    if (uris.length > 0) {
+      void ExpoImage.prefetch(uris, { cachePolicy: 'memory-disk' });
+    }
+
     set({ remote: entries, loaded: true });
   },
 }));
