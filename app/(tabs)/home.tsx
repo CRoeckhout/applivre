@@ -7,7 +7,7 @@ import { ShortcutCard } from '@/components/shortcut-card';
 import { StartReadingModal } from '@/components/start-reading-modal';
 import { StreakCard } from '@/components/streak-card';
 import { UserProfileCard } from '@/components/user-profile-card';
-import { dayOffset, todayIso } from '@/lib/date';
+import { dayOffset, toIso, todayIso } from '@/lib/date';
 import { useBookshelf } from '@/store/bookshelf';
 import {
   AVAILABLE_HOME_CARDS,
@@ -81,7 +81,7 @@ export default function HomeScreen() {
     const thresholdSec = goalMinutes * 60;
     const byDay = new Map<string, number>();
     for (const s of sessions) {
-      const d = s.startedAt.slice(0, 10);
+      const d = toIso(new Date(s.startedAt));
       byDay.set(d, (byDay.get(d) ?? 0) + s.durationSec);
     }
     const completed = new Set(manualStreakDays);

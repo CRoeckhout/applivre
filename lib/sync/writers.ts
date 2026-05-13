@@ -5,6 +5,7 @@ import {
   internalDeleteChallenge,
   internalDeleteCompletionsForUserBook,
   internalDeleteLoan,
+  internalDeleteSession,
   internalDeleteSheet,
   internalDeleteStreakDay,
   internalDeleteUserBook,
@@ -95,6 +96,13 @@ export function syncInsertSession(s: ReadingSession): Promise<void> {
   return runOrQueue(
     () => internalInsertSession(s),
     () => ({ kind: 'insertSession', payload: { session: s } }),
+  );
+}
+
+export function syncDeleteSession(id: string): Promise<void> {
+  return runOrQueue(
+    () => internalDeleteSession(id),
+    () => ({ kind: 'deleteSession', payload: { id } }),
   );
 }
 

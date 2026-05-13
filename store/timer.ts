@@ -1,12 +1,18 @@
 import { APP_SLUG } from '@/constants/app';
 import { newId } from '@/lib/id';
+import { dayOfSession, isDayAutoValidated } from '@/lib/streak-validation';
 import { getSyncUserId } from '@/lib/sync/session';
 import {
   rpcFinishReadingCycle,
+  syncDeleteSession,
+  syncDeleteStreakDay,
   syncInsertSession,
   syncUpsertCycle,
+  syncUpsertStreakDay,
 } from '@/lib/sync/writers';
 import { useBookshelf } from '@/store/bookshelf';
+import { usePreferences } from '@/store/preferences';
+import { useReadingStreak } from '@/store/reading-streak';
 import type {
   ReadCycle,
   ReadCycleOutcome,
@@ -34,6 +40,7 @@ type TimerState = {
   resume: () => void;
   stop: (stoppedAtPage: number) => ReadingSession | null;
   cancel: () => void;
+  deleteSession: (sessionId: string) => void;
 
   // Cycles
   finishCycle: (
@@ -134,11 +141,43 @@ export const useTimer = create<TimerState>()(
           startedAt: new Date(active.startedAt).toISOString(),
         };
         set((s) => ({ active: null, sessions: [session, ...s.sessions] }));
-        if (getSyncUserId()) void syncInsertSession(session);
+        const userId = getSyncUserId();
+        if (userId) {
+          void syncInsertSession(session);
+          // Si la session validait déjà le jour, l'upsert est idempotent —
+          // c'est OK de re-push. On préfère ça au coût d'un check préalable
+          // qui doublerait la logique côté caller.
+          const day = dayOfSession(session);
+          const goalMinutes = usePreferences.getState().dailyReadingGoalMinutes;
+          if (isDayAutoValidated(get().sessions, day, goalMinutes)) {
+            void syncUpsertStreakDay(day, userId, goalMinutes);
+          }
+        }
         return session;
       },
 
       cancel: () => set({ active: null }),
+
+      deleteSession: (sessionId) => {
+        const removed = get().sessions.find((s) => s.id === sessionId);
+        if (!removed) return;
+        set((s) => ({
+          sessions: s.sessions.filter((x) => x.id !== sessionId),
+        }));
+        const userId = getSyncUserId();
+        if (!userId) return;
+        void syncDeleteSession(sessionId);
+        // Si le jour de la session supprimée n'est plus auto-validé et pas
+        // manuel, retirer la row reading_streak_days. Sinon (manuel ou autre
+        // session valide encore le jour) on laisse.
+        const day = dayOfSession(removed);
+        const goalMinutes = usePreferences.getState().dailyReadingGoalMinutes;
+        const stillAuto = isDayAutoValidated(get().sessions, day, goalMinutes);
+        const isManual = useReadingStreak.getState().manualDays.includes(day);
+        if (!stillAuto && !isManual) {
+          void syncDeleteStreakDay(day, userId);
+        }
+      },
 
       finishCycle: (userBookId, outcome, finalPage) => {
         let updated: ReadCycle | undefined;

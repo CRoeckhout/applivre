@@ -20,6 +20,7 @@ export type QueuedOp =
   | { kind: 'upsertUserBook'; payload: { ub: UserBook; userId: string } }
   | { kind: 'deleteUserBook'; payload: { id: string } }
   | { kind: 'insertSession'; payload: { session: ReadingSession } }
+  | { kind: 'deleteSession'; payload: { id: string } }
   | { kind: 'upsertCycle'; payload: { cycle: ReadCycle } }
   | { kind: 'upsertLoan'; payload: { loan: BookLoan } }
   | { kind: 'deleteLoan'; payload: { id: string } }

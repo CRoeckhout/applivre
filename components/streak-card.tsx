@@ -4,6 +4,7 @@ import {
   frShortWeekday,
   isConsecutive,
   lastNDays,
+  toIso,
   todayIso,
 } from "@/lib/date";
 import { MAX_DAILY_GOAL_MINUTES, usePreferences } from "@/store/preferences";
@@ -82,7 +83,10 @@ export function StreakCard({
   const autoDays = useMemo(() => {
     const byDay = new Map<string, number>();
     for (const s of sessions) {
-      const day = s.startedAt.slice(0, 10);
+      // Date locale, pas la date UTC : une session démarrée tard le soir
+      // (ex 1h30 FR = 23h30 UTC la veille en heure d'été) doit valider
+      // le défi du jour où l'utilisateur l'a réellement faite.
+      const day = toIso(new Date(s.startedAt));
       byDay.set(day, (byDay.get(day) ?? 0) + s.durationSec);
     }
     const out = new Set<string>();
