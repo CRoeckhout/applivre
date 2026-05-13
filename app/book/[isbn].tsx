@@ -1,6 +1,7 @@
 import { BookCover } from "@/components/book-cover";
 import { ReviewsSection } from "@/components/book-reviews/reviews-section";
 import { BookStatusBar } from "@/components/book-status-bar";
+import { CongratsReadModal } from "@/components/congrats-read-modal";
 import { GenreEditorModal } from "@/components/genre-editor-modal";
 import { LoanTracker } from "@/components/loan-tracker";
 import { PauseBookModal } from "@/components/pause-book-modal";
@@ -36,13 +37,18 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Pressable,
   ScrollView,
   Text,
   View,
 } from "react-native";
-import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
+import { Swipeable } from "react-native-gesture-handler";
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeOut,
+  LinearTransition,
+} from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function BookDetailScreen() {
@@ -326,9 +332,6 @@ export default function BookDetailScreen() {
           {isbn ? (
             <PublicSheetsForBook isbn={isbn} currentUserId={currentUserId} />
           ) : null}
-          {isbn ? (
-            <ReviewsSection bookIsbn={isbn} bookTitle={data.title} />
-          ) : null}
 
           {existing && (
             <ReadingStats
@@ -347,6 +350,13 @@ export default function BookDetailScreen() {
               onSave={(values) => setGenres(existing.id, values)}
             />
           )}
+
+          {isbn ? (
+            <>
+              <View className="mt-10 h-px bg-ink/10" />
+              <ReviewsSection bookIsbn={isbn} bookTitle={data.title} />
+            </>
+          ) : null}
 
           {existing && (
             <Pressable
@@ -466,68 +476,6 @@ function NavArrow({
   );
 }
 
-function CongratsReadModal({
-  open,
-  hasSheet,
-  onClose,
-  onCreate,
-}: {
-  open: boolean;
-  hasSheet: boolean;
-  onClose: () => void;
-  onCreate: () => void;
-}) {
-  const iconName = hasSheet ? "edit-note" : "celebration";
-  const title = hasSheet ? "Mets ta fiche à jour !" : "Félicitations !";
-  const body = hasSheet
-    ? "Tu as déjà une fiche pour ce livre. Complète-la avec ton avis final !"
-    : "Ajoute une fiche de lecture pour dire ce que tu en as pensé.";
-  const cta = hasSheet ? "Mettre à jour" : "Créer ma fiche";
-
-  return (
-    <Modal
-      visible={open}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View className="flex-1 items-center justify-center bg-black/40 px-8">
-        <Animated.View
-          entering={FadeIn.duration(220)}
-          className="w-full max-w-sm rounded-3xl bg-paper p-6"
-        >
-          <View className="items-center">
-            <View className="h-14 w-14 items-center justify-center rounded-full bg-accent-pale">
-              <MaterialIcons name={iconName} size={30} color="#c27b52" />
-            </View>
-            <Text className="mt-4 text-center font-display text-2xl text-ink">
-              {title}
-            </Text>
-            <Text className="mt-2 text-center text-base text-ink-soft">
-              {body}
-            </Text>
-          </View>
-
-          <View className="mt-6 gap-2">
-            <Pressable
-              onPress={onCreate}
-              className="items-center rounded-full bg-accent px-5 py-3 active:opacity-80"
-            >
-              <Text className="font-sans-med text-paper">{cta}</Text>
-            </Pressable>
-            <Pressable
-              onPress={onClose}
-              className="items-center rounded-full px-5 py-3 active:bg-paper-warm"
-            >
-              <Text className="text-ink-muted">Plus tard</Text>
-            </Pressable>
-          </View>
-        </Animated.View>
-      </View>
-    </Modal>
-  );
-}
-
 function ReadingStats({
   userBookId,
   totalPages,
@@ -627,14 +575,14 @@ function ReadingStats({
       )}
 
       {sessions.length > 0 && (
-        <>
-          <Text className="mt-6 mb-2 font-display text-lg text-ink">
-            Dernières sessions
-          </Text>
-          {sessions.slice(0, 5).map((s) => (
-            <SessionRow key={s.id} session={s} delta={deltas.get(s.id) ?? 0} />
-          ))}
-        </>
+        <RecentSessionsCard
+          sessions={[...sessions].sort(
+            (a, b) =>
+              new Date(b.startedAt).getTime() -
+              new Date(a.startedAt).getTime(),
+          )}
+          deltas={deltas}
+        />
       )}
 
       {hasActiveCycle && pastCycles.length > 0 && (
@@ -728,31 +676,141 @@ function StatBox({ value, label }: { value: string; label: string }) {
   );
 }
 
+function RecentSessionsCard({
+  sessions,
+  deltas,
+}: {
+  sessions: ReadingSession[];
+  deltas: Map<string, number>;
+}) {
+  const PREVIEW = 5;
+  const [expanded, setExpanded] = useState(false);
+  const hasMore = sessions.length > PREVIEW;
+  const preview = sessions.slice(0, PREVIEW);
+  const extra = sessions.slice(PREVIEW);
+  const hidden = extra.length;
+
+  return (
+    <Animated.View
+      layout={LinearTransition.duration(260)}
+      className="mt-6 rounded-3xl bg-paper-warm p-4"
+    >
+      <Text className="mb-1 font-display text-lg text-ink">
+        Dernières sessions
+      </Text>
+      {preview.map((s) => (
+        <SessionRow
+          key={s.id}
+          session={s}
+          delta={deltas.get(s.id) ?? 0}
+          inCard
+        />
+      ))}
+      {expanded &&
+        extra.map((s) => (
+          <Animated.View
+            key={s.id}
+            entering={FadeIn.duration(220)}
+            exiting={FadeOut.duration(160)}
+          >
+            <SessionRow session={s} delta={deltas.get(s.id) ?? 0} inCard />
+          </Animated.View>
+        ))}
+      {hasMore && (
+        <Pressable
+          onPress={() => setExpanded((v) => !v)}
+          className="mt-3 flex-row items-center justify-center gap-1 active:opacity-70"
+          accessibilityLabel={
+            expanded ? "Afficher moins de sessions" : "Afficher toutes les sessions"
+          }
+        >
+          <Text className="font-sans-med text-sm text-accent-deep">
+            {expanded ? "Afficher moins" : `Afficher plus (${hidden})`}
+          </Text>
+          <MaterialIcons
+            name={expanded ? "expand-less" : "expand-more"}
+            size={18}
+            color="#c27b52"
+          />
+        </Pressable>
+      )}
+    </Animated.View>
+  );
+}
+
 function SessionRow({
   session,
   delta,
+  inCard,
 }: {
   session: ReadingSession;
   delta: number;
+  inCard?: boolean;
 }) {
   const date = new Date(session.startedAt);
   const dateStr = date.toLocaleDateString("fr-FR", {
     day: "2-digit",
     month: "short",
   });
+
+  // La validation du défi quotidien est dérivée des sessions (autoDays =
+  // somme des durées par jour). Supprimer une session recalcule donc la
+  // validation : si une autre session du même jour atteint encore le seuil,
+  // le défi reste validé ; sinon il est retiré automatiquement.
+  const onDelete = () => {
+    Alert.alert(
+      "Supprimer cette session ?",
+      `${dateStr} · ${formatDurationHuman(session.durationSec)} · p. ${session.stoppedAtPage}`,
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Supprimer",
+          style: "destructive",
+          onPress: () => useTimer.getState().deleteSession(session.id),
+        },
+      ],
+    );
+  };
+
   return (
-    <View className="mt-2 flex-row items-center justify-between rounded-xl bg-paper-warm px-4 py-3">
-      <Text className="text-sm text-ink-soft">{dateStr}</Text>
-      <View className="flex-row gap-4">
-        <Text className="text-sm text-ink">
-          {formatDurationHuman(session.durationSec)}
-        </Text>
-        <Text className="text-sm text-ink-muted">
-          p. {session.stoppedAtPage}
-          {delta > 0 ? ` · +${delta}` : ""}
-        </Text>
+    <Swipeable
+      renderRightActions={() => <DeleteSessionAction onPress={onDelete} />}
+      overshootRight={false}
+      rightThreshold={48}
+    >
+      <View
+        className={`mt-2 flex-row items-center justify-between rounded-xl px-4 py-3 ${
+          inCard ? "bg-paper" : "bg-paper-warm"
+        }`}
+      >
+        <Text className="text-sm text-ink-soft">{dateStr}</Text>
+        <View className="flex-row gap-4">
+          <Text className="text-sm text-ink">
+            {formatDurationHuman(session.durationSec)}
+          </Text>
+          <Text className="text-sm text-ink-muted">
+            p. {session.stoppedAtPage}
+            {delta > 0 ? ` · +${delta}` : ""}
+          </Text>
+        </View>
       </View>
-    </View>
+    </Swipeable>
+  );
+}
+
+function DeleteSessionAction({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityLabel="Supprimer cette session"
+      style={{ backgroundColor: "#b8503a" }}
+      className="mt-2 ml-2 items-center justify-center rounded-xl px-5 active:opacity-80"
+    >
+      <MaterialIcons name="delete-outline" size={22} color="#fbf8f4" />
+      <Text className="mt-0.5 text-[10px] font-sans-med text-paper">
+        Supprimer
+      </Text>
+    </Pressable>
   );
 }
 
