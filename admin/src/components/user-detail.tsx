@@ -47,6 +47,43 @@ const SUBTAB_LABELS: Record<SubTab, string> = {
   badges: "Badges",
 };
 
+const SUBTAB_STORAGE_KEY = "admin-user-detail-subtab";
+
+// Stocke `{ userId, tab }` : si on revient sur la page après un reload pour
+// le MÊME user, on restaure son tab. Pour un user différent, le mismatch
+// renvoie "overview" — donc plus besoin d'un useEffect de reset (qui posait
+// problème en StrictMode + remount sur `key={itemId}`).
+type PersistedSubTab = { userId: string; tab: SubTab };
+
+function readPersistedSubTab(userId: string): SubTab {
+  try {
+    const v = localStorage.getItem(SUBTAB_STORAGE_KEY);
+    if (!v) return "overview";
+    const parsed = JSON.parse(v) as Partial<PersistedSubTab>;
+    if (
+      parsed?.userId === userId &&
+      typeof parsed.tab === "string" &&
+      (SUBTABS as string[]).includes(parsed.tab)
+    ) {
+      return parsed.tab as SubTab;
+    }
+  } catch {
+    // localStorage indisponible / JSON cassé — fallback.
+  }
+  return "overview";
+}
+
+function persistSubTab(userId: string, tab: SubTab): void {
+  try {
+    localStorage.setItem(
+      SUBTAB_STORAGE_KEY,
+      JSON.stringify({ userId, tab } satisfies PersistedSubTab),
+    );
+  } catch {
+    // ignore
+  }
+}
+
 type Props = {
   // L'item de la liste pour les compteurs (books_count, sheets_count, last_activity_at).
   // Permet d'éviter un round-trip pour les stats du header.
@@ -67,13 +104,16 @@ export function UserDetail({ listItem, userId }: Props) {
   // lecture sans condition.
   const [followingCount, setFollowingCount] = useState<number | null>(null);
   const [followersCount, setFollowersCount] = useState<number | null>(null);
-  const [subTab, setSubTab] = useState<SubTab>("overview");
-
-  // Reset du sub-tab quand on change d'utilisateur — sinon on reste sur
-  // "Sessions" en sélectionnant un autre user, ce qui surprend.
-  useEffect(() => {
-    setSubTab("overview");
-  }, [userId]);
+  // Persisté en localStorage pour survivre à un reload. Le tuple
+  // `{userId, tab}` garantit le reset sur changement d'user (mismatch →
+  // "overview"), sans passer par un useEffect fragile en StrictMode.
+  const [subTab, setSubTabState] = useState<SubTab>(() =>
+    readPersistedSubTab(userId),
+  );
+  const setSubTab = (tab: SubTab) => {
+    setSubTabState(tab);
+    persistSubTab(userId, tab);
+  };
 
   // Charge profile + appearance-derived catalog rows + badges débloqués +
   // catalog complet de badges (pour le panel + la rich card). Les catalogs

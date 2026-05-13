@@ -192,22 +192,67 @@ function BingosTab({
 
 // ─── Daily streak ───────────────────────────────────────────────────────
 
+const MONTH_LABELS_FR = [
+  "Janvier",
+  "Février",
+  "Mars",
+  "Avril",
+  "Mai",
+  "Juin",
+  "Juillet",
+  "Août",
+  "Septembre",
+  "Octobre",
+  "Novembre",
+  "Décembre",
+];
+
+type DailyCell = {
+  date: string;
+  dayLabel: string;
+  done: boolean;
+  manual: boolean;
+};
+
 function DailyTab({ days }: { days: ReadingStreakDayRow[] }) {
-  // Calendrier 90 derniers jours.
-  const set = new Set(days.map((d) => d.day));
+  // Calendrier 90 derniers jours, groupé par mois.
+  const byDay = new Map(days.map((d) => [d.day, d]));
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const cells: { date: string; done: boolean }[] = [];
-  for (let i = 89; i >= 0; i--) {
+  const cells: DailyCell[] = [];
+  // Du plus récent (i=0 = aujourd'hui) au plus ancien. On formate en date
+  // locale, pas en UTC : `toISOString()` sur minuit Paris renvoie la veille.
+  for (let i = 0; i < 90; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
-    const iso = d.toISOString().slice(0, 10);
-    cells.push({ date: iso, done: set.has(iso) });
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const row = byDay.get(iso);
+    cells.push({
+      date: iso,
+      dayLabel: iso.slice(8, 10),
+      done: row !== undefined,
+      manual: row?.manual ?? false,
+    });
   }
+
+  // Groupage par "YYYY-MM" en préservant l'ordre (récent → ancien).
+  const months: { key: string; label: string; cells: DailyCell[] }[] = [];
+  for (const c of cells) {
+    const key = c.date.slice(0, 7);
+    let group = months[months.length - 1];
+    if (!group || group.key !== key) {
+      const year = Number(c.date.slice(0, 4));
+      const monthIdx = Number(c.date.slice(5, 7)) - 1;
+      group = { key, label: `${MONTH_LABELS_FR[monthIdx]} ${year}`, cells: [] };
+      months.push(group);
+    }
+    group.cells.push(c);
+  }
+
   const goalSample = days.find((d) => d.goal_minutes !== null);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ fontSize: 12 }} className="muted">
         90 derniers jours · {cells.filter((c) => c.done).length}{" "}
         jours validés
@@ -215,27 +260,59 @@ function DailyTab({ days }: { days: ReadingStreakDayRow[] }) {
           ? ` · objectif ${goalSample.goal_minutes} min/jour`
           : ""}
       </div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(15, 1fr)",
-          gap: 3,
-        }}>
-        {cells.map((c) => (
+      {months.map((m) => (
+        <div
+          key={m.key}
+          style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <div
-            key={c.date}
-            title={c.date}
             style={{
-              aspectRatio: "1 / 1",
-              borderRadius: 3,
-              background: c.done
-                ? "var(--accent)"
-                : "var(--surface-2)",
-              opacity: c.done ? 1 : 0.6,
-            }}
-          />
-        ))}
-      </div>
+              fontSize: 11,
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+              color: "var(--ink-muted)",
+            }}>
+            {m.label}
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(15, 1fr)",
+              gap: 4,
+            }}>
+            {m.cells.map((c) => (
+              <div
+                key={c.date}
+                title={
+                  c.done
+                    ? `${c.date} · ${c.manual ? "manuel" : "auto (session)"}`
+                    : c.date
+                }
+                style={{
+                  aspectRatio: "1 / 1",
+                  borderRadius: 4,
+                  background: c.done ? "var(--accent)" : "var(--surface-2)",
+                  opacity: c.done ? 1 : 0.6,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 1,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: c.done ? "white" : "var(--ink-muted)",
+                  fontVariantNumeric: "tabular-nums",
+                  lineHeight: 1,
+                }}>
+                <span>{c.dayLabel}</span>
+                {c.done && c.manual ? (
+                  <span style={{ fontSize: 10 }}>✋</span>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
       {days.length === 0 && (
         <div className="muted" style={{ fontSize: 12 }}>
           Aucun jour de streak enregistré.

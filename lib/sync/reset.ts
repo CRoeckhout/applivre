@@ -16,7 +16,7 @@ export function resetAllStores(): void {
   useLoans.setState({ loans: [] });
   useReadingSheets.setState({ sheets: {} });
   useChallenges.setState({ challenges: {} });
-  useReadingStreak.setState({ manualDays: [] });
+  useReadingStreak.setState({ days: [] });
   usePreferences.setState({ ...DEFAULT_PREFERENCES });
   useProfile.setState({ username: null, avatarUrl: null });
   useSyncQueue.setState({ ops: [] });

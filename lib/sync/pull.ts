@@ -41,7 +41,9 @@ import { useReadingSheets } from '@/store/reading-sheets';
 import { useReadingStreak } from '@/store/reading-streak';
 import { useTimer } from '@/store/timer';
 import type { BingoCompletion } from '@/types/bingo';
-import type { ReadingSheet, UserBook } from '@/types/book';
+import type { ReadingSession, ReadingSheet, UserBook } from '@/types/book';
+import { dayOfSession } from '@/lib/streak-validation';
+import { syncEnsureStreakDayAuto } from '@/lib/sync/writers';
 
 export async function pullUserData(userId: string): Promise<void> {
   // Toutes les requêtes filtrent explicitement par user_id (direct ou via
@@ -169,7 +171,9 @@ export async function pullUserData(userId: string): Promise<void> {
     challenges[c.year] = c;
   }
 
-  const manualDays = ((streakRes.data as DbStreakDay[]) ?? []).map(streakDayFromDb);
+  const streakDays = ((streakRes.data as DbStreakDay[]) ?? []).map(
+    streakDayFromDb,
+  );
 
   const profileRow = profileRes.data as
     | (DbProfile & { username: string | null; avatar_url: string | null })
@@ -202,10 +206,54 @@ export async function pullUserData(userId: string): Promise<void> {
   useLoans.setState({ loans });
   useReadingSheets.setState({ sheets });
   useChallenges.setState({ challenges });
-  useReadingStreak.setState({ manualDays });
+  useReadingStreak.setState({ days: streakDays });
   usePreferences.setState({ ...DEFAULT_PREFERENCES, ...prefs });
   useProfile.setState({ username, avatarUrl });
   useBingos.setState({ bingos, completions, pills });
   useBadges.setState({ earned });
   useBadgeCatalog.getState().setAll(catalogList);
+
+  // Backfill : pour les sessions qui ont validé un jour mais n'ont jamais
+  // créé de row reading_streak_days (sessions pré-introduction de l'auto-
+  // upsert, ou écritures qui ont échoué côté queue). Idempotent : on
+  // n'écrit que si le jour est absent de la table (existant manuel/auto
+  // préservé). On passe `userId` explicitement parce que `getSyncUserId()`
+  // n'est armé qu'après pullUserData côté _layout.tsx.
+  backfillAutoStreakDays(
+    userId,
+    streakDays,
+    sessions,
+    prefs.dailyReadingGoalMinutes,
+  );
+}
+
+function backfillAutoStreakDays(
+  userId: string,
+  existingDays: { day: string; manual: boolean }[],
+  sessions: ReadingSession[],
+  goalMinutes: number | undefined,
+): void {
+  const goal = goalMinutes ?? DEFAULT_PREFERENCES.dailyReadingGoalMinutes;
+  const threshold = goal * 60;
+  const existing = new Set(existingDays.map((d) => d.day));
+  const byDay = new Map<string, number>();
+  for (const s of sessions) {
+    const day = dayOfSession(s);
+    byDay.set(day, (byDay.get(day) ?? 0) + s.durationSec);
+  }
+  const missing: string[] = [];
+  for (const [day, total] of byDay) {
+    if (total >= threshold && !existing.has(day)) missing.push(day);
+  }
+  if (missing.length === 0) return;
+
+  useReadingStreak.setState({
+    days: [
+      ...existingDays,
+      ...missing.map((day) => ({ day, manual: false })),
+    ],
+  });
+  for (const day of missing) {
+    void syncEnsureStreakDayAuto(day, userId, goal);
+  }
 }

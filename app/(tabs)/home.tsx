@@ -7,7 +7,6 @@ import { ShortcutCard } from '@/components/shortcut-card';
 import { StartReadingModal } from '@/components/start-reading-modal';
 import { StreakCard } from '@/components/streak-card';
 import { UserProfileCard } from '@/components/user-profile-card';
-import { dayOffset, toIso, todayIso } from '@/lib/date';
 import { useBookshelf } from '@/store/bookshelf';
 import {
   AVAILABLE_HOME_CARDS,
@@ -15,7 +14,6 @@ import {
   type HomeCardId,
 } from '@/store/preferences';
 import { useReadingSheets } from '@/store/reading-sheets';
-import { useReadingStreak } from '@/store/reading-streak';
 import { useTimer } from '@/store/timer';
 import type { UserBook } from '@/types/book';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -47,11 +45,8 @@ export default function HomeScreen() {
   const router = useRouter();
   const books = useBookshelf((s) => s.books);
   const sheets = useReadingSheets((s) => s.sheets);
-  const manualStreakDays = useReadingStreak((s) => s.manualDays);
-  const sessions = useTimer((s) => s.sessions);
   const activeSession = useTimer((s) => s.active);
   const startTimer = useTimer((s) => s.start);
-  const goalMinutes = usePreferences((s) => s.dailyReadingGoalMinutes);
   const homeCardOrder = usePreferences((s) => s.homeCardOrder);
   const setHomeCardOrder = usePreferences((s) => s.setHomeCardOrder);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -75,30 +70,6 @@ export default function HomeScreen() {
     }
     setPickerOpen(true);
   };
-
-  // Sous-titre défi : série en cours calculée live
-  const streakSubtitle = useMemo(() => {
-    const thresholdSec = goalMinutes * 60;
-    const byDay = new Map<string, number>();
-    for (const s of sessions) {
-      const d = toIso(new Date(s.startedAt));
-      byDay.set(d, (byDay.get(d) ?? 0) + s.durationSec);
-    }
-    const completed = new Set(manualStreakDays);
-    for (const [d, total] of byDay) {
-      if (total >= thresholdSec) completed.add(d);
-    }
-    const today = todayIso();
-    const yesterday = dayOffset(today, -1);
-    let cursor = completed.has(today) ? today : completed.has(yesterday) ? yesterday : null;
-    let n = 0;
-    while (cursor && completed.has(cursor)) {
-      n++;
-      cursor = dayOffset(cursor, -1);
-    }
-    if (n === 0) return "Commence ta série aujourd'hui";
-    return `Série de ${n} jour${n > 1 ? 's' : ''} en cours`;
-  }, [manualStreakDays, sessions, goalMinutes]);
 
   const sheetsCount = Object.keys(sheets).length;
 
@@ -140,7 +111,10 @@ export default function HomeScreen() {
     defi: {
       id: 'defi',
       title: 'Mes défis',
-      subtitle: streakSubtitle,
+      // Rendu via <StreakCard /> directement (cf. renderItem), le subtitle
+      // n'est pas affiché — on garde le slot pour rester homogène avec les
+      // autres cardDefs.
+      subtitle: '',
       icon: 'local-fire-department',
       onPress: () => router.push('/defi'),
     },

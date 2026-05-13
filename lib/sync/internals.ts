@@ -358,7 +358,29 @@ export async function internalDeleteBingoPill(id: string): Promise<void> {
 // qui valide les conditions côté DB. Voir migration 0017.
 
 // Reading streak days
+// Deux opérations distinctes selon la source :
+//  - upsertStreakDay : toggle utilisateur (manual=true OU rétrogradation
+//    manual=false quand on dé-toggle un jour encore validé par session).
+//    Écrase systématiquement.
+//  - ensureStreakDayAuto : fin de session qui valide le jour (manual=false).
+//    N'écrit QUE si la row n'existe pas (préserve un manual=true existant).
 export async function internalUpsertStreakDay(
+  day: string,
+  userId: string,
+  goalMinutes: number,
+  manual: boolean,
+): Promise<void> {
+  await throwIfError(
+    supabase
+      .from('reading_streak_days')
+      .upsert(
+        { user_id: userId, day, goal_minutes: goalMinutes, manual },
+        { onConflict: 'user_id,day' },
+      ),
+  );
+}
+
+export async function internalEnsureStreakDayAuto(
   day: string,
   userId: string,
   goalMinutes: number,
@@ -367,8 +389,8 @@ export async function internalUpsertStreakDay(
     supabase
       .from('reading_streak_days')
       .upsert(
-        { user_id: userId, day, goal_minutes: goalMinutes },
-        { onConflict: 'user_id,day' },
+        { user_id: userId, day, goal_minutes: goalMinutes, manual: false },
+        { onConflict: 'user_id,day', ignoreDuplicates: true },
       ),
   );
 }

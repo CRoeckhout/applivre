@@ -4,12 +4,10 @@ import {
   frShortWeekday,
   isConsecutive,
   lastNDays,
-  toIso,
   todayIso,
 } from "@/lib/date";
 import { MAX_DAILY_GOAL_MINUTES, usePreferences } from "@/store/preferences";
 import { useReadingStreak } from "@/store/reading-streak";
-import { useTimer } from "@/store/timer";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useAudioPlayer } from "expo-audio";
 import * as Haptics from "expo-haptics";
@@ -65,9 +63,8 @@ export function StreakCard({
   onLongPress,
   isDragging = false,
 }: StreakCardProps = {}) {
-  const manualDays = useReadingStreak((s) => s.manualDays);
+  const days = useReadingStreak((s) => s.days);
   const toggleDay = useReadingStreak((s) => s.toggleDay);
-  const sessions = useTimer((s) => s.sessions);
   const goalMinutes = usePreferences((s) => s.dailyReadingGoalMinutes);
   const { inFrame, padding: framedPadding } = useCardFrame();
   // Cf. shortcut-card : padding natif quand pas de cadre.
@@ -78,37 +75,21 @@ export function StreakCard({
 
   const today = todayIso();
   const yesterday = dayOffset(today, -1);
-  const thresholdSec = goalMinutes * 60;
 
-  const autoDays = useMemo(() => {
-    const byDay = new Map<string, number>();
-    for (const s of sessions) {
-      // Date locale, pas la date UTC : une session démarrée tard le soir
-      // (ex 1h30 FR = 23h30 UTC la veille en heure d'été) doit valider
-      // le défi du jour où l'utilisateur l'a réellement faite.
-      const day = toIso(new Date(s.startedAt));
-      byDay.set(day, (byDay.get(day) ?? 0) + s.durationSec);
-    }
-    const out = new Set<string>();
-    for (const [day, total] of byDay) {
-      if (total >= thresholdSec) out.add(day);
-    }
-    return out;
-  }, [sessions, thresholdSec]);
-
-  const completed = useMemo(() => {
-    const set = new Set(manualDays);
-    for (const d of autoDays) set.add(d);
-    return set;
-  }, [manualDays, autoDays]);
+  const completed = useMemo(() => new Set(days.map((d) => d.day)), [days]);
+  const autoDays = useMemo(
+    () => new Set(days.filter((d) => !d.manual).map((d) => d.day)),
+    [days],
+  );
 
   const stats = useMemo(
     () => computeStreaks(completed, today),
     [completed, today],
   );
 
-  const todayFromSession = autoDays.has(today);
-  const todayManual = manualDays.includes(today);
+  const todayEntry = days.find((d) => d.day === today);
+  const todayFromSession = todayEntry !== undefined && !todayEntry.manual;
+  const todayManual = todayEntry?.manual === true;
   const strip = lastNDays(7, today);
 
   const handleToggleDay = (day: string, wasDone: boolean) => {

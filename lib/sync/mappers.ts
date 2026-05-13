@@ -300,10 +300,15 @@ export function challengeToDb(
 export type DbStreakDay = {
   user_id: string;
   day: string; // YYYY-MM-DD
+  goal_minutes: number | null;
+  manual: boolean;
 };
 
-export function streakDayFromDb(row: DbStreakDay): string {
-  return row.day;
+export function streakDayFromDb(row: DbStreakDay): {
+  day: string;
+  manual: boolean;
+} {
+  return { day: row.day, manual: row.manual };
 }
 
 // ═══════════════ User badges ═══════════════

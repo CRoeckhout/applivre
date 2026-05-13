@@ -30,6 +30,15 @@ export type QueuedOp =
   | { kind: 'deleteChallenge'; payload: { year: number; userId: string } }
   | {
       kind: 'upsertStreakDay';
+      payload: {
+        day: string;
+        userId: string;
+        goalMinutes: number;
+        manual: boolean;
+      };
+    }
+  | {
+      kind: 'ensureStreakDayAuto';
       payload: { day: string; userId: string; goalMinutes: number };
     }
   | { kind: 'deleteStreakDay'; payload: { day: string; userId: string } }

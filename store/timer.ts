@@ -5,10 +5,8 @@ import { getSyncUserId } from '@/lib/sync/session';
 import {
   rpcFinishReadingCycle,
   syncDeleteSession,
-  syncDeleteStreakDay,
   syncInsertSession,
   syncUpsertCycle,
-  syncUpsertStreakDay,
 } from '@/lib/sync/writers';
 import { useBookshelf } from '@/store/bookshelf';
 import { usePreferences } from '@/store/preferences';
@@ -144,13 +142,13 @@ export const useTimer = create<TimerState>()(
         const userId = getSyncUserId();
         if (userId) {
           void syncInsertSession(session);
-          // Si la session validait déjà le jour, l'upsert est idempotent —
-          // c'est OK de re-push. On préfère ça au coût d'un check préalable
-          // qui doublerait la logique côté caller.
+          // Si la session valide le jour, on crée une row reading_streak_days
+          // auto (sans écraser un éventuel manual=true). Le store local est
+          // mis à jour de façon optimiste — re-pull resynchronisera.
           const day = dayOfSession(session);
           const goalMinutes = usePreferences.getState().dailyReadingGoalMinutes;
           if (isDayAutoValidated(get().sessions, day, goalMinutes)) {
-            void syncUpsertStreakDay(day, userId, goalMinutes);
+            useReadingStreak.getState().ensureAutoDay(day, goalMinutes);
           }
         }
         return session;
@@ -167,15 +165,13 @@ export const useTimer = create<TimerState>()(
         const userId = getSyncUserId();
         if (!userId) return;
         void syncDeleteSession(sessionId);
-        // Si le jour de la session supprimée n'est plus auto-validé et pas
-        // manuel, retirer la row reading_streak_days. Sinon (manuel ou autre
-        // session valide encore le jour) on laisse.
+        // Si le jour de la session supprimée n'est plus auto-validé et que
+        // la row n'est pas manuelle, retirer la row reading_streak_days.
         const day = dayOfSession(removed);
         const goalMinutes = usePreferences.getState().dailyReadingGoalMinutes;
         const stillAuto = isDayAutoValidated(get().sessions, day, goalMinutes);
-        const isManual = useReadingStreak.getState().manualDays.includes(day);
-        if (!stillAuto && !isManual) {
-          void syncDeleteStreakDay(day, userId);
+        if (!stillAuto) {
+          useReadingStreak.getState().removeAutoDay(day);
         }
       },
 

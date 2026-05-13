@@ -34,7 +34,7 @@ export async function pushLocalData(userId: string): Promise<PushSummary> {
   const loans = useLoans.getState().loans;
   const sheets = useReadingSheets.getState().sheets;
   const challenges = useChallenges.getState().challenges;
-  const streakDays = useReadingStreak.getState().manualDays;
+  const streakDays = useReadingStreak.getState().days;
 
   const summary: PushSummary = {
     books: 0,
@@ -128,7 +128,13 @@ export async function pushLocalData(userId: string): Promise<PushSummary> {
 
   // 7. Reading streak days (upsert par user_id + day)
   if (streakDays.length > 0) {
-    const rows = streakDays.map((day) => ({ user_id: userId, day }));
+    const goalMinutes = usePreferences.getState().dailyReadingGoalMinutes;
+    const rows = streakDays.map((d) => ({
+      user_id: userId,
+      day: d.day,
+      manual: d.manual,
+      goal_minutes: goalMinutes,
+    }));
     const { error } = await supabase
       .from('reading_streak_days')
       .upsert(rows, { onConflict: 'user_id,day' });

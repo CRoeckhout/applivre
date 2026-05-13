@@ -8,6 +8,7 @@ import {
   internalDeleteLoan,
   internalDeleteSheet,
   internalDeleteStreakDay,
+  internalEnsureStreakDayAuto,
   internalDeleteSession,
   internalDeleteUserBook,
   internalInsertSession,
@@ -64,7 +65,16 @@ export async function executeEntry(entry: QueueEntry): Promise<void> {
     case 'deleteChallenge':
       return internalDeleteChallenge(entry.payload.year, entry.payload.userId);
     case 'upsertStreakDay':
+      // Les ops queuées avant l'introduction de `manual` étaient toutes
+      // des toggles manuels — d'où le default.
       return internalUpsertStreakDay(
+        entry.payload.day,
+        entry.payload.userId,
+        entry.payload.goalMinutes,
+        entry.payload.manual ?? true,
+      );
+    case 'ensureStreakDayAuto':
+      return internalEnsureStreakDayAuto(
         entry.payload.day,
         entry.payload.userId,
         entry.payload.goalMinutes,

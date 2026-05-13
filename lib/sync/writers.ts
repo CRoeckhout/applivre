@@ -8,6 +8,7 @@ import {
   internalDeleteSession,
   internalDeleteSheet,
   internalDeleteStreakDay,
+  internalEnsureStreakDayAuto,
   internalDeleteUserBook,
   internalFinishReadingCycle,
   internalInsertSession,
@@ -233,10 +234,28 @@ export function syncUpsertStreakDay(
   day: string,
   userId: string,
   goalMinutes: number,
+  manual: boolean,
 ): Promise<void> {
   return runOrQueue(
-    () => internalUpsertStreakDay(day, userId, goalMinutes),
-    () => ({ kind: 'upsertStreakDay', payload: { day, userId, goalMinutes } }),
+    () => internalUpsertStreakDay(day, userId, goalMinutes, manual),
+    () => ({
+      kind: 'upsertStreakDay',
+      payload: { day, userId, goalMinutes, manual },
+    }),
+  );
+}
+
+export function syncEnsureStreakDayAuto(
+  day: string,
+  userId: string,
+  goalMinutes: number,
+): Promise<void> {
+  return runOrQueue(
+    () => internalEnsureStreakDayAuto(day, userId, goalMinutes),
+    () => ({
+      kind: 'ensureStreakDayAuto',
+      payload: { day, userId, goalMinutes },
+    }),
   );
 }
 

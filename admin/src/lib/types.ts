@@ -460,6 +460,7 @@ export type ReadingStreakDayRow = {
   user_id: string;
   day: string;
   goal_minutes: number | null;
+  manual: boolean;
   created_at: string;
 };
 
