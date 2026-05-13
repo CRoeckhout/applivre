@@ -20,10 +20,12 @@ public struct ReadingActivityAttributes: ActivityAttributes {
   public var bookTitle: String
   public var bookAuthor: String
   public var bookIsbn: String
+  public var bookCoverData: Data?
 
-  public init(bookTitle: String, bookAuthor: String, bookIsbn: String) {
+  public init(bookTitle: String, bookAuthor: String, bookIsbn: String, bookCoverData: Data? = nil) {
     self.bookTitle = bookTitle
     self.bookAuthor = bookAuthor
     self.bookIsbn = bookIsbn
+    self.bookCoverData = bookCoverData
   }
 }

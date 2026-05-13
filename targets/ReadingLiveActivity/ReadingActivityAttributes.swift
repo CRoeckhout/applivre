@@ -24,10 +24,17 @@ public struct ReadingActivityAttributes: ActivityAttributes {
   public var bookTitle: String
   public var bookAuthor: String
   public var bookIsbn: String
+  // Bytes JPEG du cover, déjà downloadés et redimensionnés côté app principale
+  // avant de créer l'Activity. On embarque les bytes plutôt que l'URL car le
+  // process widget n'a pas d'accès réseau fiable et AsyncImage est peu sûr
+  // en Live Activity. Budget ActivityKit = 4 Ko (attributes + state) → on
+  // cible ~2 Ko après resize 60×80 JPEG q=0.4.
+  public var bookCoverData: Data?
 
-  public init(bookTitle: String, bookAuthor: String, bookIsbn: String) {
+  public init(bookTitle: String, bookAuthor: String, bookIsbn: String, bookCoverData: Data? = nil) {
     self.bookTitle = bookTitle
     self.bookAuthor = bookAuthor
     self.bookIsbn = bookIsbn
+    self.bookCoverData = bookCoverData
   }
 }

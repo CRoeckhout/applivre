@@ -5,7 +5,7 @@ module.exports = {
   displayName: 'Applivre',
   deploymentTarget: '16.2',
   icon: '../../assets/images/icon.png',
-  frameworks: ['SwiftUI', 'WidgetKit', 'ActivityKit'],
+  frameworks: ['SwiftUI', 'WidgetKit', 'ActivityKit', 'AppIntents'],
   colors: {
     $accent: '#c27b52',
   },
