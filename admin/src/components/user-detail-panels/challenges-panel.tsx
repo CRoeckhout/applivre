@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../../lib/supabase";
+import {
+  getAdminUserChallenges,
+  type AdminUserChallenges,
+} from "../../lib/admin-queries";
 import type {
   BingoCompletionRow,
   BingoRow,
@@ -20,6 +23,27 @@ const SUBTAB_LABELS: Record<SubTab, string> = {
 
 export function ChallengesPanel({ userId }: Props) {
   const [sub, setSub] = useState<SubTab>("bingos");
+  const [data, setData] = useState<AdminUserChallenges | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setData(null);
+    setError(null);
+    void (async () => {
+      try {
+        const res = await getAdminUserChallenges(userId);
+        if (cancelled) return;
+        setData(res);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -43,9 +67,20 @@ export function ChallengesPanel({ userId }: Props) {
           </button>
         ))}
       </div>
-      {sub === "bingos" && <BingosTab userId={userId} />}
-      {sub === "daily" && <DailyTab userId={userId} />}
-      {sub === "annual" && <AnnualTab userId={userId} />}
+      {error ? (
+        <div className="error">Erreur : {error}</div>
+      ) : !data ? (
+        <div className="muted">Chargement…</div>
+      ) : sub === "bingos" ? (
+        <BingosTab bingos={data.bingos} completions={data.completions} />
+      ) : sub === "daily" ? (
+        <DailyTab days={data.streak_days} />
+      ) : (
+        <AnnualTab
+          challenges={data.annual_challenges}
+          readByYear={data.read_by_year}
+        />
+      )}
     </div>
   );
 }
@@ -55,51 +90,16 @@ export function ChallengesPanel({ userId }: Props) {
 type BingoCell = { label?: string };
 type BingoGrid = { size?: number; cells?: BingoCell[] };
 
-function BingosTab({ userId }: { userId: string }) {
-  const [bingos, setBingos] = useState<BingoRow[] | null>(null);
-  const [completions, setCompletions] = useState<
-    BingoCompletionRow[] | null
-  >(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const { data: bs, error: bErr } = await supabase
-        .from("bingos")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false });
-      if (cancelled) return;
-      if (bErr) {
-        setError(bErr.message);
-        return;
-      }
-      setBingos((bs ?? []) as BingoRow[]);
-      const ids = (bs ?? []).map((b) => (b as BingoRow).id);
-      if (ids.length === 0) {
-        setCompletions([]);
-        return;
-      }
-      const { data: cs, error: cErr } = await supabase
-        .from("bingo_completions")
-        .select("*")
-        .in("bingo_id", ids);
-      if (cancelled) return;
-      if (cErr) {
-        setError(cErr.message);
-        return;
-      }
-      setCompletions((cs ?? []) as BingoCompletionRow[]);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
-
+function BingosTab({
+  bingos,
+  completions,
+}: {
+  bingos: BingoRow[];
+  completions: BingoCompletionRow[];
+}) {
   const byBingo = useMemo(() => {
     const map = new Map<string, Set<number>>();
-    for (const c of completions ?? []) {
+    for (const c of completions) {
       const set = map.get(c.bingo_id) ?? new Set<number>();
       set.add(c.cell_index);
       map.set(c.bingo_id, set);
@@ -107,8 +107,6 @@ function BingosTab({ userId }: { userId: string }) {
     return map;
   }, [completions]);
 
-  if (error) return <div className="error">Erreur : {error}</div>;
-  if (!bingos || !completions) return <div className="muted">Chargement…</div>;
   if (bingos.length === 0)
     return <div className="muted">Aucun bingo créé.</div>;
 
@@ -194,34 +192,7 @@ function BingosTab({ userId }: { userId: string }) {
 
 // ─── Daily streak ───────────────────────────────────────────────────────
 
-function DailyTab({ userId }: { userId: string }) {
-  const [days, setDays] = useState<ReadingStreakDayRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const { data, error } = await supabase
-        .from("reading_streak_days")
-        .select("*")
-        .eq("user_id", userId)
-        .order("day", { ascending: false })
-        .limit(120);
-      if (cancelled) return;
-      if (error) {
-        setError(error.message);
-        return;
-      }
-      setDays((data ?? []) as ReadingStreakDayRow[]);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
-
-  if (error) return <div className="error">Erreur : {error}</div>;
-  if (!days) return <div className="muted">Chargement…</div>;
-
+function DailyTab({ days }: { days: ReadingStreakDayRow[] }) {
   // Calendrier 90 derniers jours.
   const set = new Set(days.map((d) => d.day));
   const today = new Date();
@@ -238,7 +209,7 @@ function DailyTab({ userId }: { userId: string }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ fontSize: 12 }} className="muted">
-        90 derniers jours · {days.filter((d) => set.has(d.day)).length}{" "}
+        90 derniers jours · {cells.filter((c) => c.done).length}{" "}
         jours validés
         {goalSample?.goal_minutes
           ? ` · objectif ${goalSample.goal_minutes} min/jour`
@@ -276,63 +247,20 @@ function DailyTab({ userId }: { userId: string }) {
 
 // ─── Annual challenge ───────────────────────────────────────────────────
 
-function AnnualTab({ userId }: { userId: string }) {
-  const [challenges, setChallenges] = useState<
-    ReadingChallengeRow[] | null
-  >(null);
-  const [readByYear, setReadByYear] = useState<Map<number, number> | null>(
-    null,
-  );
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const { data: chs, error: cErr } = await supabase
-        .from("reading_challenges")
-        .select("*")
-        .eq("user_id", userId)
-        .order("year", { ascending: false });
-      if (cancelled) return;
-      if (cErr) {
-        setError(cErr.message);
-        return;
-      }
-      setChallenges((chs ?? []) as ReadingChallengeRow[]);
-
-      const { data: rb, error: rbErr } = await supabase
-        .from("user_books")
-        .select("finished_at")
-        .eq("user_id", userId)
-        .eq("status", "read")
-        .not("finished_at", "is", null);
-      if (cancelled) return;
-      if (rbErr) {
-        setError(rbErr.message);
-        return;
-      }
-      const map = new Map<number, number>();
-      for (const r of (rb ?? []) as { finished_at: string }[]) {
-        const y = new Date(r.finished_at).getFullYear();
-        map.set(y, (map.get(y) ?? 0) + 1);
-      }
-      setReadByYear(map);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
-
-  if (error) return <div className="error">Erreur : {error}</div>;
-  if (!challenges || !readByYear)
-    return <div className="muted">Chargement…</div>;
+function AnnualTab({
+  challenges,
+  readByYear,
+}: {
+  challenges: ReadingChallengeRow[];
+  readByYear: Record<string, number>;
+}) {
   if (challenges.length === 0)
     return <div className="muted">Aucun défi annuel défini.</div>;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {challenges.map((c) => {
-        const got = readByYear.get(c.year) ?? 0;
+        const got = readByYear[String(c.year)] ?? 0;
         const percent = Math.min(
           100,
           Math.round((got / Math.max(1, c.target_count)) * 100),

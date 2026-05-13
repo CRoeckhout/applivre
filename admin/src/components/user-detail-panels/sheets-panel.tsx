@@ -1,16 +1,10 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabase";
-import type { ReadingSheetRow } from "../../lib/types";
+import {
+  getAdminUserSheets,
+  type SheetWithBook,
+} from "../../lib/admin-queries";
 
 type Props = { userId: string };
-
-type SheetWithBook = ReadingSheetRow & {
-  user_book: {
-    id: string;
-    book_isbn: string;
-    book: { isbn: string; title: string; cover_url: string | null } | null;
-  } | null;
-};
 
 export function SheetsPanel({ userId }: Props) {
   const [sheets, setSheets] = useState<SheetWithBook[] | null>(null);
@@ -20,20 +14,14 @@ export function SheetsPanel({ userId }: Props) {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      // Pas de FK directe sheet→user. On filtre via user_book.user_id.
-      const { data, error } = await supabase
-        .from("reading_sheets")
-        .select(
-          "*, user_book:user_books!inner(id,book_isbn,user_id,book:books(isbn,title,cover_url))",
-        )
-        .eq("user_book.user_id", userId)
-        .order("updated_at", { ascending: false });
-      if (cancelled) return;
-      if (error) {
-        setError(error.message);
-        return;
+      try {
+        const data = await getAdminUserSheets(userId);
+        if (cancelled) return;
+        setSheets(data);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : String(err));
       }
-      setSheets((data ?? []) as SheetWithBook[]);
     })();
     return () => {
       cancelled = true;

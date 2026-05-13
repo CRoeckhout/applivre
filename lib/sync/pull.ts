@@ -44,17 +44,20 @@ import type { BingoCompletion } from '@/types/bingo';
 import type { ReadingSheet, UserBook } from '@/types/book';
 
 export async function pullUserData(userId: string): Promise<void> {
+  // Toutes les requêtes filtrent explicitement par user_id (direct ou via
+  // les user_book_ids/bingo_ids du user). Le RLS admin (migration 0059)
+  // autorise un admin à SELECT toutes les rows sans filtre — sans ce filtre
+  // explicite, un admin agrégerait les données de tous les users dans son
+  // propre store local.
+  //
+  // Phase 1 : tables avec user_id direct + user_books (source de
+  // user_book_ids) + bingos (source de bingo_ids).
   const [
     ubRes,
-    sessRes,
-    loanRes,
-    sheetRes,
-    chalRes,
     streakRes,
+    chalRes,
     profileRes,
-    cycleRes,
     bingoRes,
-    completionRes,
     pillRes,
     badgeRes,
     catalogRes,
@@ -63,19 +66,20 @@ export async function pullUserData(userId: string): Promise<void> {
       .from('user_books')
       .select('*, book:books(*)')
       .eq('user_id', userId),
-    supabase.from('reading_sessions').select('*'),
-    supabase.from('book_loans').select('*'),
-    supabase.from('reading_sheets').select('*'),
-    supabase.from('reading_challenges').select('*'),
-    supabase.from('reading_streak_days').select('*'),
+    supabase
+      .from('reading_streak_days')
+      .select('*')
+      .eq('user_id', userId),
+    supabase
+      .from('reading_challenges')
+      .select('*')
+      .eq('user_id', userId),
     supabase
       .from('profiles')
       .select('id, username, avatar_url, preferences')
       .eq('id', userId)
       .maybeSingle(),
-    supabase.from('read_cycles').select('*'),
     supabase.from('bingos').select('*').eq('user_id', userId),
-    supabase.from('bingo_completions').select('*'),
     supabase.from('bingo_pills').select('*').eq('user_id', userId),
     supabase.from('user_badges').select('*').eq('user_id', userId),
     supabase
@@ -86,22 +90,66 @@ export async function pullUserData(userId: string): Promise<void> {
   ]);
 
   if (ubRes.error) throw new Error(`Pull user_books: ${ubRes.error.message}`);
-  if (sessRes.error) throw new Error(`Pull sessions: ${sessRes.error.message}`);
-  if (loanRes.error) throw new Error(`Pull loans: ${loanRes.error.message}`);
-  if (sheetRes.error) throw new Error(`Pull sheets: ${sheetRes.error.message}`);
-  if (chalRes.error) throw new Error(`Pull challenges: ${chalRes.error.message}`);
   if (streakRes.error) throw new Error(`Pull streak: ${streakRes.error.message}`);
+  if (chalRes.error) throw new Error(`Pull challenges: ${chalRes.error.message}`);
   if (profileRes.error) throw new Error(`Pull profile: ${profileRes.error.message}`);
-  if (cycleRes.error) throw new Error(`Pull cycles: ${cycleRes.error.message}`);
   if (bingoRes.error) throw new Error(`Pull bingos: ${bingoRes.error.message}`);
-  if (completionRes.error)
-    throw new Error(`Pull bingo_completions: ${completionRes.error.message}`);
   if (pillRes.error) throw new Error(`Pull bingo_pills: ${pillRes.error.message}`);
   if (badgeRes.error) throw new Error(`Pull user_badges: ${badgeRes.error.message}`);
   if (catalogRes.error) throw new Error(`Pull badge_catalog: ${catalogRes.error.message}`);
 
   type UbRow = DbUserBook & { book: DbBook };
-  const books: UserBook[] = ((ubRes.data as UbRow[]) ?? []).map((row) =>
+  const ubRows = (ubRes.data as UbRow[]) ?? [];
+  const userBookIds = ubRows.map((r) => r.id);
+  const bingoRows = (bingoRes.data as DbBingo[]) ?? [];
+  const bingoIds = bingoRows.map((b) => b.id);
+
+  // Phase 2 : tables enfants filtrées par les ids du user.
+  // Si l'utilisateur n'a aucun livre/bingo, on évite l'appel réseau (l'IN
+  // sur une liste vide retourne 0 row de toute façon).
+  const emptyOk = { data: [] as never[], error: null as null } as const;
+  const [sessRes, loanRes, sheetRes, cycleRes, completionRes] =
+    await Promise.all([
+      userBookIds.length > 0
+        ? supabase
+            .from('reading_sessions')
+            .select('*')
+            .in('user_book_id', userBookIds)
+        : Promise.resolve(emptyOk),
+      userBookIds.length > 0
+        ? supabase
+            .from('book_loans')
+            .select('*')
+            .in('user_book_id', userBookIds)
+        : Promise.resolve(emptyOk),
+      userBookIds.length > 0
+        ? supabase
+            .from('reading_sheets')
+            .select('*')
+            .in('user_book_id', userBookIds)
+        : Promise.resolve(emptyOk),
+      userBookIds.length > 0
+        ? supabase
+            .from('read_cycles')
+            .select('*')
+            .in('user_book_id', userBookIds)
+        : Promise.resolve(emptyOk),
+      bingoIds.length > 0
+        ? supabase
+            .from('bingo_completions')
+            .select('*')
+            .in('bingo_id', bingoIds)
+        : Promise.resolve(emptyOk),
+    ]);
+
+  if (sessRes.error) throw new Error(`Pull sessions: ${sessRes.error.message}`);
+  if (loanRes.error) throw new Error(`Pull loans: ${loanRes.error.message}`);
+  if (sheetRes.error) throw new Error(`Pull sheets: ${sheetRes.error.message}`);
+  if (cycleRes.error) throw new Error(`Pull cycles: ${cycleRes.error.message}`);
+  if (completionRes.error)
+    throw new Error(`Pull bingo_completions: ${completionRes.error.message}`);
+
+  const books: UserBook[] = ubRows.map((row) =>
     userBookFromDb(row, bookFromDb(row.book)),
   );
 
@@ -130,7 +178,7 @@ export async function pullUserData(userId: string): Promise<void> {
   const username = profileRow?.username ?? null;
   const avatarUrl = profileRow?.avatar_url ?? null;
 
-  const bingos = ((bingoRes.data as DbBingo[]) ?? []).map(bingoFromDb);
+  const bingos = bingoRows.map(bingoFromDb);
   const completions: Record<string, BingoCompletion[]> = {};
   for (const row of (completionRes.data as DbBingoCompletion[]) ?? []) {
     const c = completionFromDb(row);

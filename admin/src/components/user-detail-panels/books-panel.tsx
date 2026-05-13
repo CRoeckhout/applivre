@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../../lib/supabase";
+import {
+  getAdminUserBooks,
+  type UserBookWithBook,
+} from "../../lib/admin-queries";
 import {
   READING_STATUSES,
   READING_STATUS_LABELS,
-  type BookCatalogRow,
   type ReadingStatus,
-  type UserBookRow,
 } from "../../lib/types";
 
 type Props = { userId: string };
 
-type BookRow = UserBookRow & { book?: Pick<BookCatalogRow, "isbn" | "title" | "authors" | "cover_url"> };
+type BookRow = UserBookWithBook;
 
 const STATUS_COLORS: Record<ReadingStatus, string> = {
   wishlist: "#a78bfa",
@@ -31,17 +32,14 @@ export function BooksPanel({ userId }: Props) {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const { data, error } = await supabase
-        .from("user_books")
-        .select("*, book:books(isbn,title,authors,cover_url)")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false });
-      if (cancelled) return;
-      if (error) {
-        setError(error.message);
-        return;
+      try {
+        const data = await getAdminUserBooks(userId);
+        if (cancelled) return;
+        setBooks(data);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : String(err));
       }
-      setBooks((data ?? []) as BookRow[]);
     })();
     return () => {
       cancelled = true;

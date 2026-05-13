@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { getAdminUserBadges } from "../../lib/admin-queries";
 import { BadgeGraphicWeb } from "../../lib/badge-graphic";
-import { supabase } from "../../lib/supabase";
 import type { BadgeCatalogRow, UserBadgeRow } from "../../lib/types";
 
 type Props = {
@@ -15,17 +15,14 @@ export function BadgesPanel({ userId, badgeCatalog }: Props) {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const { data, error } = await supabase
-        .from("user_badges")
-        .select("*")
-        .eq("user_id", userId)
-        .order("earned_at", { ascending: false });
-      if (cancelled) return;
-      if (error) {
-        setError(error.message);
-        return;
+      try {
+        const data = await getAdminUserBadges(userId);
+        if (cancelled) return;
+        setUnlocked(data);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : String(err));
       }
-      setUnlocked((data ?? []) as UserBadgeRow[]);
     })();
     return () => {
       cancelled = true;

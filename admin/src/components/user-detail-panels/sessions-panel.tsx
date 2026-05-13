@@ -1,15 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../../lib/supabase";
-import type { ReadingSessionRow } from "../../lib/types";
+import {
+  getAdminUserSessions,
+  type SessionWithBook,
+} from "../../lib/admin-queries";
 
 type Props = { userId: string };
-
-type SessionWithBook = ReadingSessionRow & {
-  user_book: {
-    book_isbn: string;
-    book: { isbn: string; title: string } | null;
-  } | null;
-};
 
 export function SessionsPanel({ userId }: Props) {
   const [sessions, setSessions] = useState<SessionWithBook[] | null>(null);
@@ -18,20 +13,14 @@ export function SessionsPanel({ userId }: Props) {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const { data, error } = await supabase
-        .from("reading_sessions")
-        .select(
-          "*, user_book:user_books!inner(book_isbn,user_id,book:books(isbn,title))",
-        )
-        .eq("user_book.user_id", userId)
-        .order("started_at", { ascending: false })
-        .limit(200);
-      if (cancelled) return;
-      if (error) {
-        setError(error.message);
-        return;
+      try {
+        const data = await getAdminUserSessions(userId);
+        if (cancelled) return;
+        setSessions(data);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : String(err));
       }
-      setSessions((data ?? []) as SessionWithBook[]);
     })();
     return () => {
       cancelled = true;

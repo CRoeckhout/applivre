@@ -1,15 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../../lib/supabase";
-import type { BookLoanRow } from "../../lib/types";
+import {
+  getAdminUserLoans,
+  type LoanWithBook,
+} from "../../lib/admin-queries";
 
 type Props = { userId: string };
-
-type LoanWithBook = BookLoanRow & {
-  user_book: {
-    book_isbn: string;
-    book: { isbn: string; title: string } | null;
-  } | null;
-};
 
 export function LoansPanel({ userId }: Props) {
   const [loans, setLoans] = useState<LoanWithBook[] | null>(null);
@@ -18,19 +13,14 @@ export function LoansPanel({ userId }: Props) {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const { data, error } = await supabase
-        .from("book_loans")
-        .select(
-          "*, user_book:user_books!inner(book_isbn,user_id,book:books(isbn,title))",
-        )
-        .eq("user_book.user_id", userId)
-        .order("date_out", { ascending: false });
-      if (cancelled) return;
-      if (error) {
-        setError(error.message);
-        return;
+      try {
+        const data = await getAdminUserLoans(userId);
+        if (cancelled) return;
+        setLoans(data);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : String(err));
       }
-      setLoans((data ?? []) as LoanWithBook[]);
     })();
     return () => {
       cancelled = true;

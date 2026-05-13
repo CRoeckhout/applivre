@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../../lib/supabase";
+import {
+  getAdminUserOverview,
+  type AdminUserOverview,
+  type OverviewAddedBook,
+  type OverviewComment,
+  type OverviewTargetInfo,
+} from "../../lib/admin-queries";
 import {
   READING_STATUS_LABELS,
   type ReadingStatus,
@@ -63,96 +69,28 @@ type TargetAuthor = {
   label: string;
 };
 
-type AddedBookRow = {
-  id: string;
-  book_isbn: string;
-  status: ReadingStatus;
-  created_at: string;
-  book: { isbn: string; title: string } | null;
-};
-
-type CommentEntry = {
-  id: string;
-  target_kind: string;
-  target_id: string;
-  parent_id: string | null;
-  body: string;
-  deleted_at: string | null;
-  created_at: string;
-};
-
-// Map (target_kind, target_id) -> label affichable + auteur cliquable.
-// Construit en N requêtes IN() (max ~5, une par kind + un batch profils)
-// pour éviter de charger la BDD avec des joins croisés.
-type TargetInfo = { label: string; author: TargetAuthor | null };
-type TargetInfoMap = Map<string, TargetInfo>;
 const targetLabelKey = (kind: string, id: string) => `${kind}:${id}`;
 
 const LIMIT = 12;
 
 export function OverviewPanel({ userId }: Props) {
-  const [feedEntries, setFeedEntries] = useState<SocialFeedEntryRow[] | null>(
-    null,
-  );
-  const [addedBooks, setAddedBooks] = useState<AddedBookRow[] | null>(null);
-  const [comments, setComments] = useState<CommentEntry[] | null>(null);
-  const [targetInfo, setTargetInfo] = useState<TargetInfoMap>(
-    () => new Map(),
-  );
+  const [data, setData] = useState<AdminUserOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    setFeedEntries(null);
-    setAddedBooks(null);
-    setComments(null);
-    setTargetInfo(new Map());
+    setData(null);
     setError(null);
 
     void (async () => {
-      const [feedRes, booksRes, commentsRes] = await Promise.all([
-        supabase
-          .from("social_feed_entries")
-          .select("*")
-          .eq("actor_id", userId)
-          .order("created_at", { ascending: false })
-          .limit(LIMIT),
-        supabase
-          .from("user_books")
-          .select("id,book_isbn,status,created_at,book:books(isbn,title)")
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false })
-          .limit(LIMIT),
-        supabase
-          .from("social_comments")
-          .select("id,target_kind,target_id,parent_id,body,deleted_at,created_at")
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false })
-          .limit(LIMIT),
-      ]);
-      if (cancelled) return;
-      if (feedRes.error) {
-        setError(feedRes.error.message);
-        return;
+      try {
+        const res = await getAdminUserOverview(userId);
+        if (cancelled) return;
+        setData(res);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : String(err));
       }
-      if (booksRes.error) {
-        setError(booksRes.error.message);
-        return;
-      }
-      if (commentsRes.error) {
-        setError(commentsRes.error.message);
-        return;
-      }
-      const commentRows = (commentsRes.data ?? []) as CommentEntry[];
-      setFeedEntries((feedRes.data ?? []) as SocialFeedEntryRow[]);
-      // PostgREST type le `book:books(...)` comme array (FK générique). On
-      // sait que c'est 1:1 (FK unique), donc cast via unknown.
-      setAddedBooks((booksRes.data ?? []) as unknown as AddedBookRow[]);
-      setComments(commentRows);
-
-      const info = await fetchCommentTargetInfo(commentRows);
-      if (cancelled) return;
-      setTargetInfo(info);
     })();
     return () => {
       cancelled = true;
@@ -160,44 +98,14 @@ export function OverviewPanel({ userId }: Props) {
   }, [userId]);
 
   const merged: Activity[] | null = useMemo(() => {
-    if (!feedEntries || !addedBooks || !comments) return null;
-    const all: Activity[] = [
-      ...feedEntries.map<Activity>((e) => ({
-        kind: "feed",
-        date: e.created_at,
-        id: `feed-${e.id}`,
-        verb: e.verb,
-        target_kind: e.target_kind,
-        meta: e.meta,
-        visibility: e.visibility,
-      })),
-      ...addedBooks.map<Activity>((b) => ({
-        kind: "book_added",
-        date: b.created_at,
-        id: `book-${b.id}`,
-        bookTitle: b.book?.title ?? null,
-        bookIsbn: b.book_isbn,
-        status: b.status,
-      })),
-      ...comments.map<Activity>((c) => {
-        const info =
-          targetInfo.get(targetLabelKey(c.target_kind, c.target_id)) ?? null;
-        return {
-          kind: "comment",
-          date: c.created_at,
-          id: `comment-${c.id}`,
-          body: c.body,
-          targetKind: c.target_kind,
-          targetLabel: info?.label ?? null,
-          targetAuthor: info?.author ?? null,
-          isReply: c.parent_id !== null,
-          deleted: c.deleted_at !== null,
-        };
-      }),
-    ];
-    all.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-    return all.slice(0, LIMIT);
-  }, [feedEntries, addedBooks, comments, targetInfo]);
+    if (!data) return null;
+    return mergeActivities(
+      data.feed,
+      data.added_books,
+      data.comments,
+      data.target_info,
+    );
+  }, [data]);
 
   if (error) {
     return <div className="error">Erreur : {error}</div>;
@@ -273,6 +181,67 @@ export function OverviewPanel({ userId }: Props) {
       </ul>
     </div>
   );
+}
+
+function mergeActivities(
+  feed: SocialFeedEntryRow[],
+  addedBooks: OverviewAddedBook[],
+  comments: OverviewComment[],
+  targetInfo: OverviewTargetInfo,
+): Activity[] {
+  const all: Activity[] = [
+    ...feed.map<Activity>((e) => ({
+      kind: "feed",
+      date: e.created_at,
+      id: `feed-${e.id}`,
+      verb: e.verb,
+      target_kind: e.target_kind,
+      meta: e.meta,
+      visibility: e.visibility,
+    })),
+    ...addedBooks.map<Activity>((b) => ({
+      kind: "book_added",
+      date: b.created_at,
+      id: `book-${b.id}`,
+      bookTitle: b.book?.title ?? null,
+      bookIsbn: b.book_isbn,
+      status: b.status,
+    })),
+    ...comments.map<Activity>((c) => {
+      const raw = targetInfo[targetLabelKey(c.target_kind, c.target_id)];
+      // feed_entry : pour les verbes dont la cible est un livre,
+      // le serveur injecte le titre dans meta.book_isbn via le RPC.
+      // Ici on n'a pas accès à meta côté comment, donc on reste sur le
+      // verbe brut + label décoré côté RPC (titres déjà résolus).
+      const label = raw?.label
+        ? c.target_kind === "feed_entry"
+          ? decorateFeedLabel(raw.label)
+          : raw.label
+        : null;
+      return {
+        kind: "comment",
+        date: c.created_at,
+        id: `comment-${c.id}`,
+        body: c.body,
+        targetKind: c.target_kind,
+        targetLabel: label,
+        targetAuthor:
+          raw?.author_user_id && raw.author_label
+            ? { userId: raw.author_user_id, label: raw.author_label }
+            : null,
+        isReply: c.parent_id !== null,
+        deleted: c.deleted_at !== null,
+      };
+    }),
+  ];
+  all.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  return all.slice(0, LIMIT);
+}
+
+// Le RPC retourne le `verb` brut pour les feed_entry. On le traduit en
+// libellé humain pour matcher l'ancien rendu côté admin.
+function decorateFeedLabel(label: string): string {
+  return VERB_LABELS[label] ?? label;
 }
 
 function FeedRow({
@@ -391,218 +360,6 @@ function CommentRow({
       </div>
     </>
   );
-}
-
-// Résout label + auteur pour chaque commentaire, en regroupant par
-// target_kind. Une requête IN() par kind (sheet/review/comment/bingo/
-// feed_entry) puis un dernier batch sur `profiles` pour hydrater tous les
-// auteurs en un coup. Charge BDD négligeable, pas d'edge function.
-async function fetchCommentTargetInfo(
-  rows: CommentEntry[],
-): Promise<TargetInfoMap> {
-  const result: TargetInfoMap = new Map();
-  if (rows.length === 0) return result;
-
-  const idsByKind = new Map<string, Set<string>>();
-  for (const r of rows) {
-    if (!idsByKind.has(r.target_kind)) idsByKind.set(r.target_kind, new Set());
-    idsByKind.get(r.target_kind)!.add(r.target_id);
-  }
-
-  // Premier passage : on collecte (label, authorUserId) par target. Les
-  // labels sont posés tout de suite ; les profils sont hydratés en un
-  // seul batch après.
-  const pending: { key: string; label: string; authorUserId: string | null }[] =
-    [];
-
-  const tasks: Promise<void>[] = [];
-
-  const sheetIds = idsByKind.get("sheet");
-  if (sheetIds && sheetIds.size > 0) {
-    tasks.push(
-      (async () => {
-        const { data } = await supabase
-          .from("reading_sheets")
-          .select(
-            "id,user_book:user_books(user_id,book:books(title))",
-          )
-          .in("id", Array.from(sheetIds));
-        type Row = {
-          id: string;
-          user_book: {
-            user_id: string;
-            book: { title: string } | null;
-          } | null;
-        };
-        for (const row of (data ?? []) as unknown as Row[]) {
-          const title = row.user_book?.book?.title ?? "(sans titre)";
-          pending.push({
-            key: targetLabelKey("sheet", row.id),
-            label: title,
-            authorUserId: row.user_book?.user_id ?? null,
-          });
-        }
-      })(),
-    );
-  }
-
-  const reviewIds = idsByKind.get("review");
-  if (reviewIds && reviewIds.size > 0) {
-    tasks.push(
-      (async () => {
-        const { data } = await supabase
-          .from("book_reviews")
-          .select("id,user_id,book:books(title)")
-          .in("id", Array.from(reviewIds));
-        type Row = {
-          id: string;
-          user_id: string;
-          book: { title: string } | null;
-        };
-        for (const row of (data ?? []) as unknown as Row[]) {
-          const title = row.book?.title ?? "(sans titre)";
-          pending.push({
-            key: targetLabelKey("review", row.id),
-            label: title,
-            authorUserId: row.user_id,
-          });
-        }
-      })(),
-    );
-  }
-
-  const parentIds = idsByKind.get("comment");
-  if (parentIds && parentIds.size > 0) {
-    tasks.push(
-      (async () => {
-        const { data } = await supabase
-          .from("social_comments")
-          .select("id,user_id,body")
-          .in("id", Array.from(parentIds));
-        for (const row of (data ?? []) as {
-          id: string;
-          user_id: string;
-          body: string;
-        }[]) {
-          pending.push({
-            key: targetLabelKey("comment", row.id),
-            label: excerpt(row.body, 60),
-            authorUserId: row.user_id,
-          });
-        }
-      })(),
-    );
-  }
-
-  const bingoIds = idsByKind.get("bingo");
-  if (bingoIds && bingoIds.size > 0) {
-    tasks.push(
-      (async () => {
-        const { data } = await supabase
-          .from("bingos")
-          .select("id,user_id,title")
-          .in("id", Array.from(bingoIds));
-        for (const row of (data ?? []) as {
-          id: string;
-          user_id: string;
-          title: string;
-        }[]) {
-          pending.push({
-            key: targetLabelKey("bingo", row.id),
-            label: row.title,
-            authorUserId: row.user_id,
-          });
-        }
-      })(),
-    );
-  }
-
-  const feedIds = idsByKind.get("feed_entry");
-  if (feedIds && feedIds.size > 0) {
-    tasks.push(
-      (async () => {
-        const { data } = await supabase
-          .from("social_feed_entries")
-          .select("id,actor_id,verb,meta")
-          .in("id", Array.from(feedIds));
-        type Row = {
-          id: string;
-          actor_id: string;
-          verb: string;
-          meta: Record<string, unknown> | null;
-        };
-        const feedRows = (data ?? []) as Row[];
-        // Hydrate les book_isbn présents dans meta en un seul IN()
-        // pour pouvoir afficher le titre du livre concerné.
-        const isbns = new Set<string>();
-        for (const r of feedRows) {
-          const isbn = r.meta?.["book_isbn"];
-          if (typeof isbn === "string" && isbn.length > 0) isbns.add(isbn);
-        }
-        const titleByIsbn = new Map<string, string>();
-        if (isbns.size > 0) {
-          const { data: books } = await supabase
-            .from("books")
-            .select("isbn,title")
-            .in("isbn", Array.from(isbns));
-          for (const b of (books ?? []) as { isbn: string; title: string }[]) {
-            titleByIsbn.set(b.isbn, b.title);
-          }
-        }
-        for (const r of feedRows) {
-          const verbLabel = VERB_LABELS[r.verb] ?? r.verb;
-          const isbn = r.meta?.["book_isbn"];
-          const title =
-            typeof isbn === "string" ? titleByIsbn.get(isbn) : undefined;
-          pending.push({
-            key: targetLabelKey("feed_entry", r.id),
-            label: title ? `${verbLabel} — ${title}` : verbLabel,
-            authorUserId: r.actor_id,
-          });
-        }
-      })(),
-    );
-  }
-
-  await Promise.all(tasks);
-
-  // Batch final : profils des auteurs (un seul IN() sur profiles, RLS admin
-  // déjà en place via "profiles admin select" cf. migration 0059).
-  const authorIds = new Set<string>();
-  for (const p of pending) {
-    if (p.authorUserId) authorIds.add(p.authorUserId);
-  }
-  const authorById = new Map<string, TargetAuthor>();
-  if (authorIds.size > 0) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("id,username,display_name")
-      .in("id", Array.from(authorIds));
-    for (const row of (data ?? []) as {
-      id: string;
-      username: string | null;
-      display_name: string | null;
-    }[]) {
-      authorById.set(row.id, {
-        userId: row.id,
-        label: row.display_name ?? row.username ?? "(profil sans nom)",
-      });
-    }
-  }
-
-  for (const p of pending) {
-    result.set(p.key, {
-      label: p.label,
-      author: p.authorUserId ? authorById.get(p.authorUserId) ?? null : null,
-    });
-  }
-
-  return result;
-}
-
-function excerpt(text: string, max: number): string {
-  const trimmed = text.trim();
-  return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max - 1)}…`;
 }
 
 function BookAddedRow({
