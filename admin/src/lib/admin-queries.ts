@@ -10,6 +10,7 @@
 
 import { supabase } from "./supabase";
 import type {
+  AdminUserProfile,
   BingoCompletionRow,
   BingoRow,
   BookLoanRow,
@@ -114,6 +115,14 @@ async function callRpc<T>(
 }
 
 // ═══════════════ Panel queries ═══════════════
+
+export function getAdminUserProfile(
+  userId: string,
+): Promise<AdminUserProfile | null> {
+  return callRpc<AdminUserProfile | null>("admin_user_profile", {
+    p_user_id: userId,
+  });
+}
 
 export function getAdminUserBadges(userId: string): Promise<UserBadgeRow[]> {
   return callRpc<UserBadgeRow[]>("admin_user_badges", { p_user_id: userId });

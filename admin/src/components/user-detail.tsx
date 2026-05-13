@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getAdminUserBadges, getAdminUserProfile } from "../lib/admin-queries";
 import { supabase } from "../lib/supabase";
 import type {
   AdminUserAppearance,
@@ -130,19 +131,18 @@ export function UserDetail({ listItem, userId }: Props) {
     setFollowersCount(null);
 
     void (async () => {
-      const { data: p, error: pErr } = await supabase
-        .from("profiles")
-        .select(
-          "id,username,display_name,avatar_url,is_premium,is_admin,premium_until,preferences,created_at",
-        )
-        .eq("id", userId)
-        .maybeSingle();
-      if (cancelled) return;
-      if (pErr) {
-        setProfileError(pErr.message);
+      // Lecture des `profiles` via RPC SECURITY DEFINER : 0062 a droppé la
+      // policy "profiles admin select", donc un SELECT direct ne renvoie
+      // rien pour les autres users → "Profil indisponible" en boucle.
+      let prof: AdminUserProfile | null;
+      try {
+        prof = await getAdminUserProfile(userId);
+      } catch (err) {
+        if (cancelled) return;
+        setProfileError(err instanceof Error ? err.message : String(err));
         return;
       }
-      const prof = p as AdminUserProfile | null;
+      if (cancelled) return;
       setProfile(prof);
 
       if (!prof) return;
@@ -190,15 +190,15 @@ export function UserDetail({ listItem, userId }: Props) {
         );
       }
 
+      // user_badges : idem profiles, la policy "user_badges admin select"
+      // a été droppée par 0062. On passe par admin_user_badges (RPC).
       tasks.push(
-        supabase
-          .from("user_badges")
-          .select("*")
-          .eq("user_id", userId)
-          .order("earned_at", { ascending: false })
-          .then(({ data }) => {
-            if (!cancelled)
-              setUnlockedBadges((data ?? []) as UserBadgeRow[]);
+        getAdminUserBadges(userId)
+          .then((rows) => {
+            if (!cancelled) setUnlockedBadges(rows);
+          })
+          .catch(() => {
+            /* silencieux : pas critique pour l'affichage du profil */
           }),
       );
 
