@@ -419,6 +419,11 @@ export type DbBingoPill = {
   user_id: string;
   label: string;
   created_at: string;
+  status: import('@/types/bingo').BingoPillStatus;
+  proposal_message: string | null;
+  decision_reason: string | null;
+  decided_at: string | null;
+  decided_by: string | null;
 };
 
 export function pillFromDb(row: DbBingoPill): BingoPill {
@@ -427,10 +432,21 @@ export function pillFromDb(row: DbBingoPill): BingoPill {
     userId: row.user_id,
     label: row.label,
     createdAt: row.created_at,
+    status: row.status,
+    proposalMessage: row.proposal_message,
+    decisionReason: row.decision_reason,
+    decidedAt: row.decided_at,
+    decidedBy: row.decided_by,
   };
 }
 
-export function pillToDb(p: BingoPill): Omit<DbBingoPill, 'created_at'> {
+// On n'écrit jamais `status`/`decision_reason`/`decided_*` directement :
+// ces colonnes sont mutées exclusivement par les RPCs `propose_bingo_pill`
+// et `decide_bingo_pill` (cf. 0060). Le upsert local ne les inclut donc
+// pas — ce qui évite qu'un client malveillant ne s'auto-promeuve `public`.
+export function pillToDb(
+  p: BingoPill,
+): Pick<DbBingoPill, 'id' | 'user_id' | 'label'> {
   return {
     id: p.id,
     user_id: p.userId,

@@ -74,6 +74,10 @@ function friendlyMessage(code: string | undefined, raw: string): string {
     return 'Référence incohérente (cycle / livre non trouvé).';
   }
   if (code === '42501' || low.includes('row-level security')) {
+    // Cas spécifique du trigger / RPC sur bingo_pills publiées.
+    if (low.includes('published bingo pill')) {
+      return "Ce défi a été publié — il ne peut plus être supprimé ni modifié.";
+    }
     return "Action non autorisée pour ton compte.";
   }
   return 'Erreur serveur : ' + raw;
@@ -110,6 +114,10 @@ export async function internalDeleteUserBook(id: string): Promise<void> {
 // Sessions
 export async function internalInsertSession(s: ReadingSession): Promise<void> {
   await throwIfError(supabase.from('reading_sessions').insert(sessionToDb(s)));
+}
+
+export async function internalDeleteSession(id: string): Promise<void> {
+  await throwIfError(supabase.from('reading_sessions').delete().eq('id', id));
 }
 
 // Read cycles
@@ -332,7 +340,17 @@ export async function internalUpsertBingoPill(p: BingoPill): Promise<void> {
 }
 
 export async function internalDeleteBingoPill(id: string): Promise<void> {
-  await throwIfError(supabase.from('bingo_pills').delete().eq('id', id));
+  // Passe par la RPC `delete_bingo_pill_safe` (cf. 0063) plutôt qu'un
+  // DELETE direct : la RPC raise si la pill est `public`, sans laisser le
+  // statut admin override l'invariant métier. L'admin web garde son DELETE
+  // direct via la policy `admin all` quand une suppression forcée est
+  // légitime.
+  const { error } = await supabase.rpc('delete_bingo_pill_safe', {
+    p_pill_id: id,
+  });
+  if (error) {
+    throw new DbError(error.message, error.code, friendlyMessage(error.code, error.message));
+  }
 }
 
 // User badges : aucune écriture client directe.
