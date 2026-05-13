@@ -34,11 +34,11 @@ export function MusicPlayerPanel() {
 
   return (
     <>
-      <View className="mt-6 rounded-2xl bg-paper/10 p-4">
-        <Pressable
-          onPress={() => setSheetOpen(true)}
-          className="flex-row items-center gap-2 active:opacity-70"
-        >
+      <Pressable
+        onPress={() => setSheetOpen(true)}
+        className="mt-6 rounded-2xl bg-paper/10 p-4 active:opacity-80"
+      >
+        <View className="flex-row items-center gap-2">
           <MaterialIcons name="music-note" size={18} color="rgb(245 240 230)" />
           <Text className="flex-1 font-sans-med text-paper">
             {themeKey ? themeDisplayName ?? themeKey : 'Choisir une ambiance'}
@@ -48,7 +48,7 @@ export function MusicPlayerPanel() {
             size={20}
             color="rgb(245 240 230)"
           />
-        </Pressable>
+        </View>
 
         {themeKey && (
           <PlayerBody
@@ -65,7 +65,7 @@ export function MusicPlayerPanel() {
             onPrev={prev}
           />
         )}
-      </View>
+      </Pressable>
 
       <ThemeSelectorSheet
         open={sheetOpen}

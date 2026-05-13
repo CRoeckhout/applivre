@@ -12,6 +12,7 @@ import {
   onPreviousTrackCommand,
 } from 'grimolia-media-remote-commands';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { useThemeTracks } from './use-theme-tracks';
 
 // Configure le mode audio global une seule fois (lecture en background +
@@ -72,8 +73,18 @@ export function useReadingMusicEngine(): void {
     tracks.length === 0 ? 0 : Math.min(trackIndex, tracks.length - 1);
   const currentTrack = tracks[safeIndex] ?? null;
 
-  const player = useAudioPlayer(currentTrack?.localUri ?? null);
+  // Player unique et stable : on initialise sans source et on swap les pistes
+  // via player.replace() ci-dessous. Recréer le player à chaque changement
+  // d'URI (i.e. useAudioPlayer(uri)) cassait la lecture en arrière-plan
+  // quand l'écran était verrouillé : le JS étant throttlé, le nouveau player
+  // recevait play() avant d'avoir pris le contrôle de la session audio iOS.
+  const player = useAudioPlayer(null);
   const playerStatus = useAudioPlayerStatus(player);
+
+  useEffect(() => {
+    if (!currentTrack) return;
+    player.replace(currentTrack.localUri);
+  }, [currentTrack?.localUri, player]);
 
   // Sync status dans le store pour que l'UI affiche loading / downloading / etc.
   useEffect(() => {
@@ -123,10 +134,18 @@ export function useReadingMusicEngine(): void {
     _setTrackIndex(nextIndex);
   }, [playerStatus.didJustFinish]);
 
-  // Lock-screen metadata. Refire à chaque changement de piste ET à chaque
-  // toggle play/pause pour que le widget reflète le bon playbackRate (le
-  // code natif lit `player.isPlaying` à chaque call).
+  // Lock-screen metadata. iOS only — sur Android le widget système Now
+  // Playing serait un doublon du panel audio affiché in-app dans la
+  // session de lecture. On laisse expo-audio jouer en background sans
+  // démarrer son AudioControlsService (le ReadingActivityService du
+  // module live-activity garde déjà le process en vie côté Android).
+  //
+  // Refire à chaque changement de piste ET à chaque toggle play/pause
+  // pour que le widget reflète le bon playbackRate (le code natif iOS
+  // lit `player.isPlaying` à chaque call).
   useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+
     if (!currentTrack) {
       try {
         player.clearLockScreenControls();
