@@ -6,6 +6,7 @@ import { BooksSection } from "./sections/books-section";
 import { BordersSection } from "./sections/borders-section";
 import { FondsSection } from "./sections/fonds-section";
 import { MusiquesSection } from "./sections/musiques-section";
+import { ReleaseNotesSection } from "./sections/release-notes-section";
 import { ReportsSection } from "./sections/reports-section";
 import { StickersSection } from "./sections/stickers-section";
 import { SubscriptionsSection } from "./sections/subscriptions-section";
@@ -36,7 +37,8 @@ type Tab =
   | "books"
   | "pills"
   | "musiques"
-  | "subscriptions";
+  | "subscriptions"
+  | "release-notes";
 type Theme = "light" | "dark";
 
 const TABS: Tab[] = [
@@ -51,6 +53,7 @@ const TABS: Tab[] = [
   "pills",
   "musiques",
   "subscriptions",
+  "release-notes",
 ];
 const TAB_LABELS: Record<Tab, string> = {
   users: "Utilisateurs",
@@ -64,6 +67,7 @@ const TAB_LABELS: Record<Tab, string> = {
   pills: "Défis bingo",
   musiques: "Musiques",
   subscriptions: "Abonnements",
+  "release-notes": "Quoi de neuf",
 };
 const TAB_ICONS: Record<Tab, React.JSX.Element> = {
   users: (
@@ -134,6 +138,12 @@ const TAB_ICONS: Record<Tab, React.JSX.Element> = {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 2 4 6v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V6z" />
       <path d="m9 12 2 2 4-4" />
+    </svg>
+  ),
+  "release-notes": (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   ),
 };
@@ -490,6 +500,9 @@ export function App() {
         )}
         {route.tab === "subscriptions" && (
           <SubscriptionsSection itemId={route.itemId} onItemChange={selectItem} />
+        )}
+        {route.tab === "release-notes" && (
+          <ReleaseNotesSection itemId={route.itemId} onItemChange={selectItem} />
         )}
       </div>
     </div>

@@ -8,3 +8,7 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+// Injecté par vite.config.ts depuis `app.json > expo.version` au build.
+// Utilisé par le form "Quoi de neuf" pour pré-remplir la version courante.
+declare const __APP_VERSION__: string;

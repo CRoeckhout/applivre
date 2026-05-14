@@ -1,9 +1,44 @@
 import react from '@vitejs/plugin-react';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
+const APP_JSON_PATH = path.resolve(dirname, '../app.json');
+
+// Source de vérité de la version de l'app mobile : `app.json` à la racine
+// du repo, lu au build (et au démarrage du dev server). Injecté via
+// `define` comme constante `__APP_VERSION__` pour pré-remplir le form
+// "Quoi de neuf" dans le BO. À chaque redéploiement de l'admin (push sur
+// main), la valeur reflète la version commitée dans le repo.
+const appJson = JSON.parse(readFileSync(APP_JSON_PATH, 'utf-8')) as {
+  expo?: { version?: string };
+};
+const APP_VERSION = appJson.expo?.version ?? '0.0.0';
+
+// Plugin : surveille `app.json` (hors du root admin) et redémarre le dev
+// server quand il change. Sans ça, un bump de `expo.version` reste invisible
+// dans le BO tant qu'on ne relance pas Vite manuellement, car `define`
+// fige la valeur au démarrage. Inactif en prod (`apply: 'serve'`).
+function watchAppVersion(): Plugin {
+  return {
+    name: 'watch-app-version',
+    apply: 'serve',
+    configureServer(server) {
+      server.watcher.add(APP_JSON_PATH);
+      server.watcher.on('change', (file) => {
+        if (path.resolve(file) === APP_JSON_PATH) {
+          server.config.logger.info(
+            '[watch-app-version] app.json changed, restarting…',
+            { timestamp: true },
+          );
+          void server.restart();
+        }
+      });
+    },
+  };
+}
 
 // react-native-web : @shopify/react-native-skia est conçu pour React Native.
 // Pour le faire tourner dans Vite (web pur), on alias `react-native` (bare
@@ -15,7 +50,7 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 // même résolution que Metro : un fichier `.web.js` est préféré au `.js`.
 // Skia v2 et RN-Web s'appuient sur cette convention.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), watchAppVersion()],
   server: {
     host: '0.0.0.0',
     port: 5173,
@@ -57,6 +92,7 @@ export default defineConfig({
     // RN/Skia référencent `global` qui est un Node.js builtin, indisponible
     // dans le browser. On l'alias sur `globalThis` (= `window` en web).
     global: 'globalThis',
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
   },
   optimizeDeps: {
     include: [

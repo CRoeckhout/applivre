@@ -149,6 +149,30 @@ fieldset {
   resize: vertical;
 }
 
+/* Style commun pour input/select/textarea hors structure .field
+   (ex: cellules de tableau, inputs en grille, où on ne veut pas le
+   label imposé par .field). Polices héritées : pas de monospace par
+   défaut, contrairement à .field textarea qui sert d'éditeur de code. */
+.input,
+input.input,
+select.input,
+textarea.input {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: inherit;
+  width: 100%;
+  min-width: 0;
+}
+
+textarea.input {
+  line-height: 1.4;
+  resize: vertical;
+}
+
 .error {
   color: var(--danger);
   font-size: 13px;

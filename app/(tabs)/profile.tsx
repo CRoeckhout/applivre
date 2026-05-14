@@ -1,7 +1,9 @@
 import { BookCover } from "@/components/book-cover";
 import { HomeCogMenu } from "@/components/home-cog-menu";
+import { ReleaseNotesModal } from "@/components/release-notes-modal";
 import { UsernameEditorModal } from "@/components/username-editor-modal";
 import { signOut, useAuth } from "@/hooks/use-auth";
+import { useReleaseNotes } from "@/hooks/use-release-notes";
 import { pullUserData } from "@/lib/sync/pull";
 import { pushLocalData, type PushSummary } from "@/lib/sync/push";
 import { flushQueue } from "@/lib/sync/queue";
@@ -30,6 +32,11 @@ export default function ProfileScreen() {
   const books = useBookshelf((s) => s.books);
   const username = useProfile((s) => s.username);
   const [editingUsername, setEditingUsername] = useState(false);
+  const [showReleaseNotes, setShowReleaseNotes] = useState(false);
+  // Fetch tout l'historique seulement quand l'utilisateur a tapé sur la
+  // row "Quoi de neuf" — pas de prefetch silencieux à chaque visite du
+  // profil.
+  const releaseNotes = useReleaseNotes(showReleaseNotes, { forceAll: true });
 
   const { lent, borrowed } = useMemo(() => {
     const byId = new Map(books.map((b) => [b.id, b]));
@@ -102,6 +109,31 @@ export default function ProfileScreen() {
         </Section>
 
         <SyncSection />
+
+        <View className="mt-10">
+          <Text className="mb-3 font-display text-xl text-ink">À propos</Text>
+          <Pressable
+            onPress={() => setShowReleaseNotes(true)}
+            className="flex-row items-center justify-between rounded-2xl bg-paper-warm px-5 py-4 active:bg-paper-shade"
+          >
+            <View className="flex-1">
+              <Text className="text-xs uppercase tracking-wider text-ink-muted">
+                Quoi de neuf
+              </Text>
+              <Text className="mt-1 font-display text-base text-ink">
+                Dernières nouveautés de l&apos;app
+              </Text>
+            </View>
+            <Text className="text-sm text-accent-deep">Voir</Text>
+          </Pressable>
+        </View>
+
+        <ReleaseNotesModal
+          open={showReleaseNotes}
+          onClose={() => setShowReleaseNotes(false)}
+          notes={releaseNotes.notes ?? []}
+          loading={releaseNotes.notes === null}
+        />
 
         <Pressable
           onPress={() => signOut()}

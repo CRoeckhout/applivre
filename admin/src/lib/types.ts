@@ -496,3 +496,40 @@ export type FreemiumSettingsRow = {
   updated_by: string | null;
 };
 
+// ═══════════════ Release notes ═══════════════
+
+// Schéma des blocs du body JSONB. Doit rester aligné avec types/release-note.ts
+// côté app mobile (contrat avec la DB). En cas d'évolution, synchroniser
+// manuellement les deux fichiers — pas d'import croisé entre app et admin.
+export type ReleaseNoteBlock =
+  | { type: 'title'; text: string }
+  | { type: 'text'; text: string }
+  | { type: 'list'; items: string[] }
+  | { type: 'table'; headers: string[]; rows: string[][] }
+  | { type: 'image'; url: string; alt?: string };
+
+export const RELEASE_NOTE_BLOCK_TYPES: ReleaseNoteBlock['type'][] = [
+  'title',
+  'text',
+  'list',
+  'table',
+  'image',
+];
+
+export const RELEASE_NOTE_BLOCK_LABELS: Record<ReleaseNoteBlock['type'], string> = {
+  title: 'Titre',
+  text: 'Texte',
+  list: 'Liste à puces',
+  table: 'Tableau',
+  image: 'Image / GIF',
+};
+
+export type ReleaseNoteRow = {
+  id: string;
+  version: string;
+  title: string;
+  body: ReleaseNoteBlock[];
+  published_at: string;
+  created_at: string;
+};
+
