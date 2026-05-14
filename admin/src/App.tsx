@@ -6,9 +6,11 @@ import { BooksSection } from "./sections/books-section";
 import { BordersSection } from "./sections/borders-section";
 import { FondsSection } from "./sections/fonds-section";
 import { MusiquesSection } from "./sections/musiques-section";
+import { ReportsSection } from "./sections/reports-section";
 import { StickersSection } from "./sections/stickers-section";
 import { SubscriptionsSection } from "./sections/subscriptions-section";
 import { UsersSection } from "./sections/users-section";
+import { getUnreadReportsCount } from "./lib/admin-queries";
 import { LoginForm } from "./components/login";
 import {
   MOBILE_ASIDE_OVERLAY_STYLE,
@@ -25,6 +27,7 @@ type AuthState =
 
 type Tab =
   | "users"
+  | "reports"
   | "badges"
   | "borders"
   | "fonds"
@@ -38,6 +41,7 @@ type Theme = "light" | "dark";
 
 const TABS: Tab[] = [
   "users",
+  "reports",
   "badges",
   "borders",
   "fonds",
@@ -50,6 +54,7 @@ const TABS: Tab[] = [
 ];
 const TAB_LABELS: Record<Tab, string> = {
   users: "Utilisateurs",
+  reports: "Signalements",
   badges: "Badges",
   borders: "Cadres",
   fonds: "Fonds",
@@ -67,6 +72,12 @@ const TAB_ICONS: Record<Tab, React.JSX.Element> = {
       <circle cx="9" cy="7" r="4" />
       <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  ),
+  reports: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 22V4" />
+      <path d="M4 4h13l-2 5 2 5H4" />
     </svg>
   ),
   badges: (
@@ -194,6 +205,9 @@ export function App() {
   // Compteur de pills "proposed" pour le badge sur le tab. Initial fetch +
   // updates pushed depuis BingoPillsSection via callback.
   const [proposedPillsCount, setProposedPillsCount] = useState(0);
+  // Compteur de signalements "pending" (= jamais vus par admin). Idem :
+  // fetch initial + updates pushed depuis ReportsSection.
+  const [pendingReportsCount, setPendingReportsCount] = useState(0);
 
   useEffect(() => {
     if (auth.kind !== "admin") return;
@@ -205,6 +219,15 @@ export function App() {
         .eq("status", "proposed");
       if (!cancelled && typeof count === "number")
         setProposedPillsCount(count);
+    })();
+    void (async () => {
+      try {
+        const n = await getUnreadReportsCount();
+        if (!cancelled) setPendingReportsCount(n);
+      } catch {
+        // Pas critique : à la prochaine navigation reports la valeur sera
+        // re-pushée par la section elle-même.
+      }
     })();
     return () => {
       cancelled = true;
@@ -382,17 +405,25 @@ export function App() {
           )}
         </div>
         <nav style={{ display: "flex", flexDirection: "column", gap: 2, padding: sidebarCollapsed ? 8 : 12, flex: 1, minHeight: 0, overflowY: "auto" }}>
-          {TABS.map((tab) => (
-            <SidebarItem
-              key={tab}
-              label={TAB_LABELS[tab]}
-              icon={TAB_ICONS[tab]}
-              active={route.tab === tab}
-              collapsed={sidebarCollapsed}
-              badge={tab === "pills" && proposedPillsCount > 0 ? proposedPillsCount : null}
-              onClick={() => selectTab(tab)}
-            />
-          ))}
+          {TABS.map((tab) => {
+            const badge =
+              tab === "pills" && proposedPillsCount > 0
+                ? proposedPillsCount
+                : tab === "reports" && pendingReportsCount > 0
+                  ? pendingReportsCount
+                  : null;
+            return (
+              <SidebarItem
+                key={tab}
+                label={TAB_LABELS[tab]}
+                icon={TAB_ICONS[tab]}
+                active={route.tab === tab}
+                collapsed={sidebarCollapsed}
+                badge={badge}
+                onClick={() => selectTab(tab)}
+              />
+            );
+          })}
         </nav>
         <div
           style={{
@@ -421,6 +452,13 @@ export function App() {
       <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden" }}>
         {route.tab === "users" && (
           <UsersSection itemId={route.itemId} onItemChange={selectItem} />
+        )}
+        {route.tab === "reports" && (
+          <ReportsSection
+            itemId={route.itemId}
+            onItemChange={selectItem}
+            onPendingCountChange={setPendingReportsCount}
+          />
         )}
         {route.tab === "badges" && (
           <BadgesSection itemId={route.itemId} onItemChange={selectItem} />

@@ -4,6 +4,7 @@
 // bouton Répondre (root uniquement), et menu 3-dots pour les commentaires
 // de l'user courant (Modifier disabled si !is_editable, Supprimer toujours).
 
+import { ReportMenuButton } from "@/components/report/report-menu-button";
 import { hexWithAlpha } from "@/lib/sheet-appearance";
 import { getFont } from "@/lib/theme/fonts";
 import { usePreferences } from "@/store/preferences";
@@ -335,6 +336,11 @@ export function CommentItem({
                 color={hexWithAlpha(themeInk, 0.6)}
               />
             </Pressable>
+          ) : !isOwn && !isDeleted ? (
+            <ReportMenuButton
+              target={{ kind: "comment", id: comment.id }}
+              size={16}
+            />
           ) : null}
         </View>
 

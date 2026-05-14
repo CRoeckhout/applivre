@@ -31,6 +31,7 @@ import { CommentsSection } from "@/components/feed/comments-section";
 import { RepostModal } from "@/components/feed/repost-modal";
 import { SendToContactModal } from "@/components/feed/send-to-contact-modal";
 import { PremiumChip } from "@/components/premium-chip";
+import { ReportMenuButton } from "@/components/report/report-menu-button";
 import { useAuth } from "@/hooks/use-auth";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { hexWithAlpha } from "@/lib/sheet-appearance";
@@ -367,6 +368,11 @@ export function FeedItemHeader({ entry }: { entry: Feed.FeedEntry }) {
           </Text>
         </Pressable>
       ) : null}
+
+      <ReportMenuButton
+        target={{ kind: "feed_entry", id: entry.id }}
+        hidden={isSelf}
+      />
     </View>
   );
 }

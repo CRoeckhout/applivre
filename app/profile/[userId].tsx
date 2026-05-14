@@ -8,7 +8,9 @@ import {
   PublicSheetListItem,
   type PublicSheetListItemRow,
 } from "@/components/public-sheet-list-item";
+import { ReportMenuButton } from "@/components/report/report-menu-button";
 import { UserCard } from "@/components/user-card";
+import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/lib/supabase";
 import { usePreferences } from "@/store/preferences";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -38,6 +40,8 @@ export default function ProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const router = useRouter();
   const themeInk = usePreferences((s) => s.colorSecondary);
+  const { session } = useAuth();
+  const isSelf = !!userId && session?.user.id === userId;
 
   const profileQuery = useProfile(userId);
 
@@ -96,7 +100,14 @@ export default function ProfileScreen() {
         >
           <MaterialIcons name="arrow-back" size={22} color={themeInk} />
         </Pressable>
-        <View className="h-10 w-10" />
+        <View className="h-10 w-10 items-center justify-center">
+          <ReportMenuButton
+            target={userId ? { kind: "user", id: userId } : null}
+            hidden={isSelf}
+            size={22}
+            color={themeInk}
+          />
+        </View>
       </View>
 
       <ScrollView

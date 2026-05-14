@@ -384,6 +384,9 @@ export type AdminUserProfile = {
   premium_until: string | null;
   preferences: Record<string, unknown> | null;
   created_at: string;
+  banned_at: string | null;
+  banned_reason: string | null;
+  banned_by: string | null;
 };
 
 export type UserBookRow = {

@@ -11,6 +11,7 @@
 // l'écran d'édition de l'auteur.
 
 import { BookCover } from "@/components/book-cover";
+import { ReportMenuButton } from "@/components/report/report-menu-button";
 import { SheetSurface } from "@/components/sheet-surface";
 import { StaticStickerLayer } from "@/components/static-sticker-layer";
 import { UserCard } from "@/components/user-card";
@@ -197,7 +198,13 @@ export default function PublicSheetScreen() {
             <Text className="font-sans-med text-xs text-ink">Éditer</Text>
           </Pressable>
         ) : (
-          <View className="h-10 w-10" />
+          <View className="h-10 w-10 items-center justify-center">
+            <ReportMenuButton
+              target={{ kind: "sheet", id: bundle.sheet_id }}
+              size={22}
+              color={themeInk}
+            />
+          </View>
         )}
       </View>
 

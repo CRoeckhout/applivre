@@ -1,5 +1,10 @@
-import { useEffect, useState } from "react";
-import { getAdminUserBadges, getAdminUserProfile } from "../lib/admin-queries";
+import { useCallback, useEffect, useState } from "react";
+import {
+  banUser,
+  getAdminUserBadges,
+  getAdminUserProfile,
+  unbanUser,
+} from "../lib/admin-queries";
 import { supabase } from "../lib/supabase";
 import type {
   AdminUserAppearance,
@@ -275,6 +280,13 @@ export function UserDetail({ listItem, userId }: Props) {
         }
       />
 
+      {profile ? (
+        <BanPanel
+          profile={profile}
+          onChange={(next) => setProfile(next)}
+        />
+      ) : null}
+
       <div
         style={{
           display: "flex",
@@ -315,6 +327,135 @@ export function UserDetail({ listItem, userId }: Props) {
         )}
       </div>
     </main>
+  );
+}
+
+// Bandeau ban : si l'utilisateur est banni, affiche un encart rouge avec
+// raison/date + bouton "Rétablir". Sinon, un bouton discret pour bannir
+// manuellement (avec confirmation + raison optionnelle). Met à jour
+// l'AdminUserProfile parent à chaque action pour refléter sans round-trip.
+function BanPanel({
+  profile,
+  onChange,
+}: {
+  profile: AdminUserProfile;
+  onChange: (next: AdminUserProfile) => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const isBanned = profile.banned_at !== null;
+
+  const handleUnban = useCallback(async () => {
+    if (!window.confirm(`Rétablir le compte de ${profile.username ? `@${profile.username}` : "cet utilisateur"} ?`)) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await unbanUser(profile.id);
+      onChange({
+        ...profile,
+        banned_at: null,
+        banned_reason: null,
+        banned_by: null,
+      });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [profile, onChange]);
+
+  const handleBan = useCallback(async () => {
+    const reason = window.prompt(
+      `Bannir ${profile.username ? `@${profile.username}` : "cet utilisateur"} ?\n\nRaison (optionnel, visible dans le panel admin) :`,
+      "",
+    );
+    if (reason === null) return; // cancel
+    setSubmitting(true);
+    setError(null);
+    try {
+      const trimmed = reason.trim();
+      await banUser(profile.id, trimmed.length > 0 ? trimmed : null);
+      onChange({
+        ...profile,
+        banned_at: new Date().toISOString(),
+        banned_reason: trimmed.length > 0 ? trimmed : null,
+      });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [profile, onChange]);
+
+  if (isBanned) {
+    const date = profile.banned_at ? new Date(profile.banned_at).toLocaleString("fr-FR") : "";
+    return (
+      <div
+        style={{
+          border: "1px solid #ef4444",
+          background: "#fef2f2",
+          color: "#7f1d1d",
+          borderRadius: 12,
+          padding: "12px 16px",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>
+            Compte banni{date ? ` · ${date}` : ""}
+          </div>
+          {profile.banned_reason ? (
+            <div style={{ fontSize: 12, marginTop: 2 }}>
+              Raison : {profile.banned_reason}
+            </div>
+          ) : null}
+          {error ? (
+            <div style={{ fontSize: 12, marginTop: 4 }}>Erreur : {error}</div>
+          ) : null}
+        </div>
+        <button
+          className="btn"
+          disabled={submitting}
+          onClick={() => void handleUnban()}
+          style={{
+            background: "white",
+            color: "#7f1d1d",
+            borderColor: "#ef4444",
+          }}
+        >
+          {submitting ? "…" : "Rétablir"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        fontSize: 12,
+        color: "var(--ink-muted)",
+      }}
+    >
+      {error ? <span style={{ color: "#ef4444" }}>{error}</span> : null}
+      <div style={{ flex: 1 }} />
+      <button
+        className="btn"
+        disabled={submitting}
+        onClick={() => void handleBan()}
+        style={{
+          background: "transparent",
+          color: "#ef4444",
+          borderColor: "#ef4444",
+        }}
+      >
+        {submitting ? "…" : "Bannir manuellement"}
+      </button>
+    </div>
   );
 }
 
