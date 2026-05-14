@@ -4,16 +4,23 @@ import { mapReleaseNoteRow, type ReleaseNote } from '@/types/release-note';
 import Constants from 'expo-constants';
 import { useCallback, useEffect, useState } from 'react';
 
-// Récupère les release notes plus récentes que `lastSeenVersion`. Le hook
-// est passif tant que `enabled=false` (typiquement utilisé pour gater le
-// fetch jusqu'à ce que la session auth soit prête dans app/_layout.tsx).
+// Récupère les release notes plus récentes que `lastSeenVersion` ET dont
+// la version est inférieure ou égale à l'app installée (`__APP_VERSION__`).
+// Ce plafond évite qu'un user en v1.3 voie la note v1.4 si l'admin a
+// publié trop tôt côté DB (la build 1.4 n'est probablement pas encore
+// approuvée sur les stores). Filtrage côté RPC `get_release_notes_since`.
+//
+// Le hook est passif tant que `enabled=false` (typiquement utilisé pour
+// gater le fetch jusqu'à ce que la session auth soit prête dans
+// app/_layout.tsx).
 //
 // `notes` est null pendant le chargement initial puis devient un tableau
 // (vide si rien à afficher). `hasUnseen` est dérivé : il est vrai dès que
 // le serveur renvoie au moins une note.
 //
 // `forceAll` : ignore `lastSeenVersion` et renvoie tout l'historique
-// publié. Utilisé pour l'accès manuel depuis l'écran Profil.
+// publié (toujours plafonné par `app.version`). Utilisé pour l'accès
+// manuel depuis l'écran Profil.
 
 export type UseReleaseNotes = {
   notes: ReleaseNote[] | null;
@@ -47,7 +54,10 @@ export function useReleaseNotes(enabled = true, options?: Options): UseReleaseNo
     setError(null);
 
     supabase
-      .rpc('get_release_notes_since', { p_last_seen: sinceParam })
+      .rpc('get_release_notes_since', {
+        p_last_seen: sinceParam,
+        p_app_version: CURRENT_VERSION,
+      })
       .then(({ data, error: rpcError }) => {
         if (!mounted) return;
         if (rpcError) {
