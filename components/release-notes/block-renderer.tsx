@@ -1,5 +1,6 @@
 import type { ReleaseNoteBlock } from '@/types/release-note';
-import { Image } from 'expo-image';
+import { Image, type ImageLoadEventData } from 'expo-image';
+import { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 
 // Rendu natif des blocs d'une release note. Chaque type a son composant ;
@@ -108,19 +109,30 @@ function TableBlock({ headers, rows }: { headers: string[]; rows: string[][] }) 
 }
 
 function ImageBlock({ url, alt }: { url: string; alt?: string }) {
+  // Garde le ratio natif de l'image (screenshot mobile portrait, GIF carré,
+  // illustration paysage…). Tant qu'`onLoad` n'a pas répondu, on affiche un
+  // placeholder 16/9 pour réserver l'espace et éviter un saut de layout.
+  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
+
+  const handleLoad = (event: ImageLoadEventData) => {
+    const { width, height } = event.source;
+    if (width > 0 && height > 0) {
+      setAspectRatio(width / height);
+    }
+  };
+
   return (
-    <View className="gap-1">
-      <Image
-        source={{ uri: url }}
-        style={{ width: '100%', aspectRatio: 16 / 9, borderRadius: 12 }}
-        contentFit="cover"
-        accessibilityLabel={alt}
-      />
-      {alt ? (
-        <Text className="text-xs text-ink-muted" style={{ textAlign: 'center' }}>
-          {alt}
-        </Text>
-      ) : null}
-    </View>
+    <Image
+      source={{ uri: url }}
+      style={{
+        width: '100%',
+        aspectRatio: aspectRatio ?? 16 / 9,
+        borderRadius: 12,
+        backgroundColor: 'rgba(0,0,0,0.04)',
+      }}
+      contentFit="contain"
+      onLoad={handleLoad}
+      accessibilityLabel={alt}
+    />
   );
 }

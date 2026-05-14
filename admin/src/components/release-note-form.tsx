@@ -1,3 +1,19 @@
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import {
@@ -6,6 +22,16 @@ import {
   type ReleaseNoteBlock,
   type ReleaseNoteRow,
 } from '../lib/types';
+
+// IDs éphémères pour le drag-and-drop (jamais persistés en DB). On wrap
+// chaque bloc et chaque item de liste dans `{ id, value }` côté state
+// pour donner à @dnd-kit un identifiant stable qui ne dépend pas de la
+// position courante.
+function makeId(): string {
+  return typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `id-${Math.random().toString(36).slice(2)}-${Date.now()}`;
+}
 
 type Props = {
   initial: ReleaseNoteRow | null;
@@ -25,7 +51,12 @@ export function ReleaseNoteForm({ initial, onSaved, onDeleted }: Props) {
   const [publishedAt, setPublishedAt] = useState(
     initial?.published_at ? toLocalInput(initial.published_at) : toLocalInput(new Date().toISOString()),
   );
-  const [blocks, setBlocks] = useState<ReleaseNoteBlock[]>(initial?.body ?? []);
+  // `blocks` est wrappé `{ id, block }` pour donner à @dnd-kit des IDs
+  // stables indépendants de la position courante. Au save on extrait le
+  // `block` pur et on jette les ids.
+  const [blocks, setBlocks] = useState<{ id: string; block: ReleaseNoteBlock }[]>(
+    () => (initial?.body ?? []).map((b) => ({ id: makeId(), block: b })),
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -38,17 +69,22 @@ export function ReleaseNoteForm({ initial, onSaved, onDeleted }: Props) {
         ? toLocalInput(initial.published_at)
         : toLocalInput(new Date().toISOString()),
     );
-    setBlocks(initial?.body ?? []);
+    setBlocks((initial?.body ?? []).map((b) => ({ id: makeId(), block: b })));
     setError(null);
     setSuccess(null);
   }, [initial]);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
   function addBlock(type: ReleaseNoteBlock['type']) {
-    setBlocks((prev) => [...prev, makeEmptyBlock(type)]);
+    setBlocks((prev) => [...prev, { id: makeId(), block: makeEmptyBlock(type) }]);
   }
 
   function updateBlock(idx: number, next: ReleaseNoteBlock) {
-    setBlocks((prev) => prev.map((b, i) => (i === idx ? next : b)));
+    setBlocks((prev) => prev.map((it, i) => (i === idx ? { ...it, block: next } : it)));
   }
 
   function removeBlock(idx: number) {
@@ -61,6 +97,20 @@ export function ReleaseNoteForm({ initial, onSaved, onDeleted }: Props) {
       if (target < 0 || target >= prev.length) return prev;
       const next = prev.slice();
       [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
+  }
+
+  function handleBlockDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setBlocks((prev) => {
+      const oldIdx = prev.findIndex((it) => it.id === active.id);
+      const newIdx = prev.findIndex((it) => it.id === over.id);
+      if (oldIdx < 0 || newIdx < 0) return prev;
+      const next = prev.slice();
+      const [moved] = next.splice(oldIdx, 1);
+      next.splice(newIdx, 0, moved);
       return next;
     });
   }
@@ -85,7 +135,7 @@ export function ReleaseNoteForm({ initial, onSaved, onDeleted }: Props) {
       const row = {
         version: v,
         title: t,
-        body: blocks,
+        body: blocks.map((it) => it.block),
         published_at: new Date(publishedAt).toISOString(),
       };
       let saved: ReleaseNoteRow;
@@ -224,20 +274,30 @@ export function ReleaseNoteForm({ initial, onSaved, onDeleted }: Props) {
             </div>
           )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {blocks.map((block, idx) => (
-              <BlockEditor
-                key={idx}
-                block={block}
-                isFirst={idx === 0}
-                isLast={idx === blocks.length - 1}
-                onChange={(next) => updateBlock(idx, next)}
-                onRemove={() => removeBlock(idx)}
-                onMoveUp={() => moveBlock(idx, -1)}
-                onMoveDown={() => moveBlock(idx, 1)}
-              />
-            ))}
-          </div>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleBlockDragEnd}>
+            <SortableContext
+              items={blocks.map((it) => it.id)}
+              strategy={verticalListSortingStrategy}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {blocks.map((it, idx) => (
+                  <SortableBlockEditor
+                    key={it.id}
+                    id={it.id}
+                    block={it.block}
+                    isFirst={idx === 0}
+                    isLast={idx === blocks.length - 1}
+                    onChange={(next) => updateBlock(idx, next)}
+                    onRemove={() => removeBlock(idx)}
+                    onMoveUp={() => moveBlock(idx, -1)}
+                    onMoveDown={() => moveBlock(idx, 1)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
 
           <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <span className="muted" style={{ fontSize: 12 }}>
@@ -269,9 +329,10 @@ export function ReleaseNoteForm({ initial, onSaved, onDeleted }: Props) {
   );
 }
 
-// ═══════════════ BlockEditor ═══════════════
+// ═══════════════ SortableBlockEditor ═══════════════
 
 type BlockEditorProps = {
+  id: string;
   block: ReleaseNoteBlock;
   isFirst: boolean;
   isLast: boolean;
@@ -281,7 +342,8 @@ type BlockEditorProps = {
   onMoveDown: () => void;
 };
 
-function BlockEditor({
+function SortableBlockEditor({
+  id,
   block,
   isFirst,
   isLast,
@@ -290,13 +352,27 @@ function BlockEditor({
   onMoveUp,
   onMoveDown,
 }: BlockEditorProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
   return (
     <div
+      ref={setNodeRef}
       style={{
         border: '1px solid var(--line)',
         borderRadius: 8,
         padding: 12,
         background: 'var(--surface-2)',
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.6 : 1,
+        zIndex: isDragging ? 10 : undefined,
       }}>
       <div
         style={{
@@ -305,16 +381,19 @@ function BlockEditor({
           justifyContent: 'space-between',
           marginBottom: 8,
         }}>
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            color: 'var(--ink-muted)',
-            letterSpacing: 0.4,
-          }}>
-          {RELEASE_NOTE_BLOCK_LABELS[block.type]}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <DragHandle attributes={attributes} listeners={listeners} />
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              color: 'var(--ink-muted)',
+              letterSpacing: 0.4,
+            }}>
+            {RELEASE_NOTE_BLOCK_LABELS[block.type]}
+          </span>
+        </div>
         <div style={{ display: 'flex', gap: 4 }}>
           <button
             type="button"
@@ -383,36 +462,209 @@ function ListBlockEditor({
   block: Extract<ReleaseNoteBlock, { type: 'list' }>;
   onChange: (next: ReleaseNoteBlock) => void;
 }) {
+  // Source de vérité locale : on wrap chaque item dans `{ id, value }`
+  // pour fournir un ID stable à @dnd-kit. Le remount via la key parente
+  // (id du bloc) garantit le reset à chaque changement de note ; pas de
+  // resync nécessaire ici.
+  const [items, setItems] = useState<{ id: string; value: string }[]>(() =>
+    block.items.map((v) => ({ id: makeId(), value: v })),
+  );
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  function commit(next: { id: string; value: string }[]) {
+    setItems(next);
+    onChange({ ...block, items: next.map((i) => i.value) });
+  }
+
+  function setValue(idx: number, value: string) {
+    commit(items.map((it, i) => (i === idx ? { ...it, value } : it)));
+  }
+
+  function removeItem(idx: number) {
+    commit(items.filter((_, i) => i !== idx));
+  }
+
+  function moveItem(idx: number, direction: -1 | 1) {
+    const target = idx + direction;
+    if (target < 0 || target >= items.length) return;
+    const next = items.slice();
+    [next[idx], next[target]] = [next[target], next[idx]];
+    commit(next);
+  }
+
+  function addItem() {
+    commit([...items, { id: makeId(), value: '' }]);
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIdx = items.findIndex((it) => it.id === active.id);
+    const newIdx = items.findIndex((it) => it.id === over.id);
+    if (oldIdx < 0 || newIdx < 0) return;
+    const next = items.slice();
+    const [moved] = next.splice(oldIdx, 1);
+    next.splice(newIdx, 0, moved);
+    commit(next);
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {block.items.map((item, idx) => (
-        <div key={idx} style={{ display: 'flex', gap: 6 }}>
-          <input
-            className="input"
-            style={{ flex: 1 }}
-            value={item}
-            onChange={(e) => {
-              const items = block.items.slice();
-              items[idx] = e.target.value;
-              onChange({ ...block, items });
-            }}
-            placeholder={`Item ${idx + 1}`}
-          />
-          <button
-            type="button"
-            className="btn btn-danger"
-            onClick={() => onChange({ ...block, items: block.items.filter((_, i) => i !== idx) })}>
-            ×
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}>
+      <SortableContext
+        items={items.map((it) => it.id)}
+        strategy={verticalListSortingStrategy}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {items.map((it, idx) => (
+            <SortableListItem
+              key={it.id}
+              id={it.id}
+              value={it.value}
+              index={idx}
+              isFirst={idx === 0}
+              isLast={idx === items.length - 1}
+              onChange={(v) => setValue(idx, v)}
+              onRemove={() => removeItem(idx)}
+              onMoveUp={() => moveItem(idx, -1)}
+              onMoveDown={() => moveItem(idx, 1)}
+            />
+          ))}
+          <button type="button" className="btn" onClick={addItem}>
+            + Ajouter
           </button>
         </div>
-      ))}
+      </SortableContext>
+    </DndContext>
+  );
+}
+
+function SortableListItem({
+  id,
+  value,
+  index,
+  isFirst,
+  isLast,
+  onChange,
+  onRemove,
+  onMoveUp,
+  onMoveDown,
+}: {
+  id: string;
+  value: string;
+  index: number;
+  isFirst: boolean;
+  isLast: boolean;
+  onChange: (v: string) => void;
+  onRemove: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        display: 'flex',
+        gap: 6,
+        alignItems: 'center',
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.6 : 1,
+        zIndex: isDragging ? 10 : undefined,
+      }}>
+      <DragHandle attributes={attributes} listeners={listeners} />
+      <input
+        className="input"
+        style={{ flex: 1 }}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={`Item ${index + 1}`}
+      />
       <button
         type="button"
         className="btn"
-        onClick={() => onChange({ ...block, items: [...block.items, ''] })}>
-        + Ajouter
+        disabled={isFirst}
+        onClick={onMoveUp}
+        title="Monter">
+        ↑
+      </button>
+      <button
+        type="button"
+        className="btn"
+        disabled={isLast}
+        onClick={onMoveDown}
+        title="Descendre">
+        ↓
+      </button>
+      <button
+        type="button"
+        className="btn btn-danger"
+        onClick={onRemove}
+        title="Supprimer">
+        ×
       </button>
     </div>
+  );
+}
+
+// Bouton réutilisable qui sert de poignée de drag. Reçoit les
+// `attributes` + `listeners` de @dnd-kit/sortable : le drag ne s'active
+// que quand l'utilisateur saisit ce bouton spécifiquement (les autres
+// zones de l'item restent normalement cliquables : input, ↑↓, ×).
+function DragHandle({
+  attributes,
+  listeners,
+}: {
+  attributes: ReturnType<typeof useSortable>['attributes'];
+  listeners: ReturnType<typeof useSortable>['listeners'];
+}) {
+  return (
+    <button
+      type="button"
+      {...attributes}
+      {...listeners}
+      style={{
+        cursor: 'grab',
+        background: 'transparent',
+        border: 'none',
+        padding: 4,
+        display: 'inline-flex',
+        alignItems: 'center',
+        color: 'var(--ink-muted)',
+        touchAction: 'none',
+      }}
+      title="Glisser pour réordonner"
+      aria-label="Glisser pour réordonner">
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round">
+        <circle cx="9" cy="6" r="1" />
+        <circle cx="9" cy="12" r="1" />
+        <circle cx="9" cy="18" r="1" />
+        <circle cx="15" cy="6" r="1" />
+        <circle cx="15" cy="12" r="1" />
+        <circle cx="15" cy="18" r="1" />
+      </svg>
+    </button>
   );
 }
 

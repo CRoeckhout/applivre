@@ -1,7 +1,8 @@
 import { ReleaseNoteBlocks } from '@/components/release-notes/block-renderer';
+import { ScrollViewFaded } from '@/components/scroll-view-faded';
 import type { ReleaseNote } from '@/types/release-note';
 import { MaterialIcons } from '@expo/vector-icons';
-import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, Text, View } from 'react-native';
 
 type Props = {
   open: boolean;
@@ -29,14 +30,33 @@ export function ReleaseNotesModal({ open, onClose, notes, loading = false }: Pro
 
   return (
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
+      {/* Backdrop semi-transparent qui ferme la modale au tap. Posé en
+          absolute pour ne pas wrapper le panel (un Pressable parent
+          intercepte les gestures pan du ScrollView descendant). */}
       <Pressable
         onPress={onClose}
-        className="flex-1 bg-ink/60 px-6"
-        style={{ justifyContent: 'center' }}>
-        <Pressable
-          onPress={(e) => e.stopPropagation()}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+        }}
+        className="bg-ink/60"
+      />
+      {/* Container de centrage. `pointerEvents="box-none"` : les taps sur
+          ce View lui-même passent au backdrop dessous, mais les taps sur
+          ses enfants (le panel) sont captés normalement. */}
+      <View
+        pointerEvents="box-none"
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          paddingHorizontal: 24,
+        }}>
+        <View
           className="rounded-3xl bg-paper p-5"
-          style={{ maxHeight: '85%' }}>
+          style={{ height: '85%' }}>
           <View className="flex-row items-center gap-3">
             <View className="h-12 w-12 items-center justify-center rounded-full bg-accent-pale">
               <MaterialIcons name="auto-awesome" size={24} color="#f59e0b" />
@@ -55,9 +75,11 @@ export function ReleaseNotesModal({ open, onClose, notes, loading = false }: Pro
             </Pressable>
           </View>
 
-          <ScrollView
-            style={{ marginTop: 16 }}
-            showsVerticalScrollIndicator={false}>
+          <ScrollViewFaded
+            containerStyle={{ flex: 1, marginTop: 16 }}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: 8 }}
+            showsVerticalScrollIndicator={true}>
             {loading ? (
               <View style={{ paddingVertical: 32, alignItems: 'center' }}>
                 <ActivityIndicator color="#c27b52" />
@@ -72,11 +94,13 @@ export function ReleaseNotesModal({ open, onClose, notes, loading = false }: Pro
                 </Text>
               </View>
             ) : (
-              <View className="gap-6">
-                {notes.map((note) => (
-                  <View key={note.id} className="gap-3">
+              <View>
+                {notes.map((note, idx) => (
+                  <View
+                    key={note.id}
+                    className={`gap-3 ${idx > 0 ? 'mt-6 pt-6 border-t border-ink/10' : ''}`}>
                     <View className="flex-row items-baseline gap-2">
-                      <Text className="font-sans-med text-base text-ink">
+                      <Text className="font-sans-bold text-lg text-ink">
                         {note.title}
                       </Text>
                       <Text className="text-xs text-ink-muted">v{note.version}</Text>
@@ -86,7 +110,7 @@ export function ReleaseNotesModal({ open, onClose, notes, loading = false }: Pro
                 ))}
               </View>
             )}
-          </ScrollView>
+          </ScrollViewFaded>
 
           <Pressable
             onPress={onClose}
@@ -94,8 +118,8 @@ export function ReleaseNotesModal({ open, onClose, notes, loading = false }: Pro
             style={{ alignItems: 'center' }}>
             <Text className="font-sans-med text-sm text-ink">Compris</Text>
           </Pressable>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
