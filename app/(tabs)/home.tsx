@@ -19,13 +19,13 @@ import type { UserBook } from '@/types/book';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import DraggableFlatList, {
   ScaleDecorator,
   type RenderItemParams,
 } from 'react-native-draggable-flatlist';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function resolveOrder(saved: HomeCardId[]): HomeCardId[] {
   const known = saved.filter((id) => AVAILABLE_HOME_CARDS.includes(id));
@@ -50,6 +50,8 @@ export default function HomeScreen() {
   const homeCardOrder = usePreferences((s) => s.homeCardOrder);
   const setHomeCardOrder = usePreferences((s) => s.setHomeCardOrder);
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  const insets = useSafeAreaInsets();
 
   const orderedIds = useMemo(() => resolveOrder(homeCardOrder), [homeCardOrder]);
 
@@ -195,10 +197,15 @@ export default function HomeScreen() {
         keyExtractor={(item) => item.id}
         onDragEnd={onDragEnd}
         renderItem={renderItem}
-        contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 120 }}
+        contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 64, paddingBottom: 120 }}
         ListHeaderComponent={<HomeHeader />}
         activationDistance={10}
       />
+      <View
+        pointerEvents="box-none"
+        style={{ position: 'absolute', top: insets.top + 8, right: 24, zIndex: 20 }}>
+        <HomeCogMenu />
+      </View>
       <HomeFab />
       <StartReadingModal
         open={pickerOpen}
@@ -214,22 +221,12 @@ export default function HomeScreen() {
 
 function HomeHeader() {
   return (
-    <>
-      <Animated.View
-        entering={FadeInDown.duration(500)}
-        className="flex-row items-center justify-between">
-        <View className="flex-1 pr-3">
-          <Text className="font-display text-4xl text-ink">Chez moi</Text>
-          <Text className="mt-1 text-base text-ink-muted">Ton tableau de bord lecture.</Text>
-        </View>
-        <HomeCogMenu />
-      </Animated.View>
-
+    <Animated.View entering={FadeInDown.duration(500)}>
       <CardFrame>
         <UserProfileCard />
       </CardFrame>
 
       <View className="mt-6" />
-    </>
+    </Animated.View>
   );
 }
