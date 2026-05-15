@@ -99,9 +99,11 @@ export function UserRichCard({
   const mutedColor = hexA(appearance.colorSecondary, 0.6) ?? "var(--ink-muted)";
   const accentColor = appearance.colorPrimary ?? "var(--accent)";
 
-  // Style du wrapper : fond image (cover/tile) + border 9-slice si dispo +
-  // colorBg si défini (priorité bg image > colorBg > var(--surface)).
-  const wrapperStyle = buildWrapperStyle(border, fond, appearance.colorBg);
+  // Style du wrapper : colorBg en backdrop + border 9-slice si dispo. Le fond
+  // image est rendu en overlay absolu séparé pour pouvoir lui appliquer
+  // `fondOpacity` sans toucher au contenu (parité avec FondLayer côté mobile).
+  const wrapperStyle = buildWrapperStyle(border, appearance.colorBg);
+  const fondOverlay = buildFondOverlay(fond, appearance.fondOpacity);
 
   const visibleBadges = unlockedBadgeKeys
     .slice(0, MAX_VISIBLE_BADGES)
@@ -110,6 +112,7 @@ export function UserRichCard({
 
   return (
     <div style={wrapperStyle}>
+      {fondOverlay}
       <div
         style={{
           position: "relative",
@@ -471,7 +474,6 @@ const baseCardStyle: CSSProperties = {
 
 function buildWrapperStyle(
   border: BorderCatalogRow | null,
-  fond: FondCatalogRow | null,
   colorBg: string | undefined,
 ): CSSProperties {
   // Border (9-slice PNG only en V1, fallback contour simple sinon).
@@ -494,30 +496,41 @@ function buildWrapperStyle(
     }
   }
 
-  // Fond : priorité bg image > colorBg user > var(--surface). Le mobile
-  // applique aussi colorBg comme backdrop quand un fond image existe (il
-  // teinte les pixels transparents du PNG) — on fait pareil ici via
-  // backgroundColor en plus de backgroundImage.
-  const fallbackBg = colorBg ?? "var(--surface)";
-  let bgStyles: CSSProperties = { background: fallbackBg };
-  if (fond && fond.kind === "png_9slice") {
-    const url = publicAssetUrl("fond", fond.storage_path);
-    if (url) {
-      bgStyles = {
+  // colorBg en backdrop (teinte les pixels transparents du PNG fond), fallback
+  // `var(--surface)`. `position: relative` pour ancrer l'overlay fond absolu.
+  return {
+    backgroundColor: colorBg ?? "var(--surface)",
+    ...borderStyles,
+    position: "relative",
+    overflow: "hidden",
+  };
+}
+
+// Couche fond image séparée pour pouvoir appliquer `fondOpacity` sans toucher
+// au contenu. Parité avec `FondLayer` côté mobile (cf. card-frame.tsx).
+function buildFondOverlay(
+  fond: FondCatalogRow | null,
+  fondOpacity: number | undefined,
+) {
+  if (!fond || fond.kind !== "png_9slice") return null;
+  const url = publicAssetUrl("fond", fond.storage_path);
+  if (!url) return null;
+  const opacity = Math.max(0, Math.min(1, fondOpacity ?? 1));
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: "absolute",
+        inset: 0,
         backgroundImage: `url("${url}")`,
-        backgroundColor: fallbackBg,
         backgroundSize: fond.repeat_mode === "tile" ? "auto" : "cover",
         backgroundRepeat: fond.repeat_mode === "tile" ? "repeat" : "no-repeat",
         backgroundPosition: "center",
-      };
-    }
-  }
-
-  return {
-    ...bgStyles,
-    ...borderStyles,
-    overflow: "hidden",
-  };
+        opacity,
+        pointerEvents: "none",
+      }}
+    />
+  );
 }
 
 function readAppearance(
