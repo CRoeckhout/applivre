@@ -7,6 +7,7 @@ import { BordersSection } from "./sections/borders-section";
 import { FondsSection } from "./sections/fonds-section";
 import { MusiquesSection } from "./sections/musiques-section";
 import { ReleaseNotesSection } from "./sections/release-notes-section";
+import { TemplateGenresSection } from "./sections/template-genres-section";
 import { ReportsSection } from "./sections/reports-section";
 import { StickersSection } from "./sections/stickers-section";
 import { SubscriptionsSection } from "./sections/subscriptions-section";
@@ -38,7 +39,8 @@ type Tab =
   | "pills"
   | "musiques"
   | "subscriptions"
-  | "release-notes";
+  | "release-notes"
+  | "template-genres";
 type Theme = "light" | "dark";
 
 const TABS: Tab[] = [
@@ -54,6 +56,7 @@ const TABS: Tab[] = [
   "musiques",
   "subscriptions",
   "release-notes",
+  "template-genres",
 ];
 const TAB_LABELS: Record<Tab, string> = {
   users: "Utilisateurs",
@@ -68,6 +71,7 @@ const TAB_LABELS: Record<Tab, string> = {
   musiques: "Musiques",
   subscriptions: "Abonnements",
   "release-notes": "Quoi de neuf",
+  "template-genres": "Genres templates",
 };
 const TAB_ICONS: Record<Tab, React.JSX.Element> = {
   users: (
@@ -144,6 +148,12 @@ const TAB_ICONS: Record<Tab, React.JSX.Element> = {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" />
       <circle cx="12" cy="12" r="3" />
+    </svg>
+  ),
+  "template-genres": (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 7h16M4 12h16M4 17h10" />
+      <circle cx="19" cy="17" r="2" />
     </svg>
   ),
 };
@@ -503,6 +513,9 @@ export function App() {
         )}
         {route.tab === "release-notes" && (
           <ReleaseNotesSection itemId={route.itemId} onItemChange={selectItem} />
+        )}
+        {route.tab === "template-genres" && (
+          <TemplateGenresSection itemId={route.itemId} onItemChange={selectItem} />
         )}
       </div>
     </div>

@@ -20,13 +20,15 @@ type Props = {
 };
 
 // Wrapper auto-loader autour de `UserRichCard` : à partir d'un userId,
-// charge en parallèle profil + email (admin_user_card) + badges débloqués
-// + catalog rows ciblés (border/fond/frame selon `profile.preferences`).
+// charge en parallèle profil (admin_user_profile) + email (admin_user_card)
+// + badges débloqués + catalog rows ciblés (border/fond/frame selon
+// `profile.preferences`).
 //
 // Sert à hisser la UserRichCard dans n'importe quel form admin
-// (bingo-pill-form, book-form, …) avec une seule prop `userId`. Réutilise
-// les policies admin SELECT (cf. 0059) qui rendent profiles/user_badges
-// lisibles cross-user pour les admins.
+// (bingo-pill-form, book-form, …) avec une seule prop `userId`. Passe par
+// les RPC admin_user_* (SECURITY DEFINER + _assert_admin) car la policy
+// "profiles admin select" a été droppée en 0062 — un read direct sur
+// `profiles` renverrait 0 row pour les autres users (cf. 0064).
 export function UserRichCardLoader({ userId, stats }: Props) {
   const [profile, setProfile] = useState<AdminUserProfile | null>(null);
   const [email, setEmail] = useState<string | null>(null);
@@ -50,13 +52,7 @@ export function UserRichCardLoader({ userId, stats }: Props) {
     void (async () => {
       // Profil + email en parallèle des badges et du catalog.
       const [profileRes, cardRes, badgesRes, badgeCatRes] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select(
-            "id,username,display_name,avatar_url,is_premium,is_admin,premium_until,preferences,created_at",
-          )
-          .eq("id", userId)
-          .maybeSingle(),
+        supabase.rpc("admin_user_profile", { p_user_id: userId }),
         supabase.rpc("admin_user_card", { p_user_id: userId }),
         supabase
           .from("user_badges")
