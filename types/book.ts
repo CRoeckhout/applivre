@@ -174,10 +174,18 @@ export type PlacedSticker = {
   // skip silencieusement — le placement reste persisté pour le cas où le
   // sticker redeviendrait dispo.
   stickerId: string;
-  // Position du centre du sticker, en fraction de la fiche : x ∈ [0,1] sur
-  // la largeur, y ∈ [0,1] sur la hauteur. Le drag clamp garantit que le
-  // centre reste dans [0,1] — l'image peut visuellement déborder mais le
-  // sticker reste "ancré" à la fiche.
+  // Position du centre du sticker.
+  //   x : fraction [0,1] de la largeur de la fiche (largeur fixée à
+  //       SHEET_MAX_WIDTH = 380dp, donc fraction et dp se déduisent
+  //       directement). Le drag clamp garantit x ∈ [0,1].
+  //   y : distance en dp depuis le top de la fiche. Indépendant de la
+  //       hauteur totale, donc un sticker reste à la même distance du
+  //       haut peu importe la longueur du contenu (utile pour qu'un
+  //       template appliqué à des fiches de différentes tailles garde
+  //       ses stickers visuellement cohérents).
+  // Compat ascendante : les anciens placements ont y ∈ [0,1] (fraction
+  // de la hauteur). Lecteurs et StickerLayer/StaticSticker traitent
+  // `y <= 1` comme l'ancien format et le convertissent au prochain commit.
   x: number;
   y: number;
   // Multiplicateur de la taille naturelle (cf. STICKER_NATURAL_WIDTH_FRACTION
@@ -208,4 +216,46 @@ export type ReadingSheet = {
   // /sheet/view/[id]. Sa présence atteste que la fiche est connue côté
   // serveur — utilisable comme proxy "fiche déjà sync'ée".
   id?: string;
+};
+
+// Squelette d'une fiche réutilisable. Pas de userBookId — un template est
+// projeté sur un livre au moment de créer une fiche. `appearance` est complet
+// (pas un override) car c'est la signature visuelle du template ; les sections
+// sont vides de body côté template (titre + icône + rating type seulement).
+export type ReadingSheetTemplate = {
+  id: string;
+  userId: string;
+  name: string;
+  appearance: SheetAppearance;
+  sections: SheetSection[];
+  stickers?: PlacedSticker[];
+  genres: string[];
+  isPublic: boolean;
+  // Cache calculé au save : true si le template contient au moins un
+  // sticker/cadre/fond marqué `availability = 'premium'`. Permet de gater
+  // l'usage en freemium sans rouvrir le content à chaque clic.
+  isPremium: boolean;
+  likesCount: number;
+  forkedFromId?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// Augmentation des templates publics renvoyée par list_public_templates /
+// get_public_template : ajoute le créateur et le flag is_liked pour l'auth user.
+export type PublicReadingSheetTemplate = ReadingSheetTemplate & {
+  creator: {
+    id: string;
+    displayName: string | null;
+    username: string | null;
+    avatarUrl: string | null;
+  };
+  isLiked: boolean;
+};
+
+export type TemplateGenre = {
+  slug: string;
+  label: string;
+  sortOrder: number;
+  isActive: boolean;
 };

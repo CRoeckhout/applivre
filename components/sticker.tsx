@@ -10,7 +10,7 @@ import { useAllStickers } from '@/store/sticker-catalog';
 import { usePreferences } from '@/store/preferences';
 import type { PlacedSticker } from '@/types/book';
 import { Image } from 'expo-image';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -123,10 +123,12 @@ export function Sticker({
     : 1;
   const naturalHeight = naturalWidth * aspectRatio;
 
-  // Shared values en pixels (relatif au layer). On stocke en relatif (0..1)
-  // mais on travaille en px pendant les gestures pour des deltas naturels.
+  // Shared values en pixels. `x` est stocké en fraction (largeur fixe), on
+  // convertit au mount. `y` est stocké en dp absolu depuis le top — sauf
+  // pour les anciens placements (y ∈ [0,1] fraction) détectés via y <= 1
+  // et migrés au prochain commit.
   const x = useSharedValue(placement.x * layerWidth);
-  const y = useSharedValue(placement.y * layerHeight);
+  const y = useSharedValue(placement.y <= 1 ? placement.y * layerHeight : placement.y);
   const scale = useSharedValue(placement.scale);
   const rotation = useSharedValue(placement.rotation);
 
@@ -138,10 +140,12 @@ export function Sticker({
   const savedRotation = useSharedValue(0);
 
   // Sync si le placement change côté store (ex: reorder, autre client) ou
-  // si la taille du layer change (rotation device).
+  // si la taille du layer change (rotation device). `layerWidth` est inclus
+  // car x est en fraction (× width). `layerHeight` n'est plus une dépendance
+  // pour y, mais on le garde pour les anciens placements en fraction.
   useEffect(() => {
     x.value = placement.x * layerWidth;
-    y.value = placement.y * layerHeight;
+    y.value = placement.y <= 1 ? placement.y * layerHeight : placement.y;
     scale.value = placement.scale;
     rotation.value = placement.rotation;
   }, [
@@ -160,11 +164,44 @@ export function Sticker({
   const commit = () => {
     onCommit({
       x: x.value / Math.max(1, layerWidth),
-      y: y.value / Math.max(1, layerHeight),
+      // y commit en dp absolu depuis le top (nouveau format).
+      y: y.value,
       scale: scale.value,
       rotation: rotation.value,
     });
   };
+
+  // Migration auto des anciens placements (y en fraction [0,1]) vers le
+  // nouveau format (y en dp absolu depuis le top). Sans migration, un ajout
+  // de section faisait recalculer `y = placement.y * layerHeight` à chaque
+  // changement de layerHeight → les vieux stickers descendaient avec le
+  // contenu. Une fois migrés (placement.y > 1), ils sont figés en dp et
+  // indépendants de la hauteur de la fiche.
+  const migratedRef = useRef(false);
+  useEffect(() => {
+    if (migratedRef.current) return;
+    // Déjà en dp : marker migration done, pas de commit superflu.
+    if (placement.y > 1) {
+      migratedRef.current = true;
+      return;
+    }
+    // Attend la première mesure du layer pour convertir.
+    if (layerHeight <= 0) return;
+    migratedRef.current = true;
+    onCommit({
+      x: placement.x,
+      y: placement.y * layerHeight,
+      scale: placement.scale,
+      rotation: placement.rotation,
+    });
+  }, [
+    placement.x,
+    placement.y,
+    placement.scale,
+    placement.rotation,
+    layerHeight,
+    onCommit,
+  ]);
 
   // Pan : drag à 1 doigt strict. Le centre du sticker est clampé sur les
   // bornes du layer ([0, layerWidth] × [0, layerHeight]) — l'image peut

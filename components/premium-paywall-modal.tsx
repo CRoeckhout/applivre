@@ -8,8 +8,10 @@ type Props = {
   // Source du déclencheur — informe le titre/le message principal pour
   // éviter une UX générique. `feature_limit` = blocage de création (fiches /
   // bingos atteignant la limite freemium) ; les `CatalogLockReason` couvrent
-  // les items du catalog (cadre/fond/sticker/avatar verrouillé).
-  reason: CatalogLockReason | 'feature_limit';
+  // les items du catalog (cadre/fond/sticker/avatar verrouillé) ;
+  // `template_premium` = tentative d'utiliser un template embarquant ≥1
+  // élément premium par un user freemium.
+  reason: CatalogLockReason | 'feature_limit' | 'template_premium';
   // Pour `feature_limit`, précise quelle limite a déclenché la modale (UX :
   // affiche une formulation adaptée au contexte). Ignoré pour les autres
   // reasons.
@@ -120,6 +122,7 @@ function pickTitle(reason: Props['reason'], feature: Props['feature']): string {
     if (feature === 'bingos') return 'Limite de bingos atteinte';
     return 'Limite atteinte';
   }
+  if (reason === 'template_premium') return 'Template Premium';
   return 'Devenez Premium';
 }
 
@@ -132,6 +135,9 @@ function pickLead(reason: Props['reason'], feature: Props['feature']): string {
       return 'Passe Premium pour gérer plusieurs bingos en parallèle.';
     }
     return 'Passe Premium pour débloquer cette fonctionnalité.';
+  }
+  if (reason === 'template_premium') {
+    return 'Ce template embarque des éléments Premium. Passe Premium pour l’utiliser tel quel.';
   }
   return 'Débloque cet élément et tout le contenu Premium.';
 }

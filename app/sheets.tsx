@@ -88,6 +88,26 @@ export default function SheetsScreen() {
           </Pressable>
         </Animated.View>
 
+        <Pressable
+          // Types Expo Router à régénérer (.expo/types/router.d.ts) au prochain
+          // dev server start ; cast en attendant pour ne pas bloquer le check TS.
+          onPress={() => router.push('/templates' as never)}
+          accessibilityLabel="Mes templates de fiches"
+          className="mt-6 flex-row items-center justify-between rounded-2xl bg-paper-warm px-4 py-3 active:bg-paper-shade">
+          <View className="flex-row items-center gap-3">
+            <View className="h-9 w-9 items-center justify-center rounded-full bg-paper-shade">
+              <MaterialIcons name="auto-awesome-mosaic" size={18} color={theme.ink} />
+            </View>
+            <View>
+              <Text className="font-sans-med text-base text-ink">Mes templates</Text>
+              <Text className="text-xs text-ink-muted">
+                Réutilise un style, partage à la communauté
+              </Text>
+            </View>
+          </View>
+          <MaterialIcons name="chevron-right" size={22} color={theme.ink} />
+        </Pressable>
+
         {entries.length === 0 ? (
           <EmptyState onCreate={() => router.push('/sheet/new')} />
         ) : (

@@ -104,8 +104,11 @@ function StaticSticker({
 
   if (!def) return null;
 
+  // x : fraction de la largeur (toujours). y : dp absolu depuis le top
+  // (nouveau format). Compat ascendant : y ∈ [0,1] = ancien format
+  // fraction, on multiplie par la hauteur du layer.
   const cx = placement.x * layerWidth;
-  const cy = placement.y * layerHeight;
+  const cy = placement.y <= 1 ? placement.y * layerHeight : placement.y;
 
   return (
     <View

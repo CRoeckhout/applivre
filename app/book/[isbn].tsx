@@ -10,6 +10,7 @@ import { ReadingTimer } from "@/components/reading-timer";
 import { SheetCard } from "@/components/sheet-card";
 import { useAuth } from "@/hooks/use-auth";
 import { formatDurationHuman } from "@/hooks/use-elapsed-time";
+import { useTemplateChooserFlow } from "@/hooks/use-template-chooser-flow";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { fetchBook } from "@/lib/books";
 import {
@@ -61,6 +62,7 @@ export default function BookDetailScreen() {
   const setGenres = useBookshelf((s) => s.setGenres);
   const toggleFavorite = useBookshelf((s) => s.toggleFavorite);
   const sheets = useReadingSheets((s) => s.sheets);
+  const { openChooser, modals: templateChooserModals } = useTemplateChooserFlow();
   const [genreModalOpen, setGenreModalOpen] = useState(false);
   const [congratsOpen, setCongratsOpen] = useState(false);
   const [pauseModalOpen, setPauseModalOpen] = useState(false);
@@ -392,7 +394,7 @@ export default function BookDetailScreen() {
           onClose={() => setCongratsOpen(false)}
           onCreate={() => {
             setCongratsOpen(false);
-            router.push(`/sheet/${isbn}`);
+            if (existing) openChooser(existing);
           }}
         />
 
@@ -431,6 +433,7 @@ export default function BookDetailScreen() {
         onToggleFavorite={() => existing && toggleFavorite(existing.id)}
         onRemove={onRemovePress}
       />
+      {templateChooserModals}
     </View>
   );
 }
@@ -824,6 +827,7 @@ function SheetPreview({
   const router = useRouter();
   const sheet = useReadingSheets((s) => s.sheets[userBook.id]);
   const globalTemplate = useSheetTemplates((s) => s.global);
+  const { openChooser, modals: templateChooserModals } = useTemplateChooserFlow();
 
   const isbn = userBook.book.isbn;
   const hasContent = !!sheet && sheet.sections.length > 0;
@@ -837,7 +841,7 @@ function SheetPreview({
           </Text>
         )}
         <Pressable
-          onPress={() => router.push(`/sheet/${isbn}`)}
+          onPress={() => openChooser(userBook)}
           className="overflow-hidden rounded-3xl bg-paper-warm p-5 active:opacity-80"
         >
           <View className="flex-row items-center gap-4">
@@ -855,6 +859,7 @@ function SheetPreview({
             <Text className="text-2xl text-accent-deep">›</Text>
           </View>
         </Pressable>
+        {templateChooserModals}
       </View>
     );
   }
@@ -882,6 +887,8 @@ function SheetPreview({
           sheet.id
             ? router.push(`/sheet/view/${sheet.id}`)
             : router.push(`/sheet/${isbn}`)
+          // Note : ce call site est sur une fiche déjà existante (sheet truthy)
+          // donc pas de chooser, on va direct à l'éditeur pour reprendre.
         }
       />
     </View>

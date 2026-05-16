@@ -2,6 +2,7 @@ import { BookCover } from "@/components/book-cover";
 import { KeyboardDismissBar } from "@/components/keyboard-dismiss-bar";
 import { PremiumPaywallModal } from "@/components/premium-paywall-modal";
 import { RatingIcon } from "@/components/rating-row";
+import { SheetSectionEditor } from "@/components/sheet/sheet-section-editor";
 import { SheetCustomizer } from "@/components/sheet-customizer";
 import { SheetSurface } from "@/components/sheet-surface";
 import { StickerLayer } from "@/components/sticker-layer";
@@ -21,8 +22,10 @@ import { MAX_STICKERS_PER_SHEET } from "@/lib/stickers/catalog";
 import { getFont } from "@/lib/theme/fonts";
 import { useBookshelf } from "@/store/bookshelf";
 import { usePreferences } from "@/store/preferences";
+import { useReadingSheetTemplates } from "@/store/reading-sheet-templates";
 import { useReadingSheets } from "@/store/reading-sheets";
 import { useSheetTemplates } from "@/store/sheet-templates";
+import { useTemplateDraft } from "@/store/template-draft";
 import { useTimer } from "@/store/timer";
 import type {
   PlacedSticker,
@@ -32,7 +35,7 @@ import type {
 } from "@/types/book";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -52,7 +55,10 @@ import {
 } from "react-native-safe-area-context";
 
 export default function SheetScreen() {
-  const { isbn } = useLocalSearchParams<{ isbn: string }>();
+  const { isbn, template_id: templateIdParam } = useLocalSearchParams<{
+    isbn: string;
+    template_id?: string;
+  }>();
   const router = useRouter();
   const books = useBookshelf((s) => s.books);
   const userBook = books.find((b) => b.book.isbn === isbn);
@@ -63,6 +69,14 @@ export default function SheetScreen() {
   const setSheetAppearance = useReadingSheets((s) => s.setAppearance);
   const setStickers = useReadingSheets((s) => s.setStickers);
   const setSheetIsPublic = useReadingSheets((s) => s.setIsPublic);
+
+  const myTemplates = useReadingSheetTemplates((s) => s.mine);
+  const getPublicTemplate = useReadingSheetTemplates((s) => s.getPublic);
+  // Appearance à appliquer au save (template choisi via le chooser).
+  // Tant qu'il est posé, on l'utilise comme override visuel ET on l'écrit
+  // sur la fiche au moment du `handleSaveDraft` pour figer le snapshot.
+  const [pendingTemplateAppearance, setPendingTemplateAppearance] =
+    useState<SheetAppearance | null>(null);
 
   const globalTemplate = useSheetTemplates((s) => s.global);
   const themeInk = usePreferences((s) => s.colorSecondary);
@@ -81,6 +95,50 @@ export default function SheetScreen() {
     () => storedStickers,
   );
 
+  // Si on arrive ici avec un `template_id` query param et qu'aucune fiche
+  // n'existe encore pour ce livre, on hydrate le draft avec le template
+  // sélectionné. Cloning des ids pour ne pas collisionner avec les ids
+  // d'origine côté template. Le snapshot d'appearance n'est posé sur la fiche
+  // qu'au `handleSaveDraft` (avant `setSections`) pour éviter d'écrire
+  // dans le store avant que l'user ait validé.
+  useEffect(() => {
+    if (!templateIdParam || sheet) return;
+    let cancelled = false;
+    const local = myTemplates.find((t) => t.id === templateIdParam);
+    // Reset défensif : un template ne doit jamais ramener une note ≠ 0
+    // sur la nouvelle fiche (cas où un template aurait été sauvé avant
+    // l'ajout du reset au save, ou modifié manuellement). Le body est
+    // également strippé — le template ne capture pas le contenu.
+    const sanitize = (xs: SheetSection[]) =>
+      xs.map((s) => ({
+        ...s,
+        id: newId(),
+        body: '',
+        rating: s.rating ? { ...s.rating, value: 0 } : undefined,
+      }));
+    const apply = (
+      appearance: SheetAppearance,
+      sections: SheetSection[],
+      stickers: PlacedSticker[] | undefined,
+    ) => {
+      if (cancelled) return;
+      setPendingTemplateAppearance(appearance);
+      setDraft(sanitize(sections));
+      setDraftStickers((stickers ?? []).map((s) => ({ ...s, id: newId() })));
+    };
+    if (local) {
+      apply(local.appearance, local.sections, local.stickers);
+    } else {
+      void getPublicTemplate(templateIdParam).then((t) => {
+        if (!t) return;
+        apply(t.appearance, t.sections, t.stickers);
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [templateIdParam, sheet, myTemplates, getPublicTemplate]);
+
   const sectionsDirty = useMemo(
     () => !sectionsEqual(draft, storedSections),
     [draft, storedSections],
@@ -92,8 +150,11 @@ export default function SheetScreen() {
   const dirty = sectionsDirty || stickersDirty;
 
   const appearance = useMemo<SheetAppearance>(
-    () => mergeAppearance(globalTemplate, sheet?.appearance),
-    [globalTemplate, sheet?.appearance],
+    () =>
+      pendingTemplateAppearance
+        ? pendingTemplateAppearance
+        : mergeAppearance(globalTemplate, sheet?.appearance),
+    [pendingTemplateAppearance, globalTemplate, sheet?.appearance],
   );
   const fontFamily = getFont(appearance.fontId as any).variants.display;
 
@@ -178,6 +239,14 @@ export default function SheetScreen() {
       setPaywallOpen(true);
       return;
     }
+    // Si un template a été choisi via le picker (template_id query param),
+    // on fige son appearance sur la fiche avant `setSections` pour que
+    // l'ensureSheet du store n'écrase pas avec le template global. Une fois
+    // posée, la fiche garde son snapshot indépendamment du template source.
+    if (pendingTemplateAppearance) {
+      setSheetAppearance(userBook.id, pendingTemplateAppearance);
+      setPendingTemplateAppearance(null);
+    }
     setSections(userBook.id, draft);
     if (stickersDirty) {
       setStickers(userBook.id, draftStickers);
@@ -195,7 +264,9 @@ export default function SheetScreen() {
     const id = newId();
     setDraftStickers((prev) => [
       ...prev,
-      { id, stickerId, x: 0.5, y: 0.5, scale: 1, rotation: 0 },
+      // x fraction (centre horizontal). y en dp absolu depuis le top —
+      // 280dp tombe ~au milieu d'une fiche standard (header + 1 section).
+      { id, stickerId, x: 0.5, y: 280, scale: 1, rotation: 0 },
     ]);
     return id;
   };
@@ -332,6 +403,26 @@ export default function SheetScreen() {
         ? "Les autres lecteurs peuvent maintenant voir cette fiche depuis la page du livre."
         : "Plus personne d'autre que toi ne peut la consulter.",
     );
+  };
+
+  const handleSaveAsTemplate = () => {
+    setMenuOpen(false);
+    if (!userBook) return;
+    // Pré-populate l'éditeur de template via le store de transition :
+    // appearance + structure des sections (body strip, notes resettées) +
+    // stickers (positions copiées, l'user pourra les réajuster pour le
+    // layout template qui diffère de la fiche).
+    useTemplateDraft.getState().set({
+      appearance,
+      sections: draft.map((s) => ({
+        ...s,
+        body: '',
+        rating: s.rating ? { ...s.rating, value: 0 } : undefined,
+      })),
+      stickers: draftStickers.length > 0 ? draftStickers : undefined,
+      defaultName: userBook.book.title,
+    });
+    router.push('/template/new' as never);
   };
 
   return (
@@ -482,7 +573,7 @@ export default function SheetScreen() {
                           ),
                         }}
                       >
-                        <SectionEditor
+                        <SheetSectionEditor
                           section={section}
                           appearance={appearance}
                           fontFamily={fontFamily}
@@ -622,10 +713,12 @@ export default function SheetScreen() {
         onShare={handleShare}
         onDelete={confirmDelete}
         onTogglePublic={handleTogglePublic}
+        onSaveAsTemplate={handleSaveAsTemplate}
         isPublic={sheet?.isPublic ?? false}
         themePaper={themePaper}
         themeInk={themeInk}
       />
+
 
       <SheetCustomizer
         open={customizerOpen}
@@ -701,6 +794,7 @@ function ActionMenu({
   onShare,
   onDelete,
   onTogglePublic,
+  onSaveAsTemplate,
   isPublic,
   themePaper,
   themeInk,
@@ -711,6 +805,7 @@ function ActionMenu({
   onShare: () => void;
   onDelete: () => void;
   onTogglePublic: () => void;
+  onSaveAsTemplate: () => void;
   isPublic: boolean;
   themePaper: string;
   themeInk: string;
@@ -737,6 +832,13 @@ function ActionMenu({
             sublabel="Cadre, police, couleurs…"
             themeInk={themeInk}
             onPress={onCustomize}
+          />
+          <MenuRow
+            icon="auto-awesome-mosaic"
+            label="Sauvegarder comme template"
+            sublabel="Réutiliser sur un autre livre"
+            themeInk={themeInk}
+            onPress={onSaveAsTemplate}
           />
           <MenuRow
             icon={isPublic ? "public" : "lock-outline"}
@@ -895,103 +997,6 @@ function SuggestionPill({
   );
 }
 
-function SectionEditor({
-  section,
-  appearance,
-  fontFamily,
-  onUpdateTitle,
-  onUpdateBody,
-  onSetRating,
-  onRemove,
-}: {
-  section: SheetSection;
-  appearance: SheetAppearance;
-  fontFamily: string;
-  onUpdateTitle: (title: string) => void;
-  onUpdateBody: (body: string) => void;
-  onSetRating: (value: number | undefined) => void;
-  onRemove: () => void;
-}) {
-  const ratingValue = section.rating?.value ?? 0;
-  const resolvedIcon = resolveSectionIcon(section, appearance);
-  const hasIcon = !!(resolvedIcon.emoji || resolvedIcon.materialIcon);
-  return (
-    <View>
-      <View className="flex-row items-center gap-2">
-        <TextInput
-          value={section.title}
-          onChangeText={onUpdateTitle}
-          placeholder="Titre de la catégorie"
-          placeholderTextColor={appearance.mutedColor}
-          style={[
-            { color: appearance.textColor, fontFamily, ...ficheTextStyle(18) },
-            SHEET_TEXT_SHADOW,
-          ]}
-          className="flex-1"
-        />
-        <Pressable
-          onPress={onRemove}
-          hitSlop={8}
-          className="h-8 w-8 items-center justify-center rounded-full active:opacity-60"
-        >
-          <Text
-            style={[{ color: appearance.mutedColor }, SHEET_TEXT_SHADOW]}
-            className="text-xl"
-          >
-            ×
-          </Text>
-        </Pressable>
-      </View>
-
-      {hasIcon && (
-        <View className="mt-2 flex-row items-center gap-2">
-          {[1, 2, 3, 4, 5].map((i) => {
-            const filled = i <= ratingValue;
-            const next = ratingValue === i ? undefined : i;
-            return (
-              <Pressable
-                key={i}
-                onPress={() => onSetRating(next)}
-                hitSlop={6}
-                style={{ opacity: filled ? 1 : 0.3 }}
-              >
-                {resolvedIcon.emoji ? (
-                  <Text style={[ficheTextStyle(22), SHEET_TEXT_SHADOW]}>
-                    {resolvedIcon.emoji}
-                  </Text>
-                ) : (
-                  <MaterialIcons
-                    name={
-                      resolvedIcon.materialIcon as keyof typeof MaterialIcons.glyphMap
-                    }
-                    size={22}
-                    color={
-                      resolvedIcon.materialIconColor ?? appearance.textColor
-                    }
-                  />
-                )}
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
-
-      <TextInput
-        value={section.body}
-        onChangeText={onUpdateBody}
-        placeholder="Écris ici ton avis, tes pensées…"
-        placeholderTextColor={appearance.mutedColor}
-        multiline
-        textAlignVertical="top"
-        style={[
-          { color: appearance.textColor, minHeight: 96, lineHeight: 22 },
-          SHEET_TEXT_SHADOW,
-        ]}
-        className="mt-3 text-base"
-      />
-    </View>
-  );
-}
 
 function SaveFab({
   onPress,

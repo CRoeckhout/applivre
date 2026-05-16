@@ -18,6 +18,7 @@ import { useBorderCatalog } from "@/store/border-catalog";
 import { useFondCatalog } from "@/store/fond-catalog";
 import { useFreemium } from "@/store/freemium";
 import { usePremium } from "@/store/premium";
+import { useReadingSheetTemplates } from "@/store/reading-sheet-templates";
 import { useStickerCatalog } from "@/store/sticker-catalog";
 import { useDebug } from "@/store/debug";
 import { usePreferences } from "@/store/preferences";
@@ -194,6 +195,8 @@ function AuthGate() {
     void useAvatarFrameCatalog.getState().fetch(userId);
     void usePremium.getState().fetch(userId);
     void useFreemium.getState().fetch();
+    void useReadingSheetTemplates.getState().fetchMine(userId);
+    void useReadingSheetTemplates.getState().fetchGenres();
   }, [session]);
 
   // Pilote la Live Activity iOS depuis le store timer (no-op en Expo Go).
@@ -305,6 +308,9 @@ function AuthGate() {
         <Stack.Screen name="sheet/[isbn]" options={{ headerShown: false }} />
         <Stack.Screen name="sheet/view/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="sheet/by-book/[isbn]" options={{ headerShown: false }} />
+        <Stack.Screen name="templates" options={{ headerShown: false }} />
+        <Stack.Screen name="template/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="template/view/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="profile/[userId]" options={{ headerShown: false }} />
         <Stack.Screen name="feed/[entryId]" options={{ headerShown: false }} />
         <Stack.Screen name="messages/index" options={{ headerShown: false }} />

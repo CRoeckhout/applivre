@@ -3,6 +3,7 @@ import {
   ActiveTimerPanel,
   StartReadingButton,
 } from '@/components/reading-timer';
+import { useTemplateChooserFlow } from '@/hooks/use-template-chooser-flow';
 import { useBookshelf } from '@/store/bookshelf';
 import { useReadingSheets } from '@/store/reading-sheets';
 import { useTimer } from '@/store/timer';
@@ -35,13 +36,14 @@ export function CurrentReadingCard({
   const hasSheet = useReadingSheets((s) =>
     congratsBook ? !!s.sheets[congratsBook.id] : false,
   );
+  const { openChooser, modals: templateChooserModals } = useTemplateChooserFlow();
 
   const onCongratsClose = () => setCongratsBook(null);
   const onCongratsCreate = () => {
     if (!congratsBook) return;
-    const isbn = congratsBook.book.isbn;
+    const ub = congratsBook;
     setCongratsBook(null);
-    router.push(`/sheet/${isbn}`);
+    openChooser(ub);
   };
 
   const content = activeSession ? (
@@ -106,6 +108,7 @@ export function CurrentReadingCard({
         onClose={onCongratsClose}
         onCreate={onCongratsCreate}
       />
+      {templateChooserModals}
     </>
   );
 }
