@@ -35,10 +35,11 @@ type Props = {
 const TILE_SIZE = 96;
 const TILE_GAP = 10;
 
-// Modal full-screen pour piocher un sticker dans le catalog. Le user-flow est
-// volontairement minimal : tap sur une tuile = pose le sticker + ferme la
-// modal (auto-close validé). Pas de preview avant placement, pas de drag
-// initial — on place au centre, l'utilisateur ajuste ensuite via la barre.
+// Drawer bottom-sheet pour piocher un sticker dans le catalog. Limité à la
+// moitié de l'écran pour rester en context avec la fiche derrière. Le
+// user-flow est volontairement minimal : tap sur une tuile = pose le sticker
+// + ferme le drawer (auto-close validé). Pas de preview avant placement, pas
+// de drag initial — on place au centre, l'utilisateur ajuste ensuite via la barre.
 export function StickerPickerModal({
   open,
   onClose,
@@ -59,18 +60,11 @@ export function StickerPickerModal({
   const reachedLimit = placedCount >= maxCount;
 
   return (
-    <Modal
-      visible={open}
-      animationType="slide"
-      onRequestClose={onClose}
-      presentationStyle="fullScreen"
-      statusBarTranslucent>
+    <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable onPress={onClose} className="flex-1 bg-ink/40" />
       <View
-        style={{
-          flex: 1,
-          backgroundColor: '#fbf8f4',
-          paddingTop: insets.top,
-        }}>
+        className="absolute bottom-0 left-0 right-0 rounded-t-3xl bg-paper"
+        style={{ paddingBottom: insets.bottom, maxHeight: '50%' }}>
         <View className="flex-row items-center justify-between border-b border-paper-warm px-4 py-3">
           <Pressable
             onPress={onClose}
@@ -91,7 +85,7 @@ export function StickerPickerModal({
         </View>
 
         {reachedLimit ? (
-          <View className="flex-1 items-center justify-center px-6">
+          <View className="items-center justify-center px-6 py-10">
             <MaterialIcons name="info-outline" size={32} color="rgb(107 98 89)" />
             <Text className="mt-3 text-center font-sans-med text-ink">
               Limite atteinte
@@ -105,7 +99,6 @@ export function StickerPickerModal({
           <ScrollView
             contentContainerStyle={{
               padding: 16,
-              paddingBottom: 16 + insets.bottom,
               flexDirection: 'row',
               flexWrap: 'wrap',
               gap: TILE_GAP,

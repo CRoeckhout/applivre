@@ -34,8 +34,14 @@ type TimerState = {
   cycles: ReadCycle[];
 
   start: (userBookId: string) => void;
-  pause: () => void;
-  resume: () => void;
+  // `atMs` : timestamp wall-clock du tap quand l'action vient d'une source
+  // native (Live Activity / notification Android). Permet de capturer le bon
+  // instant même si le moteur JS était suspendu (device verrouillé). Défaut
+  // à Date.now() pour les appels in-app.
+  pause: (atMs?: number) => void;
+  // `resumeRef` : soit `{ virtualStartMs }` (Live Activity iOS — startedAt
+  // déjà avancé natif), soit `{ atMs }` (instant du tap), soit rien (in-app).
+  resume: (resumeRef?: { atMs?: number; virtualStartMs?: number }) => void;
   stop: (stoppedAtPage: number) => ReadingSession | null;
   cancel: () => void;
   deleteSession: (sessionId: string) => void;
@@ -103,21 +109,28 @@ export const useTimer = create<TimerState>()(
         }
       },
 
-      pause: () => {
+      pause: (atMs) => {
         const { active } = get();
         if (!active || active.pausedAt !== null) return;
-        set({ active: { ...active, pausedAt: Date.now() } });
+        set({ active: { ...active, pausedAt: atMs ?? Date.now() } });
       },
 
-      resume: () => {
+      resume: (resumeRef) => {
         const { active } = get();
         if (!active || active.pausedAt === null) return;
-        const pausedDuration = Date.now() - active.pausedAt;
+        // Côté Live Activity iOS, l'intent a déjà calculé le nouveau virtual
+        // start (startedAt + pausedDuration). On en déduit accumulatedPausedMs
+        // sans dépendre du timing JS — fiable même si JS s'est réveillé tard.
+        const newAccumulatedPausedMs =
+          resumeRef?.virtualStartMs !== undefined
+            ? resumeRef.virtualStartMs - active.startedAt
+            : active.accumulatedPausedMs +
+              ((resumeRef?.atMs ?? Date.now()) - active.pausedAt);
         set({
           active: {
             ...active,
             pausedAt: null,
-            accumulatedPausedMs: active.accumulatedPausedMs + pausedDuration,
+            accumulatedPausedMs: newAccumulatedPausedMs,
           },
         });
       },

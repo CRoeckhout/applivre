@@ -153,6 +153,13 @@ export function StickerLayer({
             }}
             onInteractStart={onStickerInteractStart}
             onInteractEnd={onStickerInteractEnd}
+            // Pattern hybride : visuel rendu en Skia overlay pour les
+            // stickers non-sélectionnés (crisp à toute échelle). Le
+            // sélectionné reste rendu en JSX pour que le drag/pinch/rotate
+            // suive les shared values en live (Skia regarde placement.x/y
+            // figé tant que la mutation n'est pas committée). Ring de
+            // sélection aussi en JSX → visible au-dessus du Skia overlay.
+            ghostVisual={s.id !== selectedId}
           />
         ))}
       {hasSelection && selectedId && (

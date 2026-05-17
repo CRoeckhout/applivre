@@ -26,8 +26,22 @@ type LiveActivityNative = {
   //     query param `action` après navigation).
   addListener(
     eventName: 'onPause' | 'onResume',
-    listener: () => void,
+    listener: (payload: LiveActivityEventPayload) => void,
   ): EventSubscription;
+};
+
+// Payload émis par le natif quand l'utilisateur tape pause/resume sur le
+// widget. Les timestamps reflètent l'instant exact du tap (capturé natif
+// par l'intent), pas l'instant où JS se réveille — critique quand le
+// device est verrouillé et que JS est suspendu.
+//   - pause : `pausedAtMs` est l'instant du tap (Date() côté intent).
+//   - resume : `virtualStartMs` = startedAt avancé de la durée de pause →
+//     JS recalcule accumulatedPausedMs sans connaître l'instant du tap.
+// `isPaused` reflète l'état post-action côté Activity.
+export type LiveActivityEventPayload = {
+  virtualStartMs?: number;
+  isPaused?: boolean;
+  pausedAtMs?: number;
 };
 
 // `null` dans Expo Go et sur les plateformes non-iOS → toutes les
@@ -89,10 +103,13 @@ export async function endReadingActivity(): Promise<void> {
   }
 }
 
-// Subscribe à l'event Pause envoyé par la notification Android (instantané,
-// sans ouvrir l'app). No-op sur iOS et Expo Go. Retourne une fonction
-// d'unsubscribe.
-export function onPauseRequested(listener: () => void): () => void {
+// Subscribe à l'event Pause envoyé par le widget (iOS) / la notification
+// (Android). Le payload porte le timestamp natif du tap pour pallier le
+// délai JS quand le device est verrouillé. No-op sur Expo Go. Retourne
+// une fonction d'unsubscribe.
+export function onPauseRequested(
+  listener: (payload: LiveActivityEventPayload) => void,
+): () => void {
   if (!nativeModule) return () => {};
   try {
     const sub = nativeModule.addListener('onPause', listener);
@@ -102,7 +119,9 @@ export function onPauseRequested(listener: () => void): () => void {
   }
 }
 
-export function onResumeRequested(listener: () => void): () => void {
+export function onResumeRequested(
+  listener: (payload: LiveActivityEventPayload) => void,
+): () => void {
   if (!nativeModule) return () => {};
   try {
     const sub = nativeModule.addListener('onResume', listener);

@@ -1,3 +1,4 @@
+import ActivityKit
 import AppIntents
 import Foundation
 
@@ -5,22 +6,36 @@ import Foundation
 // Activity. S'exécutent dans le process du widget (ou de l'app si elle est
 // en foreground) → pas d'ouverture de l'app contrairement aux Link.
 //
-// La logique : on ne mute PAS l'Activity ici (l'app principale est seule
-// source de vérité du timer). On post une Darwin notification que le
-// LiveActivityModule.swift de l'app principale observe et forwarde à JS
-// via Events. JS appelle alors useTimer.pause()/resume() qui déclenche un
-// updateReadingActivity, ce qui synchronise le widget.
+// Important : on met à jour le ContentState de l'Activity DIRECTEMENT ici
+// avec un timestamp `Date()` capturé à l'instant du tap. Raison : si le
+// device est verrouillé, le process JS de l'app est suspendu et le Darwin
+// notification observer ne firera qu'au déverouillage. Sans update local,
+// la Live Activity afficherait encore le timer qui tourne (ou qui tournerait
+// encore après resume) jusqu'à ce que JS réveille — feedback cassé.
 //
-// Trade-off : petit délai (~50-100ms) entre le tap et l'update visuel
-// du widget, le temps que l'aller-retour Darwin → JS → ActivityKit se
-// fasse. Acceptable. Évite les états divergents entre le widget et le
-// store JS.
+// L'app principale est ensuite notifiée via la Darwin notification (queuée
+// par l'OS si l'app dort). Quand JS se réveille, il lit le ContentState
+// déjà à jour (pausedAt côté pause, startedAt avancé côté resume) pour
+// réconcilier le store avec le timestamp natif du tap au lieu de Date.now().
 
 @available(iOS 17.0, *)
 struct PauseReadingIntent: LiveActivityIntent {
   static var title: LocalizedStringResource = "Mettre en pause la lecture"
 
   func perform() async throws -> some IntentResult {
+    let now = Date()
+    if #available(iOS 16.2, *) {
+      for activity in Activity<ReadingActivityAttributes>.activities {
+        let state = activity.content.state
+        guard !state.isPaused else { continue }
+        let newState = ReadingActivityAttributes.ContentState(
+          startedAt: state.startedAt,
+          isPaused: true,
+          pausedAt: now
+        )
+        await activity.update(.init(state: newState, staleDate: nil))
+      }
+    }
     DarwinNotifications.post(name: DarwinNotifications.pauseName)
     return .result()
   }
@@ -31,6 +46,23 @@ struct ResumeReadingIntent: LiveActivityIntent {
   static var title: LocalizedStringResource = "Reprendre la lecture"
 
   func perform() async throws -> some IntentResult {
+    let now = Date()
+    if #available(iOS 16.2, *) {
+      for activity in Activity<ReadingActivityAttributes>.activities {
+        let state = activity.content.state
+        guard state.isPaused, let pausedAt = state.pausedAt else { continue }
+        let pausedDuration = now.timeIntervalSince(pausedAt)
+        // Avance le virtual startedAt de la durée de pause pour que
+        // Text(timerInterval:) reprenne l'elapsed pile où il s'était figé.
+        let newStartedAt = state.startedAt.addingTimeInterval(pausedDuration)
+        let newState = ReadingActivityAttributes.ContentState(
+          startedAt: newStartedAt,
+          isPaused: false,
+          pausedAt: nil
+        )
+        await activity.update(.init(state: newState, staleDate: nil))
+      }
+    }
     DarwinNotifications.post(name: DarwinNotifications.resumeName)
     return .result()
   }

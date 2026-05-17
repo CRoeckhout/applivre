@@ -73,14 +73,18 @@ export function useReadingLiveActivity() {
     }
   }, [active, books]);
 
-  // Une seule subscription pour les events Android (pause/resume depuis la
-  // notification). Sur iOS et hors Expo, no-op silencieux.
+  // Events pause/resume depuis le widget natif (iOS) ou la notification
+  // (Android). Le payload porte le timestamp natif du tap : critique quand
+  // le device est verrouillé, sinon JS appliquerait Date.now() au déverouillage
+  // et fausserait l'elapsed (cf. timer.pause/resume).
   useEffect(() => {
-    const unsubPause = onPauseRequested(() => {
-      useTimer.getState().pause();
+    const unsubPause = onPauseRequested((payload) => {
+      useTimer.getState().pause(payload.pausedAtMs);
     });
-    const unsubResume = onResumeRequested(() => {
-      useTimer.getState().resume();
+    const unsubResume = onResumeRequested((payload) => {
+      useTimer.getState().resume({
+        virtualStartMs: payload.virtualStartMs,
+      });
     });
     return () => {
       unsubPause();

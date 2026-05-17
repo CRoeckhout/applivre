@@ -24,6 +24,15 @@ type Props = {
   tokenOverrides?: Record<string, string>;
   // Style additionnel sur le wrapper externe (margin, shadow, animation…).
   style?: StyleProp<ViewStyle>;
+  // Désactive le rendu interne du FondLayer (mode Perso uniquement). Sert
+  // au caller qui rend lui-même le fond via une couche externe (typt. un
+  // SkiaSheetFondLayer en skiaUnderlay de SheetPinchZoom) — évite le
+  // double-rendu pixelizé+crisp superposé. Le wrapper conserve son
+  // `overflow: 'hidden'` et son `backgroundColor: undefined` car le fond
+  // externe gère la peinture, mais on omet la <FondLayer> JSX.
+  // Mode catalog (CardFrame) : ignoré, le fond y reste géré en interne par
+  // CardFrame (porter le suppress là-bas est un chantier séparé).
+  disableFond?: boolean;
   children: ReactNode;
 };
 
@@ -41,6 +50,7 @@ export function SheetSurface({
   padding = 20,
   tokenOverrides,
   style,
+  disableFond = false,
   children,
 }: Props) {
   const { frame, fond, bgColor, textColor, mutedColor, accentColor } = appearance;
@@ -122,12 +132,14 @@ export function SheetSurface({
     return (
       <View
         style={[baseStyle, { backgroundColor: undefined, overflow: 'hidden' }, style]}>
-        <FondLayer
-          bgColor={bgColor}
-          fondId={fondId}
-          colorOverrides={fond?.colorOverrides}
-          opacity={effectiveFondOpacity}
-        />
+        {!disableFond ? (
+          <FondLayer
+            bgColor={bgColor}
+            fondId={fondId}
+            colorOverrides={fond?.colorOverrides}
+            opacity={effectiveFondOpacity}
+          />
+        ) : null}
         {children}
       </View>
     );

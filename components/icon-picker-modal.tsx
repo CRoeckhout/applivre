@@ -16,6 +16,10 @@ export type IconPickerResult = {
   name?: string;
   color?: string;
   emoji?: string;
+  // Présent uniquement quand le picker a été ouvert avec `withTitle=true`
+  // (mode "Nouvelle section"). Le caller décide quoi en faire — typiquement
+  // créer une section avec ce titre + l'icône.
+  title?: string;
 };
 
 type Props = {
@@ -25,6 +29,17 @@ type Props = {
   selectedEmoji?: string;
   onPick: (result: IconPickerResult) => void;
   onClose: () => void;
+  // Affiche un champ nom au-dessus des onglets icônes/emojis. Le résultat
+  // contient alors `title`. Le bouton "Valider" est désactivé tant que
+  // le nom est vide.
+  withTitle?: boolean;
+  // Valeur initiale du champ nom (par défaut vide). N'est appliqué qu'au
+  // (re)mount du modal.
+  initialTitle?: string;
+  // Texte du header — par défaut "Choisir une icône" ; "Nouvelle section"
+  // est plus pertinent en mode withTitle.
+  title?: string;
+  titlePlaceholder?: string;
 };
 
 type Tab = 'icon' | 'emoji';
@@ -36,10 +51,15 @@ export function IconPickerModal({
   selectedEmoji,
   onPick,
   onClose,
+  withTitle = false,
+  initialTitle,
+  title: headerTitle,
+  titlePlaceholder,
 }: Props) {
   const [color, setColor] = useState<string>(selectedColor ?? SHEET_ICON_COLORS[0]);
   const [pendingName, setPendingName] = useState<string | undefined>(selected);
   const [pendingEmoji, setPendingEmoji] = useState<string>(selectedEmoji ?? '');
+  const [pendingTitle, setPendingTitle] = useState<string>(initialTitle ?? '');
   const [tab, setTab] = useState<Tab>(selectedEmoji ? 'emoji' : 'icon');
 
   useEffect(() => {
@@ -47,20 +67,24 @@ export function IconPickerModal({
       setColor(selectedColor ?? SHEET_ICON_COLORS[0]);
       setPendingName(selected);
       setPendingEmoji(selectedEmoji ?? '');
+      setPendingTitle(initialTitle ?? '');
       setTab(selectedEmoji ? 'emoji' : 'icon');
     }
-  }, [open, selectedColor, selected, selectedEmoji]);
+  }, [open, selectedColor, selected, selectedEmoji, initialTitle]);
+
+  const canValidate = !withTitle || pendingTitle.trim().length > 0;
 
   const validate = () => {
-    if (tab === 'emoji') {
-      const e = pendingEmoji.trim();
-      onPick({ emoji: e || undefined });
-    } else {
-      onPick({
-        name: pendingName,
-        color: pendingName ? color : undefined,
-      });
-    }
+    if (!canValidate) return;
+    const base: IconPickerResult =
+      tab === 'emoji'
+        ? { emoji: pendingEmoji.trim() || undefined }
+        : {
+            name: pendingName,
+            color: pendingName ? color : undefined,
+          };
+    if (withTitle) base.title = pendingTitle.trim();
+    onPick(base);
   };
 
   const clearAll = () => {
@@ -81,13 +105,34 @@ export function IconPickerModal({
           className="w-full max-w-xl rounded-3xl bg-paper p-4"
           style={{ maxHeight: '85%' }}>
           <View className="flex-row items-center justify-between px-2 pb-2">
-            <Text className="font-display text-xl text-ink">Choisir une icône</Text>
+            <Text className="font-display text-xl text-ink">
+              {headerTitle ?? 'Choisir une icône'}
+            </Text>
             <Pressable
               onPress={clearAll}
               className="rounded-full bg-paper-warm px-3 py-1 active:opacity-70">
               <Text className="text-sm text-ink-muted">Aucune</Text>
             </Pressable>
           </View>
+
+          {withTitle ? (
+            <View className="px-2 pb-2">
+              <Text className="mb-1.5 text-xs uppercase tracking-wider text-ink-muted">
+                Nom de la section
+              </Text>
+              <TextInput
+                value={pendingTitle}
+                onChangeText={setPendingTitle}
+                placeholder={titlePlaceholder ?? 'Ex. Personnages, Ambiance…'}
+                placeholderTextColor="#9a8f82"
+                className="rounded-2xl bg-paper-warm px-4 py-3 text-base text-ink"
+                maxLength={60}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={validate}
+              />
+            </View>
+          ) : null}
 
           <View className="mt-1 flex-row gap-2 rounded-full bg-paper-warm p-1">
             <TabPill active={tab === 'icon'} onPress={() => setTab('icon')}>
@@ -117,8 +162,12 @@ export function IconPickerModal({
             </Pressable>
             <Pressable
               onPress={validate}
-              className="flex-1 rounded-full bg-accent py-3 active:opacity-80">
-              <Text className="text-center font-sans-med text-paper">Valider</Text>
+              disabled={!canValidate}
+              className="flex-1 rounded-full bg-accent py-3 active:opacity-80"
+              style={{ opacity: canValidate ? 1 : 0.5 }}>
+              <Text className="text-center font-sans-med text-paper">
+                {withTitle ? 'Ajouter' : 'Valider'}
+              </Text>
             </Pressable>
           </View>
         </Pressable>

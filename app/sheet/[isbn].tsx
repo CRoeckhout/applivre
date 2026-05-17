@@ -2,13 +2,26 @@ import { BookCover } from "@/components/book-cover";
 import { KeyboardDismissBar } from "@/components/keyboard-dismiss-bar";
 import { PremiumPaywallModal } from "@/components/premium-paywall-modal";
 import { RatingIcon } from "@/components/rating-row";
+import { CategoryDrawer } from "@/components/sheet/category-drawer";
+import { SheetActionBar } from "@/components/sheet/sheet-action-bar";
 import { SheetSectionEditor } from "@/components/sheet/sheet-section-editor";
+import { ShareSheetModal } from "@/components/sheet/share-sheet-modal";
 import { SheetCustomizer } from "@/components/sheet-customizer";
+import { SheetPinchZoom } from "@/components/sheet/sheet-pinch-zoom";
+import { SkiaSheetFondLayer } from "@/components/sheet/skia-sheet-fond-layer";
+import { SkiaStaticStickerLayer } from "@/components/sheet/skia-static-sticker-layer";
 import { SheetSurface } from "@/components/sheet-surface";
 import { StickerLayer } from "@/components/sticker-layer";
+import { PERSO_BORDER_ID } from "@/lib/borders/catalog";
 import { StickerPickerModal } from "@/components/sticker-picker-modal";
 import { useFreemiumGate } from "@/hooks/use-freemium-gate";
 import { useKeyboardOffset } from "@/hooks/use-keyboard-offset";
+import {
+  appearancesEqual,
+  sectionsEqual,
+  stickersEqual,
+  useUndoableSheetDraft,
+} from "@/hooks/use-undoable-sheet-draft";
 import { newId } from "@/lib/id";
 import {
   ficheTextStyle,
@@ -35,20 +48,21 @@ import type {
 } from "@/types/book";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
   Share,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
-import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
+import Animated, { FadeIn, FadeInDown, FadeInUp, FadeOutUp } from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -60,6 +74,7 @@ export default function SheetScreen() {
     template_id?: string;
   }>();
   const router = useRouter();
+  const { width: windowWidth } = useWindowDimensions();
   const books = useBookshelf((s) => s.books);
   const userBook = books.find((b) => b.book.isbn === isbn);
 
@@ -72,28 +87,44 @@ export default function SheetScreen() {
 
   const myTemplates = useReadingSheetTemplates((s) => s.mine);
   const getPublicTemplate = useReadingSheetTemplates((s) => s.getPublic);
-  // Appearance à appliquer au save (template choisi via le chooser).
-  // Tant qu'il est posé, on l'utilise comme override visuel ET on l'écrit
-  // sur la fiche au moment du `handleSaveDraft` pour figer le snapshot.
-  const [pendingTemplateAppearance, setPendingTemplateAppearance] =
-    useState<SheetAppearance | null>(null);
 
   const globalTemplate = useSheetTemplates((s) => s.global);
   const themeInk = usePreferences((s) => s.colorSecondary);
-  const themePaper = usePreferences((s) => s.colorBg);
   const themePrimary = usePreferences((s) => s.colorPrimary);
 
   const sheet = userBook ? sheets[userBook.id] : undefined;
   const storedSections = sheet?.sections ?? EMPTY_SECTIONS;
   const storedStickers = sheet?.stickers ?? EMPTY_STICKERS;
-
-  // Draft local. Toute édition (titre, body, note, add/remove section,
-  // placement/edition/suppression de stickers) n'affecte que ce draft —
-  // rien n'est persisté avant tap sur le bouton Enregistrer.
-  const [draft, setDraft] = useState<SheetSection[]>(() => storedSections);
-  const [draftStickers, setDraftStickers] = useState<PlacedSticker[]>(
-    () => storedStickers,
+  // Appearance "stockée" effective (avec fallback template global). Re-mémoisée
+  // si l'un des inputs change — sert de baseline pour le dirty check ET de
+  // valeur d'init du draftAppearance (snapshot au premier render seulement).
+  const storedAppearance = useMemo(
+    () => mergeAppearance(globalTemplate, sheet?.appearance),
+    [globalTemplate, sheet?.appearance],
   );
+
+  // Draft local + historique undo/redo. Toute édition (titre, body, note,
+  // add/remove section, placement/edition/suppression de stickers,
+  // changement de propriété visuelle depuis le customizer) n'affecte que
+  // ce draft — rien n'est persisté avant tap sur le bouton Enregistrer.
+  // Le hook gère l'historique : actions structurelles → snapshot immédiat,
+  // saisie texte → snapshot debouncé.
+  const {
+    draft,
+    draftStickers,
+    draftAppearance,
+    setDraft,
+    setDraftStickers,
+    setDraftAppearance,
+    setDraftSilent,
+    setDraftStickersSilent,
+    setDraftAppearanceSilent,
+    beginTextEdit,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useUndoableSheetDraft(storedSections, storedStickers, storedAppearance);
 
   // Si on arrive ici avec un `template_id` query param et qu'aucune fiche
   // n'existe encore pour ce livre, on hydrate le draft avec le template
@@ -122,9 +153,13 @@ export default function SheetScreen() {
       stickers: PlacedSticker[] | undefined,
     ) => {
       if (cancelled) return;
-      setPendingTemplateAppearance(appearance);
-      setDraft(sanitize(sections));
-      setDraftStickers((stickers ?? []).map((s) => ({ ...s, id: newId() })));
+      // Silent : pas d'entrée undo pour l'hydratation initiale (le draft
+      // était vide / sans intérêt avant le choix du template).
+      setDraftAppearanceSilent(appearance);
+      setDraftSilent(sanitize(sections));
+      setDraftStickersSilent(
+        (stickers ?? []).map((s) => ({ ...s, id: newId() })),
+      );
     };
     if (local) {
       apply(local.appearance, local.sections, local.stickers);
@@ -147,16 +182,33 @@ export default function SheetScreen() {
     () => !stickersEqual(draftStickers, storedStickers),
     [draftStickers, storedStickers],
   );
-  const dirty = sectionsDirty || stickersDirty;
-
-  const appearance = useMemo<SheetAppearance>(
-    () =>
-      pendingTemplateAppearance
-        ? pendingTemplateAppearance
-        : mergeAppearance(globalTemplate, sheet?.appearance),
-    [pendingTemplateAppearance, globalTemplate, sheet?.appearance],
+  const appearanceDirty = useMemo(
+    () => !appearancesEqual(draftAppearance, storedAppearance),
+    [draftAppearance, storedAppearance],
   );
+  const dirty = sectionsDirty || stickersDirty || appearanceDirty;
+
+  // `appearance` rendu sur la fiche = draft local. Toute mutation depuis
+  // le customizer y est répliquée via setDraftAppearance (logged undo).
+  // Le snapshot est persisté dans le store seulement au save global.
+  const appearance = draftAppearance;
   const fontFamily = getFont(appearance.fontId as any).variants.display;
+
+  // Couche Skia fond : actif en mode perso uniquement (catalog garde le
+  // rendu JSX interne à CardFrame). Cf. sheet/view/[id].tsx + commentaire
+  // sur disableFond dans sheet-surface.tsx.
+  const themeFondIdReactive = usePreferences((s) => s.fondId);
+  const themeFondOpacityReactive = usePreferences((s) => s.fondOpacity);
+  const isPersoFrame =
+    !appearance.frame.borderId ||
+    appearance.frame.borderId === PERSO_BORDER_ID;
+  const explicitFondId = appearance.fond?.fondId;
+  const effectiveFondId = explicitFondId ?? themeFondIdReactive;
+  const isThemeFondActive =
+    !explicitFondId || explicitFondId === themeFondIdReactive;
+  const effectiveFondOpacity =
+    appearance.fond?.opacity ?? (isThemeFondActive ? themeFondOpacityReactive : 1);
+  const useSkiaFond = isPersoFrame;
 
   const unusedDefaults = useMemo(() => {
     const used = new Set(draft.map((s) => s.title.toLowerCase()));
@@ -165,7 +217,7 @@ export default function SheetScreen() {
     );
   }, [draft, appearance.defaultCategories]);
 
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
   const [customizerOpen, setCustomizerOpen] = useState(false);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const [selectedStickerId, setSelectedStickerId] = useState<string | null>(
@@ -176,7 +228,29 @@ export default function SheetScreen() {
   // ou rotate puisse s'activer.
   const [stickerInteracting, setStickerInteracting] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  // Modale "Partagez votre fiche !" ouverte après que l'user a confirmé le
+  // passage en public (post-Alert). Lui propose d'ajouter un post_text au
+  // shared_sheet auto-créé par le trigger DB.
+  const [shareSheetOpen, setShareSheetOpen] = useState(false);
+  // Toast de confirmation après un save réussi. `key` change à chaque save
+  // pour relancer l'animation entering si l'user save deux fois d'affilée
+  // pendant qu'un toast est encore visible.
+  const [savedToast, setSavedToast] = useState<{ key: number } | null>(null);
+  useEffect(() => {
+    if (!savedToast) return;
+    const t = setTimeout(() => setSavedToast(null), 1800);
+    return () => clearTimeout(t);
+  }, [savedToast]);
   const gate = useFreemiumGate();
+  // Cache local des sections retirées via le toggle du CategoryDrawer :
+  // permet de restorer body + rating si l'user re-coche la pill. Indexé
+  // par titre normalisé fr-locale + lowercase. Volatile (scope = écran
+  // ouvert ; perdu au navigate away ou save+reload).
+  const [removedSectionCache, setRemovedSectionCache] = useState<
+    Record<string, SheetSection>
+  >({});
+
+  const normTitle = (s: string) => s.trim().toLocaleLowerCase("fr");
 
   const addSectionDraft = (
     title: string,
@@ -186,23 +260,74 @@ export default function SheetScreen() {
       emoji?: string;
     },
   ) => {
+    const key = normTitle(title);
+    const cached = removedSectionCache[key];
     setDraft((d) => [
       ...d,
-      {
-        id: newId(),
-        title: title.trim() || "Sans titre",
-        body: "",
-        materialIcon: opts?.materialIcon,
-        materialIconColor: opts?.materialIconColor,
-        emoji: opts?.emoji,
-      },
+      cached
+        ? {
+            // Restore body + rating depuis le cache. L'icône est override
+            // par les opts (qui viennent du template) si fournie — sinon
+            // on garde l'icône cachée.
+            ...cached,
+            id: newId(),
+            title: title.trim() || cached.title,
+            materialIcon: opts?.materialIcon ?? cached.materialIcon,
+            materialIconColor:
+              opts?.materialIconColor ?? cached.materialIconColor,
+            emoji: opts?.emoji ?? cached.emoji,
+          }
+        : {
+            id: newId(),
+            title: title.trim() || "Sans titre",
+            body: "",
+            materialIcon: opts?.materialIcon,
+            materialIconColor: opts?.materialIconColor,
+            emoji: opts?.emoji,
+          },
     ]);
+    if (cached) {
+      setRemovedSectionCache((c) => {
+        const { [key]: _, ...rest } = c;
+        return rest;
+      });
+    }
   };
   const updateTitleDraft = (sectionId: string, title: string) => {
     setDraft((d) => d.map((s) => (s.id === sectionId ? { ...s, title } : s)));
   };
+  const updateMetaDraft = (
+    sectionId: string,
+    meta: {
+      title: string;
+      materialIcon?: string;
+      materialIconColor?: string;
+      emoji?: string;
+    },
+  ) => {
+    setDraft((d) =>
+      d.map((s) =>
+        s.id === sectionId
+          ? {
+              ...s,
+              title: meta.title,
+              materialIcon: meta.materialIcon,
+              materialIconColor: meta.materialIconColor,
+              emoji: meta.emoji,
+            }
+          : s,
+      ),
+    );
+  };
   const updateBodyDraft = (sectionId: string, body: string) => {
-    setDraft((d) => d.map((s) => (s.id === sectionId ? { ...s, body } : s)));
+    // Saisie texte : ouvre une session d'édition (snapshot une fois, puis
+    // les frappes suivantes ne snapshot pas tant que 700ms ne se sont pas
+    // écoulés sans frappe). On utilise le setter silent pour ne pas
+    // empiler un snapshot par caractère.
+    beginTextEdit();
+    setDraftSilent((d) =>
+      d.map((s) => (s.id === sectionId ? { ...s, body } : s)),
+    );
   };
   const setRatingValueDraft = (
     sectionId: string,
@@ -226,31 +351,64 @@ export default function SheetScreen() {
     );
   };
   const removeSectionDraft = (sectionId: string) => {
-    setDraft((d) => d.filter((s) => s.id !== sectionId));
+    setDraft((d) => {
+      const removed = d.find((s) => s.id === sectionId);
+      if (removed) {
+        // Push dans le cache pour permettre la restoration via le
+        // CategoryDrawer (toggle off → toggle on). Indexé par titre
+        // normalisé ; le dernier remove pour un titre donné gagne.
+        setRemovedSectionCache((c) => ({
+          ...c,
+          [normTitle(removed.title)]: removed,
+        }));
+      }
+      return d.filter((s) => s.id !== sectionId);
+    });
+  };
+  const moveSectionDraft = (sectionId: string, direction: -1 | 1) => {
+    setDraft((d) => {
+      const idx = d.findIndex((s) => s.id === sectionId);
+      if (idx < 0) return d;
+      const target = idx + direction;
+      if (target < 0 || target >= d.length) return d;
+      const next = [...d];
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
   };
 
-  const handleSaveDraft = () => {
-    if (!userBook) return;
+  // Retourne true si la persistance a abouti, false si bloquée (paywall,
+  // userBook manquant). Les actions chaînées (rendre publique, save as
+  // template) utilisent ce booléen pour décider si elles enchaînent ou
+  // abandonnent silencieusement après l'ouverture du paywall.
+  const handleSaveDraft = (): boolean => {
+    if (!userBook) return false;
     // Limite freemium : la création d'une nouvelle fiche (sheet absent du
     // store) est gated. Une mise à jour de fiche existante passe toujours.
     // setSections([], ...) supprime la fiche — on ne gate pas non plus.
     const isNewSheet = !sheet && draft.length > 0;
     if (isNewSheet && !gate.canCreateSheet()) {
       setPaywallOpen(true);
-      return;
+      return false;
     }
-    // Si un template a été choisi via le picker (template_id query param),
-    // on fige son appearance sur la fiche avant `setSections` pour que
-    // l'ensureSheet du store n'écrase pas avec le template global. Une fois
-    // posée, la fiche garde son snapshot indépendamment du template source.
-    if (pendingTemplateAppearance) {
-      setSheetAppearance(userBook.id, pendingTemplateAppearance);
-      setPendingTemplateAppearance(null);
+    // Appearance : persister AVANT setSections pour que l'ensureSheet
+    // côté store ne recrée pas une fiche avec le template global par défaut.
+    // On ne touche le store que si le draft diffère du stored — évite les
+    // writes inutiles (et les syncs Supabase) quand l'user save sans avoir
+    // changé l'apparence.
+    if (appearanceDirty) {
+      setSheetAppearance(userBook.id, draftAppearance);
     }
     setSections(userBook.id, draft);
     if (stickersDirty) {
       setStickers(userBook.id, draftStickers);
     }
+    // Feedback : haptic Success + toast bref. Le toast remplace l'ancien
+    // signal "le bouton se grise après save" (le bouton header est plus
+    // discret qu'un FAB et l'user pourrait douter qu'un tap a abouti).
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setSavedToast({ key: Date.now() });
+    return true;
   };
 
   // ═══════════════ Stickers (draft) ═══════════════
@@ -335,7 +493,6 @@ export default function SheetScreen() {
   }
 
   const confirmDelete = () => {
-    setMenuOpen(false);
     Alert.alert(
       "Supprimer la fiche ?",
       "Les sections et les notes seront perdues. Le livre reste dans ta biblio.",
@@ -354,7 +511,6 @@ export default function SheetScreen() {
   };
 
   const handleShare = async () => {
-    setMenuOpen(false);
     const lines: string[] = [`Fiche : ${userBook.book.title}`];
     if (userBook.book.authors[0]) lines.push(`par ${userBook.book.authors[0]}`);
     lines.push("");
@@ -376,42 +532,93 @@ export default function SheetScreen() {
   };
 
   const handleCustomize = () => {
-    setMenuOpen(false);
     setCustomizerOpen(true);
   };
 
-  const handleSaveAppearance = (next: SheetAppearance) => {
-    // Snapshot complet. Le template global n'influence plus la fiche après création.
-    setSheetAppearance(userBook.id, next);
+  const handleSaveAppearance = () => {
+    // Le bouton "Valider" ferme juste le drawer. Les mutations ont déjà été
+    // capturées dans le draftAppearance via onChange (undo-able). La
+    // persistance dans le store passe par handleSaveDraft (bouton global
+    // Enregistrer) — séparation cohérente avec les sections/stickers.
     setCustomizerOpen(false);
   };
 
   const handleResetAppearance = () => {
-    // Re-snapshot du global courant, à la demande explicite de l'user.
-    setSheetAppearance(userBook.id, undefined);
+    // "Utiliser le template global" : pousse un snapshot du template global
+    // dans le draft (undo-able). Ne persiste pas — l'user devra Enregistrer
+    // pour figer. À noter : la sémantique "tomber sur le template global
+    // dynamiquement" est perdue dès que la fiche est sauvée (snapshot figé).
+    setDraftAppearance(mergeAppearance(globalTemplate, undefined));
     setCustomizerOpen(false);
   };
 
-  const handleTogglePublic = () => {
-    setMenuOpen(false);
+  // Lance le flow "rendre publique" lui-même (Alert de confirmation +
+  // flip is_public + ouverture de ShareSheetModal). Suppose que la fiche
+  // est sauvegardée — la gate dirty est faite en amont par handleTogglePublic.
+  const runPublishFlow = () => {
     if (!userBook) return;
-    const next = !(sheet?.isPublic ?? false);
-    setSheetIsPublic(userBook.id, next);
     Alert.alert(
-      next ? "Fiche publiée" : "Fiche redevenue privée",
-      next
-        ? "Les autres lecteurs peuvent maintenant voir cette fiche depuis la page du livre."
-        : "Plus personne d'autre que toi ne peut la consulter.",
+      "Rendre cette fiche publique ?",
+      "Les personnes qui iront sur ton profil pourront la consulter.",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Rendre publique",
+          onPress: () => {
+            setSheetIsPublic(userBook.id, true);
+            setShareSheetOpen(true);
+          },
+        },
+      ],
     );
   };
 
-  const handleSaveAsTemplate = () => {
-    setMenuOpen(false);
+  const handleTogglePublic = () => {
+    if (!userBook) return;
+    const isCurrentlyPublic = sheet?.isPublic ?? false;
+    if (isCurrentlyPublic) {
+      // Repassage en privé : Alert simple, sans modale de partage. Pas de
+      // gate dirty — privatiser ne dépend pas du contenu sauvegardé.
+      setSheetIsPublic(userBook.id, false);
+      Alert.alert(
+        "Fiche redevenue privée",
+        "Plus personne d'autre que toi ne peut la consulter.",
+      );
+      return;
+    }
+    // Passage en public : si du contenu non sauvegardé existe, on demande
+    // d'enregistrer d'abord. Publier une fiche dont l'éditeur affiche un
+    // état divergent du persisté = surprise pour l'user (les viewers verraient
+    // l'ancienne version).
+    if (dirty) {
+      Alert.alert(
+        "Enregistrer la fiche ?",
+        "Vous devez enregistrer votre fiche avant de la rendre publique.",
+        [
+          { text: "Annuler", style: "cancel" },
+          {
+            text: "Enregistrer et continuer",
+            onPress: () => {
+              if (handleSaveDraft()) runPublishFlow();
+            },
+          },
+        ],
+      );
+      return;
+    }
+    runPublishFlow();
+  };
+
+  const runSaveAsTemplateFlow = () => {
     if (!userBook) return;
     // Pré-populate l'éditeur de template via le store de transition :
     // appearance + structure des sections (body strip, notes resettées) +
     // stickers (positions copiées, l'user pourra les réajuster pour le
     // layout template qui diffère de la fiche).
+    // On ne propage PAS le titre du livre comme defaultName : le template
+    // est destiné à être réutilisé sur d'autres livres, son nom doit être
+    // générique. Le template editor pré-remplit "Nouveau template" pour la
+    // création (cf. app/template/[id].tsx).
     useTemplateDraft.getState().set({
       appearance,
       sections: draft.map((s) => ({
@@ -420,9 +627,33 @@ export default function SheetScreen() {
         rating: s.rating ? { ...s.rating, value: 0 } : undefined,
       })),
       stickers: draftStickers.length > 0 ? draftStickers : undefined,
-      defaultName: userBook.book.title,
     });
     router.push('/template/new' as never);
+  };
+
+  const handleSaveAsTemplate = () => {
+    if (!userBook) return;
+    // Même gate que la publication : on impose un état sauvegardé pour que
+    // le template dérivé corresponde à ce que l'user voit dans le store
+    // (sinon il template-ise un draft qui n'existerait plus s'il revenait
+    // sur la fiche sans avoir tapé Enregistrer).
+    if (dirty) {
+      Alert.alert(
+        "Enregistrer la fiche ?",
+        "Vous devez enregistrer votre fiche avant de la sauvegarder comme template.",
+        [
+          { text: "Annuler", style: "cancel" },
+          {
+            text: "Enregistrer et continuer",
+            onPress: () => {
+              if (handleSaveDraft()) runSaveAsTemplateFlow();
+            },
+          },
+        ],
+      );
+      return;
+    }
+    runSaveAsTemplateFlow();
   };
 
   return (
@@ -440,14 +671,55 @@ export default function SheetScreen() {
           >
             <MaterialIcons name="arrow-back" size={22} color={themeInk} />
           </Pressable>
-          <Pressable
-            onPress={() => setMenuOpen(true)}
-            hitSlop={8}
-            accessibilityLabel="Actions de la fiche"
-            className="h-10 w-10 items-center justify-center rounded-full active:opacity-60"
-          >
-            <MaterialIcons name="more-horiz" size={24} color={themeInk} />
-          </Pressable>
+          <View className="flex-row items-center gap-1">
+            <Pressable
+              onPress={
+                canUndo
+                  ? () => {
+                      Haptics.selectionAsync();
+                      undo();
+                    }
+                  : undefined
+              }
+              disabled={!canUndo}
+              hitSlop={8}
+              accessibilityLabel="Annuler"
+              accessibilityState={{ disabled: !canUndo }}
+              className="h-10 w-10 items-center justify-center rounded-full active:opacity-60"
+              style={{ opacity: canUndo ? 1 : 0.35 }}
+            >
+              <MaterialIcons name="undo" size={22} color={themeInk} />
+            </Pressable>
+            <Pressable
+              onPress={
+                canRedo
+                  ? () => {
+                      Haptics.selectionAsync();
+                      redo();
+                    }
+                  : undefined
+              }
+              disabled={!canRedo}
+              hitSlop={8}
+              accessibilityLabel="Rétablir"
+              accessibilityState={{ disabled: !canRedo }}
+              className="h-10 w-10 items-center justify-center rounded-full active:opacity-60"
+              style={{ opacity: canRedo ? 1 : 0.35 }}
+            >
+              <MaterialIcons name="redo" size={22} color={themeInk} />
+            </Pressable>
+            <Pressable
+              onPress={dirty ? handleSaveDraft : undefined}
+              disabled={!dirty}
+              hitSlop={8}
+              accessibilityLabel="Enregistrer"
+              accessibilityState={{ disabled: !dirty }}
+              className="h-10 w-10 items-center justify-center rounded-full active:opacity-60"
+              style={{ opacity: dirty ? 1 : 0.35 }}
+            >
+              <MaterialIcons name="check" size={24} color={themeInk} />
+            </Pressable>
+          </View>
         </View>
 
         <ScrollView
@@ -472,16 +744,83 @@ export default function SheetScreen() {
               justifyContent: "center",
             }}
           >
-            <Animated.View
-              entering={FadeInDown.duration(400)}
-              style={{
-                width: SHEET_MAX_WIDTH,
-                marginTop: 8,
-                position: "relative",
-              }}
+            {/* Pinch-zoom mobile : le wrapper expose visuellement la fiche
+                à un scale fit-by-default sur écrans étroits, et laisse
+                l'user pincer entre [fit, 2.5]. La fiche conserve sa
+                largeur naturelle (SHEET_MAX_WIDTH) côté layout — seul le
+                rendu GPU change — donc les positions absolues des stickers
+                et le wrapping textuel restent cross-device.
+                availableWidth = vw - 32 (px-4 du vertical ScrollView).
+                - skiaUnderlay : fond image (perso uniquement) sous JSX,
+                  crisp à toute échelle.
+                - skiaOverlay : stickers non-sélectionnés rendus en Skia.
+                  Sélectionné reste rendu en JSX par StickerLayer pour
+                  drag/ring live (cf. ghostVisual sur Sticker). */}
+            <SheetPinchZoom
+              naturalWidth={SHEET_MAX_WIDTH}
+              availableWidth={windowWidth - 32}
+              skiaUnderlay={
+                useSkiaFond
+                  ? ({
+                      scale,
+                      translateX,
+                      translateY,
+                      fitScale,
+                      naturalWidth,
+                      naturalHeight,
+                    }) => (
+                      <SkiaSheetFondLayer
+                        bgColor={appearance.bgColor}
+                        fondId={effectiveFondId}
+                        colorOverrides={appearance.fond?.colorOverrides}
+                        opacity={effectiveFondOpacity}
+                        outerWidth={naturalWidth * fitScale}
+                        outerHeight={naturalHeight * fitScale}
+                        naturalWidth={naturalWidth}
+                        naturalHeight={naturalHeight}
+                        scale={scale}
+                        translateX={translateX}
+                        translateY={translateY}
+                        fitScale={fitScale}
+                        yOffset={8}
+                      />
+                    )
+                  : undefined
+              }
+              skiaOverlay={({
+                scale,
+                translateX,
+                translateY,
+                fitScale,
+                naturalWidth,
+                naturalHeight,
+              }) => (
+                <SkiaStaticStickerLayer
+                  stickers={draftStickers}
+                  skipIds={selectedStickerId ? [selectedStickerId] : undefined}
+                  outerWidth={naturalWidth * fitScale}
+                  outerHeight={naturalHeight * fitScale}
+                  naturalWidth={naturalWidth}
+                  naturalHeight={naturalHeight}
+                  scale={scale}
+                  translateX={translateX}
+                  translateY={translateY}
+                  fitScale={fitScale}
+                  yOffset={8}
+                />
+              )}
             >
-              <SheetSurface
+              <Animated.View
+                entering={FadeInDown.duration(400)}
+                style={{
+                  width: SHEET_MAX_WIDTH,
+                  marginTop: 8,
+                  position: "relative",
+                }}
+              >
+                <SheetSurface
                 appearance={appearance}
+                disableFond={useSkiaFond}
                 style={{
                   shadowColor: "#000",
                   shadowOpacity: 0.12,
@@ -496,16 +835,14 @@ export default function SheetScreen() {
                     coverUrl={userBook.book.coverUrl}
                     style={{ width: 48, height: 72, borderRadius: 6 }}
                   />
-                  <View className="flex-1">
-                    <Text
-                      style={[
-                        { color: appearance.mutedColor },
-                        SHEET_TEXT_SHADOW,
-                      ]}
-                      className="text-xs uppercase tracking-wider"
-                    >
-                      Fiche de lecture
-                    </Text>
+                  {/* Header aligné sur celui de la vue read-only
+                      (/sheet/view/[id]) : justify-center flex-auto, titre +
+                      auteur. Sans ce match, le contenu de la column ne
+                      tombait pas au même Y → toutes les sections en dessous
+                      étaient décalées de quelques pixels. Le label "FICHE
+                      DE LECTURE" et le badge "Personnalisée" ont été
+                      retirés du header pour cohérence visuelle. */}
+                  <View className="justify-center flex-auto">
                     <Text
                       numberOfLines={2}
                       style={[
@@ -516,25 +853,18 @@ export default function SheetScreen() {
                     >
                       {userBook.book.title}
                     </Text>
-                    {isCustomAppearance(sheet?.appearance, globalTemplate) ? (
-                      <View className="mt-1 flex-row items-center gap-1">
-                        <MaterialIcons
-                          name="palette"
-                          size={12}
-                          color={appearance.mutedColor}
-                        />
-                        <Text
-                          style={[
-                            {
-                              color: appearance.mutedColor,
-                              ...ficheTextStyle(11),
-                            },
-                            SHEET_TEXT_SHADOW,
-                          ]}
-                        >
-                          Personnalisée
-                        </Text>
-                      </View>
+                    {userBook.book.authors[0] ? (
+                      <Text
+                        style={[
+                          {
+                            color: appearance.mutedColor,
+                            ...ficheTextStyle(11),
+                          },
+                          SHEET_TEXT_SHADOW,
+                        ]}
+                      >
+                        {userBook.book.authors.join(", ")}
+                      </Text>
                     ) : null}
                   </View>
                   <ReadCountSheetBadge
@@ -559,11 +889,12 @@ export default function SheetScreen() {
                     suggestions={unusedDefaults}
                   />
                 ) : (
+                  // Map simple — réordering via les chevrons up/down de
+                  // SheetSectionEditor (pixel-perfect garanti vs vue).
                   <View className="mt-6">
                     {draft.map((section, i) => (
-                      <Animated.View
+                      <View
                         key={section.id}
-                        entering={FadeIn.duration(300).delay(i * 40)}
                         style={{
                           paddingVertical: 14,
                           borderTopWidth: i === 0 ? 0 : 1,
@@ -577,6 +908,9 @@ export default function SheetScreen() {
                           section={section}
                           appearance={appearance}
                           fontFamily={fontFamily}
+                          onUpdateMeta={(meta) =>
+                            updateMetaDraft(section.id, meta)
+                          }
                           onUpdateTitle={(title) =>
                             updateTitleDraft(section.id, title)
                           }
@@ -587,8 +921,12 @@ export default function SheetScreen() {
                             setRatingValueDraft(section.id, v)
                           }
                           onRemove={() => removeSectionDraft(section.id)}
+                          onMoveUp={() => moveSectionDraft(section.id, -1)}
+                          onMoveDown={() => moveSectionDraft(section.id, 1)}
+                          canMoveUp={i > 0}
+                          canMoveDown={i < draft.length - 1}
                         />
-                      </Animated.View>
+                      </View>
                     ))}
                   </View>
                 )}
@@ -597,128 +935,112 @@ export default function SheetScreen() {
                 overflow:hidden si fond image, l'autre overflow:visible pour
                 laisser les stickers déborder visuellement). Bornes alignées
                 via le wrapper Animated.View en position:relative. */}
-              <StickerLayer
-                stickers={draftStickers}
-                selectedId={selectedStickerId}
-                onSelect={setSelectedStickerId}
-                onUpdateTransform={updateStickerDraftTransform}
-                onDelete={(id) => {
-                  removeStickerDraft(id);
-                  setSelectedStickerId(null);
-                }}
-                onReorder={reorderStickerDraft}
-                onInteractChange={setStickerInteracting}
-              />
-            </Animated.View>
+                <StickerLayer
+                  stickers={draftStickers}
+                  selectedId={selectedStickerId}
+                  onSelect={setSelectedStickerId}
+                  onUpdateTransform={updateStickerDraftTransform}
+                  onDelete={(id) => {
+                    removeStickerDraft(id);
+                    setSelectedStickerId(null);
+                  }}
+                  onReorder={reorderStickerDraft}
+                  onInteractChange={setStickerInteracting}
+                />
+              </Animated.View>
+            </SheetPinchZoom>
           </ScrollView>
 
-          {/* Boutons sous la fiche : restent à la largeur du device (avec
-              padding du ScrollView outer), capés à SHEET_MAX_WIDTH sur
-              desktop et centrés. Pas de scroll latéral nécessaire car
-              ils tiennent toujours dans la fenêtre. */}
-          <View
-            style={{
-              maxWidth: SHEET_MAX_WIDTH,
-              width: "100%",
-              alignSelf: "center",
-            }}
-          >
-            {draft.length > 0 && unusedDefaults.length > 0 && (
-              <View
-                className="mt-4 pt-4"
-                style={{
-                  borderTopWidth: 1,
-                  borderTopColor: hexWithAlpha(appearance.mutedColor, 0.22),
-                }}
-              >
-                <Text
-                  style={[{ color: appearance.mutedColor }, SHEET_TEXT_SHADOW]}
-                  className="mb-3 text-sm"
-                >
-                  Ajouter une catégorie
-                </Text>
-                <View className="flex-row flex-wrap gap-2">
-                  {unusedDefaults.map((c) => (
-                    <SuggestionPill
-                      key={c.title}
-                      category={c}
-                      appearance={appearance}
-                      onPress={() =>
-                        addSectionDraft(c.title, {
-                          materialIcon: c.materialIcon,
-                          materialIconColor: c.materialIconColor,
-                          emoji: c.emoji,
-                        })
-                      }
-                    />
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {draft.length > 0 && (
-              <Pressable
-                onPress={() => addSectionDraft("")}
-                style={{ borderColor: appearance.mutedColor, borderWidth: 1 }}
-                className="mt-4 rounded-full py-3 active:opacity-70"
-              >
-                <Text
-                  style={[{ color: appearance.mutedColor }, SHEET_TEXT_SHADOW]}
-                  className="text-center"
-                >
-                  + Section personnalisée
-                </Text>
-              </Pressable>
-            )}
-
-            <Pressable
-              onPress={handleCustomize}
-              className="mt-4 flex-row items-center justify-center gap-2 rounded-full py-3 active:opacity-70"
-              style={{ borderWidth: 1, borderColor: themeInk }}
-            >
-              <MaterialIcons name="palette" size={16} color={themeInk} />
-              <Text style={{ color: themeInk }} className="font-sans-med">
-                Personnaliser la fiche
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => setStickerPickerOpen(true)}
-              className="mt-2 flex-row items-center justify-center gap-2 rounded-full py-3 active:opacity-70"
-              style={{ borderWidth: 1, borderColor: themeInk }}
-            >
-              <MaterialIcons name="emoji-emotions" size={16} color={themeInk} />
-              <Text style={{ color: themeInk }} className="font-sans-med">
-                Stickers · {draftStickers.length}/{MAX_STICKERS_PER_SHEET}
-              </Text>
-            </Pressable>
-          </View>
+          {/* Les actions sous la fiche (Ajouter catégorie, Section
+              personnalisée, Personnaliser, Stickers) ont été déplacées
+              dans la SheetActionBar flottante. */}
         </ScrollView>
 
-        {dirty && (
-          <SaveFab
-            onPress={handleSaveDraft}
-            accentColor={themePrimary}
-            // "Supprimer la fiche" uniquement si on persiste un état
-            // vraiment vide (ni sections, ni stickers). Sinon "Enregistrer".
-            isEmpty={draft.length === 0 && draftStickers.length === 0}
-          />
-        )}
+        <SheetActionBar
+          actions={[
+            {
+              key: 'add-category',
+              icon: 'playlist-add',
+              label: 'Ajouter une catégorie',
+              onPress: () => setCategoryDrawerOpen(true),
+            },
+            {
+              key: 'customize',
+              icon: 'palette',
+              label: 'Personnaliser',
+              onPress: handleCustomize,
+            },
+            {
+              key: 'add-sticker',
+              icon: 'emoji-emotions',
+              label: 'Ajouter un sticker',
+              onPress: () => setStickerPickerOpen(true),
+            },
+            {
+              key: 'save-as-template',
+              icon: 'auto-awesome-mosaic',
+              label: 'Sauvegarder comme template',
+              onPress: handleSaveAsTemplate,
+            },
+            {
+              key: 'toggle-public',
+              icon: 'public',
+              label: sheet?.isPublic ? 'Rendre privée' : 'Rendre publique',
+              onPress: handleTogglePublic,
+              active: sheet?.isPublic ?? false,
+            },
+          ]}
+          moreActions={[
+            {
+              key: 'export-image',
+              icon: 'image',
+              label: 'Exporter en image',
+              disabled: true,
+            },
+            {
+              key: 'print',
+              icon: 'print',
+              label: 'Imprimer',
+              disabled: true,
+            },
+            {
+              key: 'delete',
+              icon: 'delete-outline',
+              label: 'Supprimer la fiche',
+              onPress: confirmDelete,
+              destructive: true,
+            },
+          ]}
+        />
       </KeyboardAvoidingView>
 
-      <ActionMenu
-        open={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        onCustomize={handleCustomize}
-        onShare={handleShare}
-        onDelete={confirmDelete}
-        onTogglePublic={handleTogglePublic}
-        onSaveAsTemplate={handleSaveAsTemplate}
-        isPublic={sheet?.isPublic ?? false}
-        themePaper={themePaper}
-        themeInk={themeInk}
+      <CategoryDrawer
+        open={categoryDrawerOpen}
+        onClose={() => setCategoryDrawerOpen(false)}
+        categories={appearance.defaultCategories}
+        usedTitles={draft.map((s) => s.title)}
+        onAdd={(c) =>
+          addSectionDraft(c.title, {
+            materialIcon: c.materialIcon,
+            materialIconColor: c.materialIconColor,
+            emoji: c.emoji,
+          })
+        }
+        onRemove={(title) => {
+          const lower = title.trim().toLocaleLowerCase('fr');
+          const sec = draft.find(
+            (s) => s.title.trim().toLocaleLowerCase('fr') === lower,
+          );
+          if (sec) removeSectionDraft(sec.id);
+        }}
+        onAddCustom={(r) => {
+          addSectionDraft(r.title, {
+            materialIcon: r.materialIcon,
+            materialIconColor: r.materialIconColor,
+            emoji: r.emoji,
+          });
+        }}
       />
-
 
       <SheetCustomizer
         open={customizerOpen}
@@ -733,6 +1055,12 @@ export default function SheetScreen() {
             : undefined
         }
         resetLabel="Utiliser le template global"
+        drawer
+        // Chaque mutation depuis le customizer → setDraftAppearance, qui
+        // pousse une entrée undo. Pas de persistance immédiate dans le
+        // store : Cmd+Z (ou geste undo équivalent) ramène l'état précédent,
+        // et le bouton global Enregistrer commit le draft final.
+        onChange={setDraftAppearance}
       />
 
       <StickerPickerModal
@@ -754,6 +1082,41 @@ export default function SheetScreen() {
         feature="sheets"
         onClose={() => setPaywallOpen(false)}
       />
+
+      <ShareSheetModal
+        open={shareSheetOpen}
+        sheetId={sheet?.id ?? null}
+        bookTitle={userBook.book.title}
+        onClose={() => setShareSheetOpen(false)}
+      />
+
+      {/* Toast "Fiche enregistrée" : ancré sous le header (≈ y=64 sur la
+          SafeAreaView), centré horizontalement. `pointerEvents=none` pour
+          ne pas voler les taps de la barre d'action ou de la fiche. */}
+      {savedToast ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: 64,
+            left: 0,
+            right: 0,
+            alignItems: 'center',
+            zIndex: 1000,
+            elevation: 1000,
+          }}>
+          <Animated.View
+            key={savedToast.key}
+            entering={FadeInUp.duration(180)}
+            exiting={FadeOutUp.duration(160)}
+            className="flex-row items-center gap-2 rounded-full bg-ink px-4 py-2 shadow-lg">
+            <MaterialIcons name="check-circle" size={18} color="#fbf8f4" />
+            <Text className="font-sans-med text-sm text-paper">
+              Fiche enregistrée
+            </Text>
+          </Animated.View>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -784,124 +1147,6 @@ function ReadCountSheetBadge({
         {max}× lu
       </Text>
     </View>
-  );
-}
-
-function ActionMenu({
-  open,
-  onClose,
-  onCustomize,
-  onShare,
-  onDelete,
-  onTogglePublic,
-  onSaveAsTemplate,
-  isPublic,
-  themePaper,
-  themeInk,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onCustomize: () => void;
-  onShare: () => void;
-  onDelete: () => void;
-  onTogglePublic: () => void;
-  onSaveAsTemplate: () => void;
-  isPublic: boolean;
-  themePaper: string;
-  themeInk: string;
-}) {
-  return (
-    <Modal
-      visible={open}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <Pressable
-        onPress={onClose}
-        className="flex-1"
-        style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
-      >
-        <View
-          className="absolute right-4 w-64 overflow-hidden rounded-2xl shadow-lg"
-          style={{ top: 56, elevation: 6, backgroundColor: themePaper }}
-        >
-          <MenuRow
-            icon="palette"
-            label="Personnaliser"
-            sublabel="Cadre, police, couleurs…"
-            themeInk={themeInk}
-            onPress={onCustomize}
-          />
-          <MenuRow
-            icon="auto-awesome-mosaic"
-            label="Sauvegarder comme template"
-            sublabel="Réutiliser sur un autre livre"
-            themeInk={themeInk}
-            onPress={onSaveAsTemplate}
-          />
-          <MenuRow
-            icon={isPublic ? "public" : "lock-outline"}
-            label={isPublic ? "Rendre privée" : "Publier publiquement"}
-            sublabel={
-              isPublic
-                ? "Visible uniquement par toi"
-                : "Lisible par les autres lecteurs"
-            }
-            themeInk={themeInk}
-            onPress={onTogglePublic}
-          />
-          <MenuRow
-            icon="ios-share"
-            label="Partager"
-            sublabel="Exporter en texte"
-            themeInk={themeInk}
-            onPress={onShare}
-          />
-          <MenuRow
-            icon="delete-outline"
-            label="Supprimer"
-            sublabel="Perdre la fiche"
-            destructive
-            themeInk={themeInk}
-            onPress={onDelete}
-          />
-        </View>
-      </Pressable>
-    </Modal>
-  );
-}
-
-function MenuRow({
-  icon,
-  label,
-  sublabel,
-  onPress,
-  destructive,
-  themeInk,
-}: {
-  icon: React.ComponentProps<typeof MaterialIcons>["name"];
-  label: string;
-  sublabel?: string;
-  onPress: () => void;
-  destructive?: boolean;
-  themeInk: string;
-}) {
-  const color = destructive ? "#c8322a" : themeInk;
-  return (
-    <Pressable onPress={onPress} className="px-4 py-3 active:bg-paper-warm">
-      <View className="flex-row items-center gap-3">
-        <MaterialIcons name={icon} size={20} color={color} />
-        <View className="flex-1">
-          <Text style={{ color }} className="font-sans-med text-base">
-            {label}
-          </Text>
-          {sublabel ? (
-            <Text className="text-xs text-ink-muted">{sublabel}</Text>
-          ) : null}
-        </View>
-      </View>
-    </Pressable>
   );
 }
 
@@ -1062,43 +1307,3 @@ const EMPTY_STICKERS: PlacedSticker[] = [];
 // et une position des stickers identiques d'un device à l'autre.
 const SHEET_MAX_WIDTH = 380;
 
-function sectionsEqual(a: SheetSection[], b: SheetSection[]): boolean {
-  if (a === b) return true;
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i += 1) {
-    const x = a[i];
-    const y = b[i];
-    if (
-      x.id !== y.id ||
-      x.title !== y.title ||
-      x.body !== y.body ||
-      x.rating?.value !== y.rating?.value ||
-      x.rating?.icon !== y.rating?.icon
-    ) {
-      return false;
-    }
-  }
-  return true;
-}
-
-// Égalité shallow par champ — l'ordre du tableau compte (= z-order). Compare
-// uniquement les champs persistés ; ignore d'éventuelles refs intermédiaires.
-function stickersEqual(a: PlacedSticker[], b: PlacedSticker[]): boolean {
-  if (a === b) return true;
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i += 1) {
-    const x = a[i];
-    const y = b[i];
-    if (
-      x.id !== y.id ||
-      x.stickerId !== y.stickerId ||
-      x.x !== y.x ||
-      x.y !== y.y ||
-      x.scale !== y.scale ||
-      x.rotation !== y.rotation
-    ) {
-      return false;
-    }
-  }
-  return true;
-}

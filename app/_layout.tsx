@@ -61,7 +61,7 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, DevSettings, Platform, Text, TextInput, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
@@ -176,7 +176,11 @@ function AuthGate() {
   const segments = useSegments();
   const router = useRouter();
   const [syncing, setSyncing] = useState(false);
-  const lastUserIdRef = useRef<string | null>(null);
+  // ID du dernier user pour qui pullUserData a terminé. Tant que ce n'est pas
+  // égal à session.user.id, on ne sait pas encore si le user a un username
+  // côté serveur — donc on ne déclenche pas la redirection vers
+  // /complete-profile (ce qui causait un flash visible juste après le login).
+  const [syncedUserId, setSyncedUserId] = useState<string | null>(null);
   const username = useProfile((s) => s.username);
 
   // Surveillance online/offline (une fois, au mount)
@@ -226,24 +230,28 @@ function AuthGate() {
     }
   }, [session, loading, segments, router]);
 
-  // Gate complete-profile : si connecté mais pas de username → force la saisie
+  // Gate complete-profile : si connecté mais pas de username → force la saisie.
+  // On attend que pullUserData ait terminé pour le user courant (syncedUserId
+  // === session.user.id), sinon `username` peut être vide simplement parce que
+  // la sync n'a pas encore hydraté le store — ce qui causait un flash visible
+  // de l'écran "choisir un nom d'utilisateur" juste après le login.
   useEffect(() => {
     if (loading || syncing || !session) return;
+    if (syncedUserId !== session.user.id) return;
     const onCompleteScreen = segments[0] === "complete-profile";
     if (!username && !onCompleteScreen) {
       router.replace("/complete-profile");
     } else if (username && onCompleteScreen) {
       router.replace("/");
     }
-  }, [session, username, loading, syncing, segments, router]);
+  }, [session, username, loading, syncing, syncedUserId, segments, router]);
 
   useEffect(() => {
     if (loading) return;
     const currentId = session?.user.id ?? null;
-    const previousId = lastUserIdRef.current;
+    const previousId = syncedUserId;
 
     if (currentId && currentId !== previousId) {
-      lastUserIdRef.current = currentId;
       setSyncing(true);
       // 1) Flusher la queue offline (envoyer ce qui n'avait pas pu partir)
       // 2) Puis pull (avoir la vérité serveur à jour)
@@ -256,15 +264,16 @@ function AuthGate() {
           console.warn("[sync] login sync failed", err);
         } finally {
           setSyncUserId(currentId);
+          setSyncedUserId(currentId);
           setSyncing(false);
         }
       })();
     } else if (!currentId && previousId) {
-      lastUserIdRef.current = null;
+      setSyncedUserId(null);
       setSyncUserId(null);
       resetAllStores();
     }
-  }, [session, loading]);
+  }, [session, loading, syncedUserId]);
 
   const bg = usePreferences((s) => s.colorBg);
   const ink = usePreferences((s) => s.colorSecondary);

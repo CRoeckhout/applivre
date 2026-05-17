@@ -242,7 +242,7 @@ export function ActiveTimerPanel({
       <View className="mt-8 flex-row justify-center gap-3">
         {paused ? (
           <Pressable
-            onPress={resume}
+            onPress={() => resume()}
             className="flex-1 rounded-full bg-accent px-6 py-3 active:opacity-80"
           >
             <Text className="text-center font-sans-med text-paper">
@@ -251,7 +251,7 @@ export function ActiveTimerPanel({
           </Pressable>
         ) : (
           <Pressable
-            onPress={pause}
+            onPress={() => pause()}
             className="flex-1 rounded-full bg-paper/15 px-6 py-3 active:opacity-80"
           >
             <Text className="text-center font-sans-med text-paper">Pause</Text>

@@ -165,16 +165,21 @@ public class LiveActivityModule: Module {
     pauseObserverPtr = modulePtr
     resumeObserverPtr = modulePtr
 
+    // Les LiveActivityIntents ont déjà muté l'Activity côté OS avec un
+    // timestamp natif capturé au tap (cf. ReadingActivityActionIntents).
+    // Quand le device était verrouillé, ces callbacks ne tournent qu'au
+    // déverouillage — on lit l'état persisté de l'Activity pour récupérer
+    // le timestamp réel du tap au lieu d'utiliser Date.now() côté JS.
     let pauseCallback: CFNotificationCallback = { _, observer, _, _, _ in
       guard let observer = observer else { return }
       let module = Unmanaged<LiveActivityModule>.fromOpaque(observer).takeUnretainedValue()
-      module.sendEvent("onPause", [:])
+      module.sendEvent("onPause", Self.currentActivityPayload())
     }
 
     let resumeCallback: CFNotificationCallback = { _, observer, _, _, _ in
       guard let observer = observer else { return }
       let module = Unmanaged<LiveActivityModule>.fromOpaque(observer).takeUnretainedValue()
-      module.sendEvent("onResume", [:])
+      module.sendEvent("onResume", Self.currentActivityPayload())
     }
 
     CFNotificationCenterAddObserver(
@@ -185,6 +190,26 @@ public class LiveActivityModule: Module {
       center, modulePtr, resumeCallback,
       Self.resumeDarwinName as CFString, nil, .deliverImmediately
     )
+  }
+
+  // Snapshot du ContentState courant pour passer le timestamp natif à JS.
+  //   - pause : `pausedAtMs` = instant exact du tap (set par l'intent).
+  //   - resume : `virtualStartMs` = startedAt déjà avancé de pausedDuration
+  //     par l'intent → JS peut déduire accumulatedPausedMs = vsMs - wallStart.
+  private static func currentActivityPayload() -> [String: Any] {
+    guard #available(iOS 16.2, *) else { return [:] }
+    guard let activity = Activity<ReadingActivityAttributes>.activities.first else {
+      return [:]
+    }
+    let state = activity.content.state
+    var payload: [String: Any] = [
+      "virtualStartMs": state.startedAt.timeIntervalSince1970 * 1000,
+      "isPaused": state.isPaused,
+    ]
+    if let pausedAt = state.pausedAt {
+      payload["pausedAtMs"] = pausedAt.timeIntervalSince1970 * 1000
+    }
+    return payload
   }
 
   // MARK: - Cover download / resize

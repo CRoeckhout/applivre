@@ -36,7 +36,7 @@ import {
   type SheetRatingIconConfig,
 } from '@/types/book';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -97,6 +97,17 @@ type Props = {
   onReset?: () => void;
   resetLabel?: string;
   publicToggle?: PublicToggle;
+  // Mode bottom-drawer transparent : pas de backdrop sombre, pas de
+  // PreviewCard interne, maxHeight = moitié d'écran. Utilisé quand l'écran
+  // appelant affiche déjà la fiche/template en direct derrière le drawer —
+  // l'utilisateur voit les modifs s'appliquer sur le vrai rendu sans
+  // doublon de preview.
+  drawer?: boolean;
+  // Fire à chaque mutation du draft pour permettre au parent de prévisualiser
+  // le rendu derrière le drawer (cf. previewAppearance dans app/sheet/[isbn]).
+  // L'annulation reste possible : `onSave` commit définitif, `onClose` drop
+  // la preview côté parent (jamais persisté tant qu'on n'a pas validé).
+  onChange?: (next: SheetAppearance) => void;
 };
 
 export function SheetCustomizer({
@@ -109,8 +120,45 @@ export function SheetCustomizer({
   onReset,
   resetLabel,
   publicToggle,
+  drawer = false,
+  onChange,
 }: Props) {
-  const [draft, setDraft] = useState<SheetAppearance>(appearance);
+  // Mode controlled (onChange fourni) vs uncontrolled :
+  //   - Controlled : `appearance` prop EST le draft. Pas de state local.
+  //     Mutations appellent directement onChange — le parent gère la
+  //     persistance (typt. push dans un undo stack via setDraftAppearance
+  //     de useUndoableSheetDraft). Évite le piège setState-in-render
+  //     (un wrapper setInternalDraft qui fire onChange sync trigger un
+  //     setState parent depuis l'updater enfant → React throw "Cannot
+  //     update a component while rendering a different component").
+  //   - Uncontrolled : state local (sheets.tsx, template global preview).
+  //     Mutations vivent dans le state local, commit via onSave.
+  const isControlled = !!onChange;
+  const [internalDraft, setInternalDraft] =
+    useState<SheetAppearance>(appearance);
+  const draft = isControlled ? appearance : internalDraft;
+  // Refs miroir pour que setDraft ne change pas à chaque render (sinon les
+  // memos descendants invalident en cascade alors que la logique est stable).
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+  const setDraft = useCallback(
+    (updater: SheetAppearance | ((prev: SheetAppearance) => SheetAppearance)) => {
+      if (isControlled) {
+        const next =
+          typeof updater === 'function'
+            ? (updater as (p: SheetAppearance) => SheetAppearance)(draftRef.current)
+            : updater;
+        onChangeRef.current?.(next);
+      } else {
+        setInternalDraft(updater);
+      }
+    },
+    [isControlled],
+  );
   const [colorTarget, setColorTarget] = useState<ColorTarget>(null);
   // Quand on édite un override de couleur d'un token SVG : `kind` distingue
   // cadre (frame.colorOverrides) et fond (fond.colorOverrides) ; `tokenName`
@@ -147,8 +195,12 @@ export function SheetCustomizer({
   }, [draft.fond?.fondId, themeFondId]);
 
   useEffect(() => {
-    if (open) setDraft(appearance);
-  }, [open, appearance]);
+    // Mode uncontrolled uniquement : sync le state local sur l'appearance
+    // prop à l'ouverture. En mode controlled le draft EST l'appearance prop
+    // → aucun reset nécessaire (et setInternalDraft serait sans effet sur
+    // le rendu mais provoquerait un re-render inutile).
+    if (open && !isControlled) setInternalDraft(appearance);
+  }, [open, appearance, isControlled]);
 
   const updateFrame = (partial: Partial<SheetFrame>) =>
     setDraft((d) => ({ ...d, frame: { ...d.frame, ...partial } }));
@@ -260,43 +312,37 @@ export function SheetCustomizer({
   const insets = useSafeAreaInsets();
   const themePaper = usePreferences((s) => s.colorBg);
 
-  return (
-    <Modal
-      visible={open}
-      animationType="slide"
-      onRequestClose={onClose}
-      presentationStyle="fullScreen"
-      statusBarTranslucent>
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: themePaper,
-          paddingTop: insets.top,
-        }}>
-        <View className="flex-row items-center justify-between border-b border-paper-warm px-4 py-3">
-          <Pressable
-            onPress={onClose}
-            hitSlop={8}
-            className="h-10 w-10 items-center justify-center rounded-full bg-paper-warm active:bg-paper-shade">
-            <MaterialIcons name="close" size={20} color="rgb(58 50 43)" />
-          </Pressable>
-          <View className="flex-1 px-3">
-            <Text numberOfLines={1} className="font-display text-lg text-ink">
-              {title}
+  const body = (
+    <>
+      <View className="flex-row items-center justify-between border-b border-paper-warm px-4 py-3">
+        <Pressable
+          onPress={onClose}
+          hitSlop={8}
+          className="h-10 w-10 items-center justify-center rounded-full bg-paper-warm active:bg-paper-shade">
+          <MaterialIcons name="close" size={20} color="rgb(58 50 43)" />
+        </Pressable>
+        <View className="flex-1 px-3">
+          <Text numberOfLines={1} className="font-display text-lg text-ink">
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text numberOfLines={1} className="text-xs text-ink-muted">
+              {subtitle}
             </Text>
-            {subtitle ? (
-              <Text numberOfLines={1} className="text-xs text-ink-muted">
-                {subtitle}
-              </Text>
-            ) : null}
-          </View>
-          <Pressable
-            onPress={() => onSave(draft)}
-            className="rounded-full bg-accent px-4 py-2 active:opacity-80">
-            <Text className="font-sans-med text-paper">Valider</Text>
-          </Pressable>
+          ) : null}
         </View>
+        <Pressable
+          onPress={() => onSave(draft)}
+          className="rounded-full bg-accent px-4 py-2 active:opacity-80">
+          <Text className="font-sans-med text-paper">Valider</Text>
+        </Pressable>
+      </View>
 
+      {/* PreviewCard supprimée en mode drawer : l'écran appelant rend déjà
+          la fiche/template en direct derrière, l'aperçu interne ferait
+          doublon (et masquerait justement la vraie fiche qu'on veut voir
+          être modifiée). */}
+      {!drawer && (
         <View
           style={{
             paddingHorizontal: 20,
@@ -307,8 +353,9 @@ export function SheetCustomizer({
           }}>
           <PreviewCard appearance={draft} fontFamily={fontDef.variants.display} />
         </View>
+      )}
 
-        <ScrollView contentContainerClassName="p-5 gap-6 pb-16">
+      <ScrollView contentContainerClassName="p-5 gap-6 pb-16">
           <Section title="Préréglages">
             <Text className="mb-2 text-xs text-ink-muted">
               Appuie pour appliquer. Appui long pour supprimer un preset perso.
@@ -573,24 +620,9 @@ export function SheetCustomizer({
             hiddenTargets={fondImageActive ? ['bg'] : undefined}
           />
 
-          <Section title="Catégories par défaut">
-            <Text className="mb-2 text-xs text-ink-muted">
-              Ces catégories sont proposées à la création d&apos;une fiche.
-            </Text>
-            <CategoriesEditor
-              categories={draft.defaultCategories}
-              onChange={(next) =>
-                setDraft((d) => ({ ...d, defaultCategories: next }))
-              }
-            />
-            <Pressable
-              onPress={() =>
-                setDraft((d) => ({ ...d, defaultCategories: DEFAULT_CATEGORIES }))
-              }
-              className="mt-3 self-start px-2 py-1 active:opacity-60">
-              <Text className="text-xs text-ink-muted">Rétablir par défaut</Text>
-            </Pressable>
-          </Section>
+          {/* La gestion des catégories est déplacée dans le drawer
+              "Ajouter une catégorie" de la barre d'action — le customizer
+              reste focalisé sur le visuel (cadre, fond, police, couleurs). */}
 
           {publicToggle ? (
             <Section title="Partage">
@@ -671,11 +703,69 @@ export function SheetCustomizer({
           }}
         />
 
-        <PremiumPaywallModal
-          open={paywall}
-          reason="premium"
-          onClose={() => setPaywall(false)}
-        />
+      <PremiumPaywallModal
+        open={paywall}
+        reason="premium"
+        onClose={() => setPaywall(false)}
+      />
+    </>
+  );
+
+  if (drawer) {
+    // Bottom-sheet à backdrop invisible : pas de voile sombre — la fiche
+    // reste pleinement visible derrière, et l'utilisateur voit les
+    // changements s'appliquer en direct. La séparation est marquée par
+    // l'ombre portée au-dessus du container. Tap sur le backdrop transparent
+    // = tentative de fermeture (passe par handleClose → Alert si dirty).
+    // L'inner Pressable absorbe les taps sur le drawer lui-même pour ne pas
+    // déclencher la fermeture accidentellement quand on tape entre deux rows.
+    return (
+      <Modal
+        visible={open}
+        transparent
+        animationType="slide"
+        onRequestClose={onClose}>
+        <Pressable
+          onPress={onClose}
+          style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={{
+              maxHeight: '50%',
+              backgroundColor: themePaper,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              paddingBottom: insets.bottom,
+              overflow: 'hidden',
+              // Ombre portée au-dessus pour décoller visuellement le drawer
+              // de la fiche, sans assombrir cette dernière.
+              shadowColor: '#000',
+              shadowOpacity: 0.18,
+              shadowRadius: 14,
+              shadowOffset: { width: 0, height: -6 },
+              elevation: 12,
+            }}>
+            {body}
+          </Pressable>
+        </Pressable>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal
+      visible={open}
+      animationType="slide"
+      onRequestClose={onClose}
+      presentationStyle="fullScreen"
+      statusBarTranslucent>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: themePaper,
+          paddingTop: insets.top,
+        }}>
+        {body}
       </View>
     </Modal>
   );

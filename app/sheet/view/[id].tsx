@@ -12,8 +12,12 @@
 
 import { BookCover } from "@/components/book-cover";
 import { ReportMenuButton } from "@/components/report/report-menu-button";
+import { SheetSectionEditor } from "@/components/sheet/sheet-section-editor";
+import { SheetPinchZoom } from "@/components/sheet/sheet-pinch-zoom";
+import { SkiaSheetFondLayer } from "@/components/sheet/skia-sheet-fond-layer";
+import { SkiaStaticStickerLayer } from "@/components/sheet/skia-static-sticker-layer";
 import { SheetSurface } from "@/components/sheet-surface";
-import { StaticStickerLayer } from "@/components/static-sticker-layer";
+import { PERSO_BORDER_ID } from "@/lib/borders/catalog";
 import { UserCard } from "@/components/user-card";
 import { useAuth } from "@/hooks/use-auth";
 import { newId } from "@/lib/id";
@@ -21,7 +25,6 @@ import {
   ficheTextStyle,
   hexWithAlpha,
   resolvePublicAppearance,
-  resolveSectionIcon,
   SHEET_TEXT_SHADOW,
 } from "@/lib/sheet-appearance";
 import { supabase } from "@/lib/supabase";
@@ -43,6 +46,7 @@ import {
   Pressable,
   ScrollView,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
@@ -92,9 +96,15 @@ async function fetchPublicSheet(
 export default function PublicSheetScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { width: windowWidth } = useWindowDimensions();
   const themeInk = usePreferences((s) => s.colorSecondary);
   const themePaper = usePreferences((s) => s.colorBg);
   const themeFontId = usePreferences((s) => s.fontId);
+  // Lus ici (avant les early returns sur loading/error) pour respecter
+  // les rules-of-hooks — sinon l'ordre des hooks change selon le state
+  // de la query et React throw "Rendered more hooks than previous render".
+  const themeFondIdReactive = usePreferences((s) => s.fondId);
+  const themeFondOpacityReactive = usePreferences((s) => s.fondOpacity);
   const { session } = useAuth();
   const currentUserId = session?.user.id ?? null;
 
@@ -166,6 +176,20 @@ export default function PublicSheetScreen() {
   const sections = bundle.content?.sections ?? [];
   const stickers = bundle.content?.stickers ?? [];
 
+  // Skia fond seulement en mode perso (catalog garde le rendu JSX interne
+  // à CardFrame — porter le suppress là-bas est un chantier séparé). Cf.
+  // commentaire sur disableFond dans sheet-surface.tsx.
+  const isPersoFrame =
+    !appearance.frame.borderId ||
+    appearance.frame.borderId === PERSO_BORDER_ID;
+  const explicitFondId = appearance.fond?.fondId;
+  const effectiveFondId = explicitFondId ?? themeFondIdReactive;
+  const isThemeFondActive =
+    !explicitFondId || explicitFondId === themeFondIdReactive;
+  const effectiveFondOpacity =
+    appearance.fond?.opacity ?? (isThemeFondActive ? themeFondOpacityReactive : 1);
+  const useSkiaFond = isPersoFrame;
+
   return (
     <SafeAreaView className="flex-1 bg-paper" edges={["top", "bottom"]}>
       <View className="flex-row items-center justify-between px-4 pt-2 pb-2">
@@ -235,16 +259,77 @@ export default function PublicSheetScreen() {
               justifyContent: "center",
             }}
           >
-            <Animated.View
-              entering={FadeInDown.duration(400)}
-              style={{
-                width: SHEET_MAX_WIDTH,
-                marginTop: 4,
-                position: "relative",
-              }}
+            {/* Pinch-zoom mobile. availableWidth = windowWidth - 32
+                (paddingHorizontal: 16 du ScrollView parent).
+                - skiaUnderlay : fond image (mode perso seulement) rendu
+                  AVANT l'inner JSX → crisp à toute échelle.
+                - skiaOverlay : stickers rendus APRES → crisp aussi.
+                En mode catalog, le fond reste rendu en JSX par CardFrame
+                (et pixelize au zoom — limitation v1 documentée). */}
+            <SheetPinchZoom
+              naturalWidth={SHEET_MAX_WIDTH}
+              availableWidth={windowWidth - 32}
+              skiaUnderlay={
+                useSkiaFond
+                  ? ({
+                      scale,
+                      translateX,
+                      translateY,
+                      fitScale,
+                      naturalWidth,
+                      naturalHeight,
+                    }) => (
+                      <SkiaSheetFondLayer
+                        bgColor={appearance.bgColor}
+                        fondId={effectiveFondId}
+                        colorOverrides={appearance.fond?.colorOverrides}
+                        opacity={effectiveFondOpacity}
+                        outerWidth={naturalWidth * fitScale}
+                        outerHeight={naturalHeight * fitScale}
+                        naturalWidth={naturalWidth}
+                        naturalHeight={naturalHeight}
+                        scale={scale}
+                        translateX={translateX}
+                        translateY={translateY}
+                        fitScale={fitScale}
+                        yOffset={4}
+                      />
+                    )
+                  : undefined
+              }
+              skiaOverlay={({
+                scale,
+                translateX,
+                translateY,
+                fitScale,
+                naturalWidth,
+                naturalHeight,
+              }) => (
+                <SkiaStaticStickerLayer
+                  stickers={stickers}
+                  outerWidth={naturalWidth * fitScale}
+                  outerHeight={naturalHeight * fitScale}
+                  naturalWidth={naturalWidth}
+                  naturalHeight={naturalHeight}
+                  scale={scale}
+                  translateX={translateX}
+                  translateY={translateY}
+                  fitScale={fitScale}
+                  yOffset={4}
+                />
+              )}
             >
-              <SheetSurface
+              <Animated.View
+                entering={FadeInDown.duration(400)}
+                style={{
+                  width: SHEET_MAX_WIDTH,
+                  marginTop: 4,
+                  position: "relative",
+                }}
+              >
+                <SheetSurface
                 appearance={appearance}
+                disableFond={useSkiaFond}
                 style={{
                   shadowColor: "#000",
                   shadowOpacity: 0.12,
@@ -311,21 +396,23 @@ export default function PublicSheetScreen() {
                           ),
                         }}
                       >
-                        <ReadOnlySection
+                        <SheetSectionEditor
                           section={section}
                           appearance={appearance}
                           fontFamily={fontFamily}
+                          bodyEditable={false}
+                          ratingInteractive={false}
                         />
                       </Animated.View>
                     ))}
                   </View>
                 )}
               </SheetSurface>
-              {/* Sibling de SheetSurface (cf. l'éditeur) — bornes alignées via
-                le wrapper position:relative au-dessus, pour que les positions
-                relatives (x/y dans [0,1]) tombent sur les mêmes pixels. */}
-              <StaticStickerLayer stickers={stickers} />
-            </Animated.View>
+                {/* Stickers déplacés dans la couche Skia (skiaOverlay
+                ci-dessus) — pas de StaticStickerLayer JSX ici sinon
+                double rendu. */}
+              </Animated.View>
+            </SheetPinchZoom>
           </ScrollView>
         </ScrollView>
 
@@ -369,70 +456,3 @@ export default function PublicSheetScreen() {
   );
 }
 
-function ReadOnlySection({
-  section,
-  appearance,
-  fontFamily,
-}: {
-  section: SheetSection;
-  appearance: SheetAppearance;
-  fontFamily: string;
-}) {
-  const ratingValue = section.rating?.value ?? 0;
-  const resolvedIcon = resolveSectionIcon(section, appearance);
-  const hasIcon = !!(resolvedIcon.emoji || resolvedIcon.materialIcon);
-  return (
-    <View>
-      <Text
-        style={[
-          { color: appearance.textColor, fontFamily, ...ficheTextStyle(18) },
-          SHEET_TEXT_SHADOW,
-        ]}
-      >
-        {section.title || "Sans titre"}
-      </Text>
-
-      {hasIcon && ratingValue > 0 ? (
-        <View className="mt-2 flex-row items-center gap-2">
-          {[1, 2, 3, 4, 5].map((i) => {
-            const filled = i <= ratingValue;
-            return (
-              <View key={i} style={{ opacity: filled ? 1 : 0.25 }}>
-                {resolvedIcon.emoji ? (
-                  <Text style={[ficheTextStyle(22), SHEET_TEXT_SHADOW]}>
-                    {resolvedIcon.emoji}
-                  </Text>
-                ) : (
-                  <MaterialIcons
-                    name={
-                      resolvedIcon.materialIcon as keyof typeof MaterialIcons.glyphMap
-                    }
-                    size={22}
-                    color={
-                      resolvedIcon.materialIconColor ?? appearance.textColor
-                    }
-                  />
-                )}
-              </View>
-            );
-          })}
-        </View>
-      ) : null}
-
-      <Text
-        style={[
-          {
-            color: appearance.textColor,
-            fontFamily,
-            minHeight: SECTION_BODY_MIN_HEIGHT,
-            lineHeight: SECTION_BODY_LINE_HEIGHT,
-          },
-          SHEET_TEXT_SHADOW,
-        ]}
-        className="mt-3 text-base"
-      >
-        {section.body ?? ""}
-      </Text>
-    </View>
-  );
-}

@@ -58,6 +58,14 @@ type Props = {
   // bloque les gestures.
   onInteractStart: () => void;
   onInteractEnd: () => void;
+  // Mode "ghost" : on saute le rendu visuel (body + ring) mais on garde
+  // le wrapper Animated.View + GestureDetector pour que le sticker reste
+  // tap-to-select et drag-able. Utilisé dans le pattern hybride où une
+  // couche Skia rend le visuel (crisp à toute échelle) et le JSX ne sert
+  // qu'à la gesture. Quand le sticker passe en sélectionné, le caller
+  // bascule ghostVisual=false → le body + ring redeviennent visibles
+  // (pour que le drag se voie en live, le toolbar suit, etc.).
+  ghostVisual?: boolean;
 };
 
 // Géométrie du halo de sélection. Le ring est dessiné en absolute avec des
@@ -78,6 +86,7 @@ export function Sticker({
   selectionRefs,
   onInteractStart,
   onInteractEnd,
+  ghostVisual = false,
 }: Props) {
   const allStickers = useAllStickers();
   const colorPrimary = usePreferences((s) => s.colorPrimary);
@@ -215,6 +224,12 @@ export function Sticker({
   // sticker — il désactive le scroll englobant tant que c'est le cas (cf.
   // Props.onInteractStart/End).
   const pan = Gesture.Pan()
+    // Drag, pinch et rotate uniquement quand le sticker est sélectionné.
+    // Le tap (pour sélectionner) reste actif en permanence. Évite les
+    // manipulations involontaires sur les stickers non-sélectionnés (qui
+    // sont par ailleurs rendus en Skia dans le pattern hybride éditeur,
+    // donc leur déplacement JSX ne serait pas visible jusqu'au commit).
+    .enabled(isSelected)
     .maxPointers(1)
     .activeOffsetX([-5, 5])
     .activeOffsetY([-5, 5])
@@ -239,6 +254,7 @@ export function Sticker({
     });
 
   const pinch = Gesture.Pinch()
+    .enabled(isSelected)
     .onBegin(() => {
       runOnJS(onInteractStart)();
     })
@@ -257,6 +273,7 @@ export function Sticker({
     });
 
   const rotate = Gesture.Rotation()
+    .enabled(isSelected)
     .onBegin(() => {
       runOnJS(onInteractStart)();
     })
@@ -273,16 +290,18 @@ export function Sticker({
       runOnJS(onInteractEnd)();
     });
 
+  // PAS d'onInteractStart/End sur le tap : un tap est trop bref pour
+  // justifier un blocage du scroll parent, et surtout si l'user commence
+  // un tap puis bascule sur un drag (tap fail), onFinalize peut ne pas
+  // fire fiablement (RNGH ne le garantit pas après re-render mid-gesture)
+  // → compteur reste à 1 → scroll bloqué jusqu'à désélection. Pour les
+  // stickers non-sélectionnés (pan/pinch/rotate disabled), un pan
+  // commençant sur un sticker fall-throughé proprement vers le parent
+  // ScrollView sans laisser le scroll bloqué.
   const tap = Gesture.Tap()
     .maxDuration(250)
-    .onBegin(() => {
-      runOnJS(onInteractStart)();
-    })
     .onEnd((_e, success) => {
       if (success) runOnJS(onSelect)();
-    })
-    .onFinalize(() => {
-      runOnJS(onInteractEnd)();
     });
 
   // `Simultaneous` pour TOUS les gestures (tap + pan + pinch + rotate) —
@@ -359,16 +378,16 @@ export function Sticker({
           { width: naturalWidth, height: naturalHeight },
           animatedStyle,
         ]}>
-        {def.svgXml ? (
+        {!ghostVisual && def.svgXml ? (
           <SvgXml
             xml={themedSvgXml ?? def.svgXml}
             width="100%"
             height="100%"
           />
-        ) : def.source ? (
+        ) : !ghostVisual && def.source ? (
           <Image source={def.source} style={StyleSheet.absoluteFill} contentFit="contain" />
         ) : null}
-        {isSelected && (
+        {isSelected && !ghostVisual && (
           // Ring rendu en sibling absolu : insets négatifs ⇒ ring dessiné à
           // l'extérieur du sticker (pas inset à l'intérieur comme le ferait
           // un borderWidth sur le wrapper). La taille visuelle du sticker

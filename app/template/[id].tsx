@@ -1,11 +1,24 @@
 import { BookPlaceholder } from '@/components/book-placeholder';
+import { CategoryDrawer } from '@/components/sheet/category-drawer';
+import { SheetActionBar } from '@/components/sheet/sheet-action-bar';
 import { SheetSectionEditor } from '@/components/sheet/sheet-section-editor';
 import { SheetCustomizer } from '@/components/sheet-customizer';
+import { SheetPinchZoom } from '@/components/sheet/sheet-pinch-zoom';
+import { SkiaSheetFondLayer } from '@/components/sheet/skia-sheet-fond-layer';
+import { SkiaStaticStickerLayer } from '@/components/sheet/skia-static-sticker-layer';
+import { PERSO_BORDER_ID } from '@/lib/borders/catalog';
 import { SheetSurface } from '@/components/sheet-surface';
 import { StickerLayer } from '@/components/sticker-layer';
 import { StickerPickerModal } from '@/components/sticker-picker-modal';
 import { useAuth } from '@/hooks/use-auth';
 import { useThemeColors } from '@/hooks/use-theme-colors';
+import {
+  appearancesEqual,
+  sectionsEqual,
+  stickersEqual,
+  useUndoableSheetDraft,
+} from '@/hooks/use-undoable-sheet-draft';
+import * as Haptics from 'expo-haptics';
 import { newId } from '@/lib/id';
 import {
   DEFAULT_APPEARANCE,
@@ -14,6 +27,7 @@ import {
 } from '@/lib/sheet-appearance';
 import { MAX_STICKERS_PER_SHEET } from '@/lib/stickers/catalog';
 import { getFont } from '@/lib/theme/fonts';
+import { usePreferences } from '@/store/preferences';
 import { useReadingSheetTemplates } from '@/store/reading-sheet-templates';
 import { useTemplateDraft } from '@/store/template-draft';
 import type {
@@ -35,6 +49,7 @@ import {
   Switch,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -66,7 +81,7 @@ export default function TemplateEditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const theme = useThemeColors();
-  const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
   const { session } = useAuth();
   const userId = session?.user.id;
 
@@ -99,15 +114,12 @@ export default function TemplateEditorScreen() {
     }
   }, [isNew, existing, mine.length, router]);
 
-  const [name, setName] = useState(existing?.name ?? seed?.defaultName ?? '');
-  const [appearance, setAppearance] = useState<SheetAppearance>(
-    existing?.appearance ?? seed?.appearance ?? DEFAULT_APPEARANCE,
-  );
-  const [sections, setSections] = useState<SheetSection[]>(
-    existing?.sections ?? seed?.sections ?? defaultSections(),
-  );
-  const [stickers, setStickers] = useState<PlacedSticker[]>(
-    existing?.stickers ?? seed?.stickers ?? [],
+  // Création (isNew) : pré-rempli "Nouveau template" pour éviter une fiche
+  // sans titre et ne pas leak le titre du livre source (cas où l'user vient
+  // de "Sauvegarder comme template" depuis une fiche). Édition d'un existing :
+  // on reprend son nom.
+  const [name, setName] = useState(
+    existing?.name ?? (isNew ? 'Nouveau template' : seed?.defaultName ?? ''),
   );
   const [selectedGenres, setSelectedGenres] = useState<string[]>(existing?.genres ?? []);
   const [isPublic, setIsPublic] = useState<boolean>(existing?.isPublic ?? false);
@@ -116,19 +128,64 @@ export default function TemplateEditorScreen() {
 
   const [customizerOpen, setCustomizerOpen] = useState(false);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
+  const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
   const [finalizeOpen, setFinalizeOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Draft local + historique undo/redo unifié pour sections + stickers +
+  // appearance. Aligné sur l'éditeur de fiche : toute mutation est undoable,
+  // rien n'est persisté en DB avant tap sur le bouton Enregistrer.
+  // Le name / les genres / isPublic restent hors undo (gérés via le
+  // FinalizeDrawer pour les nouveaux templates, immuables pour les existants).
+  const {
+    draft: sections,
+    draftStickers: stickers,
+    draftAppearance: appearance,
+    setDraft: setSections,
+    setDraftStickers: setStickers,
+    setDraftAppearance: setAppearance,
+    setDraftSilent: setSectionsSilent,
+    setDraftStickersSilent: setStickersSilent,
+    setDraftAppearanceSilent: setAppearanceSilent,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useUndoableSheetDraft(
+    existing?.sections ?? seed?.sections ?? defaultSections(),
+    existing?.stickers ?? seed?.stickers ?? [],
+    existing?.appearance ?? seed?.appearance ?? DEFAULT_APPEARANCE,
+  );
+
+  // Couche Skia fond : actif en mode perso uniquement (catalog garde le
+  // rendu JSX interne à CardFrame — cf. sheet/view/[id]). Hooks usePreferences
+  // placés ici (avant les early returns) pour respecter les rules-of-hooks.
+  const themeFondIdReactive = usePreferences((s) => s.fondId);
+  const themeFondOpacityReactive = usePreferences((s) => s.fondOpacity);
+  const isPersoFrame =
+    !appearance.frame.borderId ||
+    appearance.frame.borderId === PERSO_BORDER_ID;
+  const explicitFondId = appearance.fond?.fondId;
+  const effectiveFondId = explicitFondId ?? themeFondIdReactive;
+  const isThemeFondActive =
+    !explicitFondId || explicitFondId === themeFondIdReactive;
+  const effectiveFondOpacity =
+    appearance.fond?.opacity ?? (isThemeFondActive ? themeFondOpacityReactive : 1);
+  const useSkiaFond = isPersoFrame;
+
   // Hydrate quand l'existing arrive après le mount (fetchMine en cours).
+  // Silent → ces resets ne polluent pas l'historique undo (avant cette
+  // arrivée, le draft était sur les defaults, intéressant pour l'user
+  // ni à conserver dans l'historique).
   useEffect(() => {
     if (!existing) return;
     setName(existing.name);
-    setAppearance(existing.appearance);
-    setSections(existing.sections);
-    setStickers(existing.stickers ?? []);
+    setAppearanceSilent(existing.appearance);
+    setSectionsSilent(existing.sections);
+    setStickersSilent(existing.stickers ?? []);
     setSelectedGenres(existing.genres);
     setIsPublic(existing.isPublic);
-  }, [existing]);
+  }, [existing, setAppearanceSilent, setSectionsSilent, setStickersSilent]);
 
   const toggleGenre = (slug: string) => {
     setSelectedGenres((prev) =>
@@ -137,11 +194,62 @@ export default function TemplateEditorScreen() {
   };
 
   // ═════════ Sections (titre uniquement, body strippé côté template) ═════════
-  const addSection = () => {
-    setSections((prev) => [...prev, { id: newId(), title: 'Nouvelle section', body: '' }]);
+  // Helper unifié — porte le titre ET l'icône fournis par la CategoryDrawer
+  // (suggestion = défaut du template, ou custom via IconPickerModal).
+  // Aligne le comportement sur addSectionDraft du fiche editor.
+  const addSectionFromCategory = (
+    title: string,
+    opts?: {
+      materialIcon?: string;
+      materialIconColor?: string;
+      emoji?: string;
+    },
+  ) => {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    setSections((prev) => [
+      ...prev,
+      {
+        id: newId(),
+        title: trimmed,
+        body: '',
+        materialIcon: opts?.materialIcon,
+        materialIconColor: opts?.materialIconColor,
+        emoji: opts?.emoji,
+      },
+    ]);
+  };
+  const removeSectionByTitle = (title: string) => {
+    const lower = title.trim().toLocaleLowerCase('fr');
+    setSections((prev) =>
+      prev.filter((s) => s.title.trim().toLocaleLowerCase('fr') !== lower),
+    );
   };
   const updateSectionTitle = (sid: string, title: string) => {
     setSections((prev) => prev.map((s) => (s.id === sid ? { ...s, title } : s)));
+  };
+  const updateSectionMeta = (
+    sid: string,
+    meta: {
+      title: string;
+      materialIcon?: string;
+      materialIconColor?: string;
+      emoji?: string;
+    },
+  ) => {
+    setSections((prev) =>
+      prev.map((s) =>
+        s.id === sid
+          ? {
+              ...s,
+              title: meta.title,
+              materialIcon: meta.materialIcon,
+              materialIconColor: meta.materialIconColor,
+              emoji: meta.emoji,
+            }
+          : s,
+      ),
+    );
   };
   const removeSection = (sid: string) => {
     setSections((prev) => prev.filter((s) => s.id !== sid));
@@ -278,6 +386,19 @@ export default function TemplateEditorScreen() {
   const fontDef = getFont(appearance.fontId as any);
   const fontFamily = fontDef.variants.display;
 
+  // Dirty check pour le bouton save :
+  //   - Existing : compare draft (sections/stickers/appearance) vs persisté.
+  //     Name/genres/isPublic ne sont pas éditables côté éditeur (seul le
+  //     FinalizeDrawer les modifie, et il n'est utilisé qu'à la création).
+  //   - New : on autorise dès qu'il y a au moins une section — `handleNext`
+  //     ouvrira le FinalizeDrawer pour collecter nom/genres avant persist.
+  const dirty = isNew
+    ? sections.length > 0
+    : !!existing &&
+      (!appearancesEqual(appearance, existing.appearance) ||
+        !sectionsEqual(sections, existing.sections) ||
+        !stickersEqual(stickers, existing.stickers ?? EMPTY_STICKERS));
+
   return (
     <SafeAreaView className="flex-1 bg-paper" edges={['top']}>
       <KeyboardAvoidingView
@@ -290,19 +411,73 @@ export default function TemplateEditorScreen() {
             className="h-10 w-10 items-center justify-center rounded-full active:opacity-60">
             <MaterialIcons name="arrow-back" size={22} color={theme.ink} />
           </Pressable>
-          <Text className="font-display text-lg text-ink">
-            {isNew ? 'Nouveau template' : 'Édition du template'}
-          </Text>
-          {existing ? (
+          <View className="flex-row items-center gap-1">
+            {existing ? (
+              <Pressable
+                onPress={handleDelete}
+                hitSlop={8}
+                className="h-10 w-10 items-center justify-center rounded-full active:opacity-60">
+                <MaterialIcons name="delete-outline" size={22} color="#c8322a" />
+              </Pressable>
+            ) : null}
             <Pressable
-              onPress={handleDelete}
+              onPress={
+                canUndo
+                  ? () => {
+                      Haptics.selectionAsync();
+                      undo();
+                    }
+                  : undefined
+              }
+              disabled={!canUndo}
               hitSlop={8}
-              className="h-10 w-10 items-center justify-center rounded-full active:opacity-60">
-              <MaterialIcons name="delete-outline" size={22} color="#c8322a" />
+              accessibilityLabel="Annuler"
+              accessibilityState={{ disabled: !canUndo }}
+              className="h-10 w-10 items-center justify-center rounded-full active:opacity-60"
+              style={{ opacity: canUndo ? 1 : 0.35 }}>
+              <MaterialIcons name="undo" size={22} color={theme.ink} />
             </Pressable>
-          ) : (
-            <View style={{ width: 40 }} />
-          )}
+            <Pressable
+              onPress={
+                canRedo
+                  ? () => {
+                      Haptics.selectionAsync();
+                      redo();
+                    }
+                  : undefined
+              }
+              disabled={!canRedo}
+              hitSlop={8}
+              accessibilityLabel="Rétablir"
+              accessibilityState={{ disabled: !canRedo }}
+              className="h-10 w-10 items-center justify-center rounded-full active:opacity-60"
+              style={{ opacity: canRedo ? 1 : 0.35 }}>
+              <MaterialIcons name="redo" size={22} color={theme.ink} />
+            </Pressable>
+            {isNew ? (
+              <Pressable
+                onPress={dirty && !saving ? handleNext : undefined}
+                disabled={!dirty || saving}
+                hitSlop={8}
+                accessibilityLabel="Valider"
+                accessibilityState={{ disabled: !dirty || saving }}
+                className="h-10 items-center justify-center rounded-full bg-accent px-4 active:opacity-80"
+                style={{ opacity: dirty && !saving ? 1 : 0.35 }}>
+                <Text className="font-sans-med text-paper">Valider</Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={dirty && !saving ? handleNext : undefined}
+                disabled={!dirty || saving}
+                hitSlop={8}
+                accessibilityLabel="Enregistrer"
+                accessibilityState={{ disabled: !dirty || saving }}
+                className="h-10 w-10 items-center justify-center rounded-full active:opacity-60"
+                style={{ opacity: dirty && !saving ? 1 : 0.35 }}>
+                <MaterialIcons name="check" size={24} color={theme.ink} />
+              </Pressable>
+            )}
+          </View>
         </View>
 
         <ScrollView
@@ -318,11 +493,70 @@ export default function TemplateEditorScreen() {
             keyboardShouldPersistTaps="handled"
             scrollEnabled={!stickerInteracting}
             contentContainerStyle={{ minWidth: '100%', justifyContent: 'center' }}>
-            <Animated.View
-              entering={FadeInDown.duration(400)}
-              style={{ width: SHEET_MAX_WIDTH, marginTop: 8, position: 'relative' }}>
-              <SheetSurface
+            {/* Pinch-zoom mobile. Le ScrollView parent n'a pas de padding
+                horizontal → availableWidth = windowWidth.
+                Skia underlay (fond perso) + overlay (stickers hybrides,
+                cf. sheet/[isbn] pour le pattern). */}
+            <SheetPinchZoom
+              naturalWidth={SHEET_MAX_WIDTH}
+              availableWidth={windowWidth}
+              skiaUnderlay={
+                useSkiaFond
+                  ? ({
+                      scale,
+                      translateX,
+                      translateY,
+                      fitScale,
+                      naturalWidth,
+                      naturalHeight,
+                    }) => (
+                      <SkiaSheetFondLayer
+                        bgColor={appearance.bgColor}
+                        fondId={effectiveFondId}
+                        colorOverrides={appearance.fond?.colorOverrides}
+                        opacity={effectiveFondOpacity}
+                        outerWidth={naturalWidth * fitScale}
+                        outerHeight={naturalHeight * fitScale}
+                        naturalWidth={naturalWidth}
+                        naturalHeight={naturalHeight}
+                        scale={scale}
+                        translateX={translateX}
+                        translateY={translateY}
+                        fitScale={fitScale}
+                        yOffset={8}
+                      />
+                    )
+                  : undefined
+              }
+              skiaOverlay={({
+                scale,
+                translateX,
+                translateY,
+                fitScale,
+                naturalWidth,
+                naturalHeight,
+              }) => (
+                <SkiaStaticStickerLayer
+                  stickers={stickers}
+                  skipIds={selectedStickerId ? [selectedStickerId] : undefined}
+                  outerWidth={naturalWidth * fitScale}
+                  outerHeight={naturalHeight * fitScale}
+                  naturalWidth={naturalWidth}
+                  naturalHeight={naturalHeight}
+                  scale={scale}
+                  translateX={translateX}
+                  translateY={translateY}
+                  fitScale={fitScale}
+                  yOffset={8}
+                />
+              )}
+            >
+              <Animated.View
+                entering={FadeInDown.duration(400)}
+                style={{ width: SHEET_MAX_WIDTH, marginTop: 8, position: 'relative' }}>
+                <SheetSurface
                 appearance={appearance}
+                disableFond={useSkiaFond}
                 style={{
                   shadowColor: '#000',
                   shadowOpacity: 0.12,
@@ -363,6 +597,9 @@ export default function TemplateEditorScreen() {
                         section={section}
                         appearance={appearance}
                         fontFamily={fontFamily}
+                        onUpdateMeta={(meta) =>
+                          updateSectionMeta(section.id, meta)
+                        }
                         onUpdateTitle={(t) => updateSectionTitle(section.id, t)}
                         onRemove={() => removeSection(section.id)}
                         bodyEditable={false}
@@ -371,97 +608,51 @@ export default function TemplateEditorScreen() {
                     </View>
                   ))}
                 </View>
-              </SheetSurface>
-              <StickerLayer
-                stickers={stickers}
-                selectedId={selectedStickerId}
-                onSelect={setSelectedStickerId}
-                onUpdateTransform={updateStickerTransform}
-                onDelete={(id) => {
-                  removeSticker(id);
-                  setSelectedStickerId(null);
-                }}
-                onReorder={reorderSticker}
-                onInteractChange={setStickerInteracting}
-              />
-            </Animated.View>
+                </SheetSurface>
+                <StickerLayer
+                  stickers={stickers}
+                  selectedId={selectedStickerId}
+                  onSelect={setSelectedStickerId}
+                  onUpdateTransform={updateStickerTransform}
+                  onDelete={(id) => {
+                    removeSticker(id);
+                    setSelectedStickerId(null);
+                  }}
+                  onReorder={reorderSticker}
+                  onInteractChange={setStickerInteracting}
+                />
+              </Animated.View>
+            </SheetPinchZoom>
           </ScrollView>
 
-          <View
-            style={{
-              maxWidth: SHEET_MAX_WIDTH,
-              width: '100%',
-              alignSelf: 'center',
-              paddingHorizontal: 16,
-            }}>
-            {/* Le bouton "+ Ajouter une section" est volontairement HORS de
-                la SheetSurface (en sibling du wrapper Animated.View), comme
-                sur la fiche éditeur. Sinon la SheetSurface grandit d'autant
-                et les positions Y fractionnaires des stickers projettent
-                plus bas que sur la fiche réelle (axe StickerLayer biaisé). */}
-            <Pressable
-              onPress={addSection}
-              style={{ borderColor: theme.ink, borderWidth: 1 }}
-              className="mt-4 rounded-full py-3 active:opacity-70">
-              <Text style={{ color: theme.ink }} className="text-center font-sans-med">
-                + Ajouter une section
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => setCustomizerOpen(true)}
-              className="mt-2 flex-row items-center justify-center gap-2 rounded-full py-3 active:opacity-70"
-              style={{ borderWidth: 1, borderColor: theme.ink }}>
-              <MaterialIcons name="palette" size={16} color={theme.ink} />
-              <Text style={{ color: theme.ink }} className="font-sans-med">
-                Personnaliser l’apparence
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => setStickerPickerOpen(true)}
-              className="mt-2 flex-row items-center justify-center gap-2 rounded-full py-3 active:opacity-70"
-              style={{ borderWidth: 1, borderColor: theme.ink }}>
-              <MaterialIcons name="emoji-emotions" size={16} color={theme.ink} />
-              <Text style={{ color: theme.ink }} className="font-sans-med">
-                Stickers · {stickers.length}/{MAX_STICKERS_PER_SHEET}
-              </Text>
-            </Pressable>
-          </View>
         </ScrollView>
 
-        <View
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: insets.bottom + 16,
-          }}
-          className="items-center"
-          pointerEvents="box-none">
-          <Pressable
-            onPress={handleNext}
-            disabled={saving}
-            style={{
-              backgroundColor: '#c27b52',
-              shadowColor: '#000',
-              shadowOpacity: 0.25,
-              shadowRadius: 10,
-              shadowOffset: { width: 0, height: 4 },
-              elevation: 8,
-              opacity: saving ? 0.6 : 1,
-            }}
-            className="flex-row items-center gap-2 rounded-full px-6 py-3 active:opacity-85">
-            <MaterialIcons
-              name={isNew ? 'arrow-forward' : 'check'}
-              size={20}
-              color="#fff"
-            />
-            <Text className="font-sans-med text-paper">
-              {saving ? 'Enregistrement…' : isNew ? 'Suivant' : 'Enregistrer'}
-            </Text>
-          </Pressable>
-        </View>
+        {/* SheetActionBar : ancrée bottom-center par défaut, draggable,
+            toggle horizontal/vertical via long-press (cf. composant).
+            Identique au fiche editor — save vit dans le header. */}
+        <SheetActionBar
+          actions={[
+            {
+              key: 'add-section',
+              icon: 'playlist-add',
+              label: 'Ajouter une section',
+              onPress: () => setCategoryDrawerOpen(true),
+            },
+            {
+              key: 'customize',
+              icon: 'palette',
+              label: "Personnaliser l'apparence",
+              onPress: () => setCustomizerOpen(true),
+            },
+            {
+              key: 'add-sticker',
+              icon: 'emoji-emotions',
+              label: 'Ajouter un sticker',
+              onPress: () => setStickerPickerOpen(true),
+            },
+          ]}
+        />
+
       </KeyboardAvoidingView>
 
       <SheetCustomizer
@@ -470,10 +661,34 @@ export default function TemplateEditorScreen() {
         title="Personnaliser le template"
         subtitle={name.trim() || 'Sans nom'}
         onClose={() => setCustomizerOpen(false)}
-        onSave={(next) => {
-          setAppearance(next);
-          setCustomizerOpen(false);
-        }}
+        // Le bouton "Valider" du customizer ferme juste — les mutations
+        // sont déjà appliquées en live via onChange. La persistance en DB
+        // passe par le bouton global Suivant/Enregistrer.
+        onSave={() => setCustomizerOpen(false)}
+        drawer
+        onChange={setAppearance}
+      />
+
+      <CategoryDrawer
+        open={categoryDrawerOpen}
+        onClose={() => setCategoryDrawerOpen(false)}
+        categories={appearance.defaultCategories}
+        usedTitles={sections.map((s) => s.title)}
+        onAdd={(c) =>
+          addSectionFromCategory(c.title, {
+            materialIcon: c.materialIcon,
+            materialIconColor: c.materialIconColor,
+            emoji: c.emoji,
+          })
+        }
+        onRemove={(title) => removeSectionByTitle(title)}
+        onAddCustom={(r) =>
+          addSectionFromCategory(r.title, {
+            materialIcon: r.materialIcon,
+            materialIconColor: r.materialIconColor,
+            emoji: r.emoji,
+          })
+        }
       />
 
       <StickerPickerModal
@@ -636,3 +851,7 @@ function defaultSections(): SheetSection[] {
     { id: newId(), title: "Ce que j'ai aimé", body: '', materialIcon: 'thumb-up' },
   ];
 }
+
+// Référence stable pour le dirty check quand `existing.stickers` est
+// undefined — évite que `stickersEqual` traite chaque render comme un diff.
+const EMPTY_STICKERS: PlacedSticker[] = [];

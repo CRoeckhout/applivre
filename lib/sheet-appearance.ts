@@ -182,6 +182,17 @@ export function resolveSectionIcon(
   materialIcon?: string;
   materialIconColor?: string;
 } {
+  // La customisation per-section prime sur le default du template : si l'user
+  // a choisi une icône via le picker, on l'utilise — la matching par titre
+  // sur `defaultCategories` ne sert plus qu'au fallback (sections legacy
+  // sans icône explicite, créées avant l'introduction du picker).
+  if (section.emoji || section.materialIcon) {
+    return {
+      emoji: section.emoji,
+      materialIcon: section.materialIcon,
+      materialIconColor: section.materialIconColor,
+    };
+  }
   const norm = (s: string) => s.trim().toLocaleLowerCase('fr');
   const target = norm(section.title);
   const match = appearance.defaultCategories.find(
@@ -194,11 +205,7 @@ export function resolveSectionIcon(
       materialIconColor: match.materialIconColor,
     };
   }
-  return {
-    emoji: section.emoji,
-    materialIcon: section.materialIcon,
-    materialIconColor: section.materialIconColor,
-  };
+  return {};
 }
 
 // Override vide = template. Sinon merge champ-par-champ.
