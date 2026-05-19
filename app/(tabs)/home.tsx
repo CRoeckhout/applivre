@@ -7,6 +7,7 @@ import { ShortcutCard } from '@/components/shortcut-card';
 import { StartReadingModal } from '@/components/start-reading-modal';
 import { StreakCard } from '@/components/streak-card';
 import { UserProfileCard } from '@/components/user-profile-card';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import { useBookshelf } from '@/store/bookshelf';
 import {
   AVAILABLE_HOME_CARDS,
@@ -17,9 +18,10 @@ import { useReadingSheets } from '@/store/reading-sheets';
 import { useTimer } from '@/store/timer';
 import type { UserBook } from '@/types/book';
 import { MaterialIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import DraggableFlatList, {
   ScaleDecorator,
   type RenderItemParams,
@@ -203,7 +205,24 @@ export default function HomeScreen() {
       />
       <View
         pointerEvents="box-none"
-        style={{ position: 'absolute', top: insets.top + 8, right: 24, zIndex: 20 }}>
+        style={{
+          position: 'absolute',
+          top: insets.top + 8,
+          left: 0,
+          right: 0,
+          zIndex: 20,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: 24,
+        }}>
+        <HomeProfileButton />
+        <Image
+          source={require('../../assets/images/icon.png')}
+          style={{ width: 44, height: 44, borderRadius: 10 }}
+          contentFit="contain"
+          accessibilityLabel="Grimolia"
+        />
         <HomeCogMenu />
       </View>
       <HomeFab />
@@ -228,5 +247,19 @@ function HomeHeader() {
 
       <View className="mt-6" />
     </Animated.View>
+  );
+}
+
+function HomeProfileButton() {
+  const router = useRouter();
+  const theme = useThemeColors();
+  return (
+    <Pressable
+      onPress={() => router.push('/profile')}
+      accessibilityLabel="Mon profil"
+      hitSlop={8}
+      className="h-12 w-12 items-center justify-center rounded-full bg-paper-warm active:bg-paper-shade">
+      <MaterialIcons name="person" size={22} color={theme.ink} />
+    </Pressable>
   );
 }

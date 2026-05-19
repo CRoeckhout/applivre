@@ -1,8 +1,9 @@
 import { useAuth } from "@/hooks/use-auth";
 import {
   pickBugScreenshot,
-  submitBugReport,
+  submitReport,
   type BugScreenshot,
+  type ReportKind,
 } from "@/lib/bug-report";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
@@ -24,7 +25,48 @@ type Props = {
   onClose: () => void;
 };
 
-export function BugReportModal({ open, onClose }: Props) {
+type Copy = {
+  heading: string;
+  intro: string;
+  titlePlaceholder: string;
+  descriptionPlaceholder: string;
+  success: string;
+  errorFallback: string;
+};
+
+const COPY: Record<ReportKind, Copy> = {
+  bug: {
+    heading: "Signaler un bug",
+    intro: "Décris le problème. Une tâche sera créée pour qu'on puisse regarder.",
+    titlePlaceholder: "Ex. Le scan ISBN crashe",
+    descriptionPlaceholder: "Étapes pour reproduire, ce qui s'est passé...",
+    success: "Rapport envoyé. Merci !",
+    errorFallback: "Impossible d'envoyer le rapport",
+  },
+  feedback: {
+    heading: "Donner un avis",
+    intro: "Partage ton ressenti. Ça aidera à faire évoluer l'app.",
+    titlePlaceholder: "Ex. J'adore la nouvelle interface",
+    descriptionPlaceholder: "Ce que tu en penses, ce qui te manque...",
+    success: "Avis envoyé. Merci !",
+    errorFallback: "Impossible d'envoyer l'avis",
+  },
+};
+
+export function BugReportModal(props: Props) {
+  return <ReportModal kind="bug" {...props} />;
+}
+
+export function FeedbackModal(props: Props) {
+  return <ReportModal kind="feedback" {...props} />;
+}
+
+function ReportModal({
+  kind,
+  open,
+  onClose,
+}: Props & { kind: ReportKind }) {
+  const copy = COPY[kind];
   const { session } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -62,7 +104,8 @@ export function BugReportModal({ open, onClose }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      await submitBugReport({
+      await submitReport({
+        kind,
         userId: session.user.id,
         title: title.trim(),
         description: description.trim(),
@@ -71,7 +114,7 @@ export function BugReportModal({ open, onClose }: Props) {
       setSuccess(true);
       setTimeout(() => onClose(), 1200);
     } catch (e) {
-      setError((e as Error).message ?? "Impossible d'envoyer le rapport");
+      setError((e as Error).message ?? copy.errorFallback);
     } finally {
       setSubmitting(false);
     }
@@ -98,12 +141,9 @@ export function BugReportModal({ open, onClose }: Props) {
         >
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text className="font-display text-2xl text-ink">
-              Signaler un bug
+              {copy.heading}
             </Text>
-            <Text className="mt-2 text-sm text-ink-muted">
-              Décris le problème. Une tâche sera créée pour qu&apos;on puisse
-              regarder.
-            </Text>
+            <Text className="mt-2 text-sm text-ink-muted">{copy.intro}</Text>
 
             <View className="mt-5">
               <Text className="mb-2 text-xs font-sans-med uppercase text-ink-muted">
@@ -116,7 +156,7 @@ export function BugReportModal({ open, onClose }: Props) {
                     setTitle(v);
                     setError(null);
                   }}
-                  placeholder="Ex. Le scan ISBN crashe"
+                  placeholder={copy.titlePlaceholder}
                   placeholderTextColor="#6b6259"
                   maxLength={200}
                   className="text-base text-ink"
@@ -135,7 +175,7 @@ export function BugReportModal({ open, onClose }: Props) {
                     setDescription(v);
                     setError(null);
                   }}
-                  placeholder="Étapes pour reproduire, ce qui s'est passé..."
+                  placeholder={copy.descriptionPlaceholder}
                   placeholderTextColor="#6b6259"
                   multiline
                   numberOfLines={4}
@@ -184,9 +224,7 @@ export function BugReportModal({ open, onClose }: Props) {
               {error ? (
                 <Text className="text-sm text-accent-deep">{error}</Text>
               ) : success ? (
-                <Text className="text-sm text-accent-deep">
-                  Rapport envoyé. Merci !
-                </Text>
+                <Text className="text-sm text-accent-deep">{copy.success}</Text>
               ) : null}
             </View>
 

@@ -62,17 +62,17 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="sheets"
+          options={{
+            title: 'Fiches',
+            tabBarIcon: ({ color }) => <IconSymbol size={26} name="note.text" color={color} />,
+          }}
+        />
+        <Tabs.Screen
           name="defi"
           options={{
             title: 'Défi',
             tabBarIcon: ({ color }) => <IconSymbol size={26} name="flame.fill" color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="profile"
-          options={{
-            title: 'Profil',
-            tabBarIcon: ({ color }) => <IconSymbol size={26} name="person.fill" color={color} />,
           }}
         />
       </Tabs>

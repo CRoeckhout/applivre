@@ -43,6 +43,8 @@ async function uploadScreenshot(
   return data.publicUrl;
 }
 
+export type ReportKind = 'bug' | 'feedback';
+
 export type SubmitBugInput = {
   userId: string;
   title: string;
@@ -50,12 +52,18 @@ export type SubmitBugInput = {
   screenshot?: BugScreenshot | null;
 };
 
+export type SubmitReportInput = SubmitBugInput & { kind: ReportKind };
+
 export type SubmitBugResult = {
   taskId: string | null;
   taskUrl: string | null;
 };
 
-export async function submitBugReport(input: SubmitBugInput): Promise<SubmitBugResult> {
+export function submitBugReport(input: SubmitBugInput): Promise<SubmitBugResult> {
+  return submitReport({ ...input, kind: 'bug' });
+}
+
+export async function submitReport(input: SubmitReportInput): Promise<SubmitBugResult> {
   let screenshotUrl: string | undefined;
   if (input.screenshot) {
     screenshotUrl = await uploadScreenshot(input.userId, input.screenshot);
@@ -77,6 +85,7 @@ export async function submitBugReport(input: SubmitBugInput): Promise<SubmitBugR
     status?: number;
   }>('report-bug', {
     body: {
+      kind: input.kind,
       title: input.title,
       description: input.description,
       screenshotUrl,

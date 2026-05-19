@@ -305,7 +305,6 @@ function AuthGate() {
           name="library"
           options={{ title: "Ma bibliothèque", headerBackTitle: "Retour" }}
         />
-        <Stack.Screen name="sheets" options={{ headerShown: false }} />
         <Stack.Screen
           name="book-manual"
           options={{ title: "Saisie manuelle", headerBackTitle: "Retour" }}
@@ -320,6 +319,7 @@ function AuthGate() {
         <Stack.Screen name="templates" options={{ headerShown: false }} />
         <Stack.Screen name="template/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="template/view/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="profile/index" options={{ headerShown: false }} />
         <Stack.Screen name="profile/[userId]" options={{ headerShown: false }} />
         <Stack.Screen name="feed/[entryId]" options={{ headerShown: false }} />
         <Stack.Screen name="messages/index" options={{ headerShown: false }} />

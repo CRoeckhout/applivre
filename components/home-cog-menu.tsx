@@ -1,4 +1,4 @@
-import { BugReportModal } from '@/components/bug-report-modal';
+import { BugReportModal, FeedbackModal } from '@/components/bug-report-modal';
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { usePersonalization } from '@/store/personalization';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -9,12 +9,18 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 export function HomeCogMenu() {
   const [open, setOpen] = useState(false);
   const [bugOpen, setBugOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const openPerso = usePersonalization((s) => s.open);
   const theme = useThemeColors();
 
   const onPersonalize = () => {
     setOpen(false);
     openPerso();
+  };
+
+  const onGiveFeedback = () => {
+    setOpen(false);
+    setFeedbackOpen(true);
   };
 
   const onReportBug = () => {
@@ -51,6 +57,18 @@ export function HomeCogMenu() {
               </View>
             </Pressable>
             <Pressable
+              onPress={onGiveFeedback}
+              className="border-t border-paper-warm px-4 py-3 active:bg-paper-warm">
+              <View className="flex-row items-center gap-3">
+                <MaterialIcons name="forum" size={20} color={theme.ink} />
+                <View className="flex-1">
+                  <Text className="font-sans-med text-base text-ink">Donner un avis</Text>
+                  <Text className="text-xs text-ink-muted">Partage ce que tu en penses</Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color={theme.inkMuted} />
+              </View>
+            </Pressable>
+            <Pressable
               onPress={onReportBug}
               className="border-t border-paper-warm px-4 py-3 active:bg-paper-warm">
               <View className="flex-row items-center gap-3">
@@ -71,6 +89,7 @@ export function HomeCogMenu() {
         </Pressable>
       </Modal>
 
+      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
       <BugReportModal open={bugOpen} onClose={() => setBugOpen(false)} />
     </>
   );

@@ -1,13 +1,16 @@
 // Edge function `report-bug`
-// Reçoit un rapport de bug depuis l'app et crée une tâche dans ClickUp.
+// Reçoit un rapport (bug ou avis) depuis l'app et crée une tâche dans ClickUp.
 //
-// Body : { title, description, screenshotUrl?, context? }
+// Body : { kind?, title, description, screenshotUrl?, context? }
+//   kind = 'bug' (défaut) | 'feedback'
 //   context = { appVersion, platform, osVersion, deviceModel?, locale? }
 //
-// Auth obligatoire (Bearer). Le token ClickUp et l'ID de la liste sont
+// Auth obligatoire (Bearer). Le token ClickUp et les IDs de liste sont
 // stockés en secrets Supabase :
 //   supabase secrets set CLICKUP_TOKEN=pk_xxx
-//   supabase secrets set CLICKUP_LIST_ID=901217583015
+//   supabase secrets set CLICKUP_LIST_ID=901217583015          # bugs
+//   supabase secrets set CLICKUP_FEEDBACK_LIST_ID=901218174813 # avis
+// Fallback hardcodé sur 901218174813 pour `feedback` si le secret n'est pas set.
 //
 // Format réponse :
 //   { ok: true, taskId, taskUrl }
@@ -17,6 +20,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 
 const CLICKUP_TOKEN = Deno.env.get('CLICKUP_TOKEN') ?? '';
 const CLICKUP_LIST_ID = Deno.env.get('CLICKUP_LIST_ID') ?? '';
+const CLICKUP_FEEDBACK_LIST_ID =
+  Deno.env.get('CLICKUP_FEEDBACK_LIST_ID') ?? '901218174813';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -35,7 +40,10 @@ type ReportContext = {
   locale?: string;
 };
 
+type ReportKind = 'bug' | 'feedback';
+
 type Payload = {
+  kind?: ReportKind;
   title?: string;
   description?: string;
   screenshotUrl?: string;
@@ -46,7 +54,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ ok: false, error: 'method_not_allowed' }, 405);
 
-  if (!CLICKUP_TOKEN || !CLICKUP_LIST_ID) {
+  if (!CLICKUP_TOKEN) {
     return json({ ok: false, error: 'clickup_not_configured' }, 500);
   }
 
@@ -85,6 +93,12 @@ Deno.serve(async (req) => {
     body = (await req.json()) as Payload;
   } catch {
     return json({ ok: false, error: 'invalid_json' }, 400);
+  }
+
+  const kind: ReportKind = body.kind === 'feedback' ? 'feedback' : 'bug';
+  const listId = kind === 'feedback' ? CLICKUP_FEEDBACK_LIST_ID : CLICKUP_LIST_ID;
+  if (!listId) {
+    return json({ ok: false, error: 'clickup_not_configured', field: 'listId' }, 500);
   }
 
   const title = (body.title ?? '').trim();
@@ -129,7 +143,8 @@ Deno.serve(async (req) => {
   const fullDescription = lines.join('\n');
 
   // ─── ClickUp call ───
-  const endpoint = `https://api.clickup.com/api/v2/list/${encodeURIComponent(CLICKUP_LIST_ID)}/task`;
+  const endpoint = `https://api.clickup.com/api/v2/list/${encodeURIComponent(listId)}/task`;
+  const tags = [kind, 'in-app-report'];
   let cuRes: Response;
   try {
     cuRes = await fetch(endpoint, {
@@ -141,11 +156,11 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         name: title,
         markdown_content: fullDescription,
-        tags: ['bug', 'in-app-report'],
+        tags,
       }),
     });
   } catch (e) {
-    console.error('[report-bug] fetch error', e);
+    console.error(`[report-bug] fetch error (kind=${kind})`, e);
     return json({ ok: false, error: 'upstream_error' }, 502);
   }
 
