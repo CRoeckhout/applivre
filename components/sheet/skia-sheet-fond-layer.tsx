@@ -29,10 +29,11 @@ import { useAllFonds } from '@/store/fond-catalog';
 import { usePreferences } from '@/store/preferences';
 import {
   Canvas,
-  Fill,
   Group,
   Image as SkiaImage,
   ImageSVG,
+  rect,
+  rrect,
   Skia,
   type SkSVG,
   useImage,
@@ -64,6 +65,11 @@ type Props = {
   // Cf. SkiaStaticStickerLayer : compense le marginTop du wrapper JSX
   // pour aligner le repère natif Skia avec celui du SheetSurface.
   yOffset?: number;
+  // Radius en dp pour le clipping du fond Skia aux coins arrondis du
+  // SheetSurface JSX. Sans ce clip, l'image fond dépasserait des coins
+  // arrondis et créerait des bords carrés visibles aux 4 coins. Provient
+  // de `appearance.frame.radius` côté caller (mode perso uniquement).
+  borderRadius?: number;
 };
 
 export function SkiaSheetFondLayer({
@@ -80,6 +86,7 @@ export function SkiaSheetFondLayer({
   translateY,
   fitScale,
   yOffset = 0,
+  borderRadius = 0,
 }: Props) {
   const allFonds = useAllFonds();
   const colorPrimary = usePreferences((s) => s.colorPrimary);
@@ -171,11 +178,35 @@ export function SkiaSheetFondLayer({
   const iw = def?.imageSize?.width ?? 0;
   const ih = def?.imageSize?.height ?? 0;
 
-  // En tile mode, on calcule la grille de répétition à coords natural-fiche.
+  // Hauteur du sheet effective (sans le marginTop du wrapper). Le Skia
+  // Canvas couvre toute l'aire de SheetPinchZoom (= sheet + marginTop)
+  // pour rester aligné avec la mesure interne du pinch, mais le rendu
+  // du fond doit se restreindre à l'aire du sheet uniquement, sinon
+  // bgColor (et l'image) déborde au-dessus avec des coins nets.
+  const sheetHeight = Math.max(0, naturalHeight - yOffset);
+
+  // Clip rounded rect appliqué au Group qui rend les images. Sans ça, le
+  // fond Skia déborde des coins arrondis du SheetSurface JSX (qui a un
+  // overflow:hidden CSS, mais la Skia sibling n'est pas dans son contexte
+  // de clipping). Le clip est en NATURAL coords (avant le scale du Group
+  // parent) → Skia recompose RoundedRect au pixel près à chaque scale,
+  // donc reste crisp à toute échelle.
+  const clipRRect = useMemo(
+    () =>
+      rrect(
+        rect(0, 0, naturalWidth, sheetHeight),
+        Math.max(0, borderRadius),
+        Math.max(0, borderRadius),
+      ),
+    [naturalWidth, sheetHeight, borderRadius],
+  );
+
+  // En tile mode, on calcule la grille de répétition à coords natural-fiche
+  // (bornée au sheet, pas au Canvas).
   const tiles = useMemo(() => {
     if (repeat !== 'tile' || iw <= 0 || ih <= 0) return [];
     const nx = Math.max(1, Math.ceil(naturalWidth / iw));
-    const ny = Math.max(1, Math.ceil(naturalHeight / ih));
+    const ny = Math.max(1, Math.ceil(sheetHeight / ih));
     const out: { x: number; y: number }[] = [];
     for (let j = 0; j < ny; j += 1) {
       for (let i = 0; i < nx; i += 1) {
@@ -183,15 +214,26 @@ export function SkiaSheetFondLayer({
       }
     }
     return out;
-  }, [repeat, iw, ih, naturalWidth, naturalHeight]);
+  }, [repeat, iw, ih, naturalWidth, sheetHeight]);
+
+  // Skip complet le rendu Canvas quand il n'y a aucune image à dessiner —
+  // la JSX SheetSurface gère bgColor + coins arrondis seule. Évite un
+  // Canvas Skia vide qui pourrait poser un artefact d'antialiasing sur
+  // les contours rounded du sheet.
+  if (!hasImage) return null;
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <Canvas style={{ width: outerWidth, height: outerHeight }}>
-        <Group transform={groupTransform} opacity={imageOpacity}>
-          {/* Fallback bgColor uniquement si pas d'image (FondLayer JSX
-              applique la même politique). */}
-          {!hasImage ? <Fill color={bgColor} /> : null}
+        <Group transform={groupTransform} opacity={imageOpacity} clip={clipRRect}>
+          {/* Pas de bgColor rendu côté Skia : la JSX SheetSurface peint
+              déjà bgColor avec les coins arrondis. Si on rendait un Rect
+              Skia ici (carré), il déborderait des coins arrondis JSX et
+              créerait un halo visible aux 4 coins. Skia ne rend QUE le
+              fond image. Si pas d'image (`!hasImage`), Skia ne rend rien
+              → JSX gère bgColor seul (cas avec ou sans `disableFond`).
+              Le `clip` sur le Group restreint le rendu image aux coins
+              arrondis (cf. clipRRect ci-dessus). */}
           {hasImage && repeat === 'cover' ? (
             skSvg ? (
               <ImageSVG
@@ -199,7 +241,7 @@ export function SkiaSheetFondLayer({
                 x={0}
                 y={0}
                 width={naturalWidth}
-                height={naturalHeight}
+                height={sheetHeight}
               />
             ) : skImage ? (
               <SkiaImage
@@ -207,7 +249,7 @@ export function SkiaSheetFondLayer({
                 x={0}
                 y={0}
                 width={naturalWidth}
-                height={naturalHeight}
+                height={sheetHeight}
                 fit="cover"
               />
             ) : null

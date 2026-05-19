@@ -1,5 +1,6 @@
 import { TemplateCard } from '@/components/template-card';
 import {
+  DEFAULT_TEMPLATE_FILTERS,
   TemplateSearchDrawer,
   type SearchDrawerValue,
 } from '@/components/templates/template-search-drawer';
@@ -13,13 +14,14 @@ import type {
 } from '@/types/book';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
   Pressable,
   ScrollView,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -40,13 +42,6 @@ type Props = {
   // Si non-premium, les templates premium déclenchent un paywall plutôt que
   // d'appeler onPick. Le caller doit afficher la modale paywall.
   onPaywallRequired: () => void;
-};
-
-const DEFAULT_FILTERS: SearchDrawerValue = {
-  search: '',
-  genres: [],
-  sort: 'popular',
-  includePremium: true,
 };
 
 export function TemplateChooserModal({
@@ -75,14 +70,24 @@ export function TemplateChooserModal({
   const [community, setCommunity] = useState<PublicReadingSheetTemplate[]>([]);
   const [loading, setLoading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [filters, setFilters] = useState<SearchDrawerValue>(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState<SearchDrawerValue>(DEFAULT_TEMPLATE_FILTERS);
+  const [searchDraft, setSearchDraft] = useState('');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     if (open) {
       setMode('root');
-      setFilters(DEFAULT_FILTERS);
+      setFilters(DEFAULT_TEMPLATE_FILTERS);
+      setSearchDraft('');
+      setSearch('');
     }
   }, [open]);
+
+  useEffect(() => {
+    if (searchDraft === search) return;
+    const t = setTimeout(() => setSearch(searchDraft.trim()), 500);
+    return () => clearTimeout(t);
+  }, [searchDraft, search]);
 
   // Fetch initial + re-fetch à chaque changement de filtre quand l'onglet
   // communautaire est actif.
@@ -91,7 +96,7 @@ export function TemplateChooserModal({
     let cancelled = false;
     setLoading(true);
     listPublic({
-      search: filters.search,
+      search,
       genres: filters.genres,
       sort: filters.sort,
       includePremium: filters.includePremium,
@@ -107,18 +112,12 @@ export function TemplateChooserModal({
     return () => {
       cancelled = true;
     };
-  }, [mode, filters, listPublic]);
+  }, [mode, search, filters, listPublic]);
 
-  const filterChips = useMemo(() => {
-    const chips: string[] = [];
-    if (filters.search) chips.push(`« ${filters.search} »`);
-    if (filters.genres.length > 0) chips.push(`${filters.genres.length} genre·s`);
-    if (filters.sort !== 'popular') {
-      chips.push(filters.sort === 'recent' ? 'Récents' : 'Aimés');
-    }
-    if (!filters.includePremium) chips.push('Sans premium');
-    return chips;
-  }, [filters]);
+  const hasActiveDrawerFilters =
+    filters.genres.length !== DEFAULT_TEMPLATE_FILTERS.genres.length ||
+    filters.sort !== DEFAULT_TEMPLATE_FILTERS.sort ||
+    filters.includePremium !== DEFAULT_TEMPLATE_FILTERS.includePremium;
 
   const pick = (
     t: ReadingSheetTemplate | PublicReadingSheetTemplate,
@@ -190,19 +189,19 @@ export function TemplateChooserModal({
 
             <View className="mt-3" />
             <ChooserRow
+              icon="settings"
+              title="Mon template global"
+              subtitle="Ta personnalisation par défaut, appliquée à toutes tes fiches."
+              onPress={() => onPick({ kind: 'blank' })}
+            />
+
+            <View className="mt-3" />
+            <ChooserRow
               icon="public"
               title="Template communautaire"
               subtitle="Pioche dans les templates partagés par d’autres lecteurs."
               onPress={() => setMode('community')}
               chevron
-            />
-
-            <View className="mt-3" />
-            <ChooserRow
-              icon="edit-note"
-              title="Nouveau template"
-              subtitle="Fiche vierge avec ta personnalisation par défaut."
-              onPress={() => onPick({ kind: 'blank' })}
             />
           </ScrollView>
         ) : null}
@@ -226,17 +225,38 @@ export function TemplateChooserModal({
 
         {mode === 'community' ? (
           <>
-            <Pressable
-              onPress={() => setDrawerOpen(true)}
-              className="mx-5 mb-2 flex-row items-center gap-2 rounded-full bg-paper-warm px-4 py-2.5 active:bg-paper-shade">
-              <MaterialIcons name="search" size={18} color={theme.inkMuted} />
-              <Text className="flex-1 text-sm text-ink-muted">
-                {filterChips.length === 0
-                  ? 'Rechercher, filtrer…'
-                  : filterChips.join(' · ')}
-              </Text>
-              <MaterialIcons name="tune" size={18} color={theme.inkMuted} />
-            </Pressable>
+            <View className="mx-5 mb-2 flex-row items-center gap-2">
+              <View className="flex-1 flex-row items-center gap-2 rounded-full bg-paper-warm px-4 py-2.5">
+                <MaterialIcons name="search" size={18} color={theme.inkMuted} />
+                <TextInput
+                  value={searchDraft}
+                  onChangeText={setSearchDraft}
+                  placeholder="Nom de template ou d’utilisateur…"
+                  placeholderTextColor={theme.inkMuted}
+                  style={{ color: theme.ink, flex: 1, fontSize: 14 }}
+                  autoCorrect={false}
+                  returnKeyType="search"
+                />
+                {searchDraft.length > 0 ? (
+                  <Pressable onPress={() => setSearchDraft('')} hitSlop={8}>
+                    <MaterialIcons name="close" size={16} color={theme.inkMuted} />
+                  </Pressable>
+                ) : null}
+              </View>
+              <Pressable
+                onPress={() => setDrawerOpen(true)}
+                accessibilityLabel="Filtrer les templates"
+                hitSlop={6}
+                className="h-11 w-11 items-center justify-center rounded-full bg-paper-warm active:bg-paper-shade">
+                <MaterialIcons name="tune" size={20} color={theme.ink} />
+                {hasActiveDrawerFilters ? (
+                  <View
+                    className="absolute h-2.5 w-2.5 rounded-full bg-accent"
+                    style={{ top: 8, right: 8 }}
+                  />
+                ) : null}
+              </Pressable>
+            </View>
             <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>
               {loading ? (
                 <View className="mt-12 items-center">
@@ -276,8 +296,8 @@ export function TemplateChooserModal({
       <TemplateSearchDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        initial={filters}
-        onApply={(next) => setFilters(next)}
+        value={filters}
+        onChange={setFilters}
       />
     </Modal>
   );

@@ -5,6 +5,8 @@ type Props = {
   style?: StyleProp<ViewStyle>;
   title?: string;
   author?: string;
+  // Icône affichée au centre. Default 'menu-book' (livre stylisé).
+  icon?: keyof typeof MaterialIcons.glyphMap;
 };
 
 // Faux livre stylisé pour la prévisualisation des templates (pas de livre
@@ -15,6 +17,7 @@ export function BookPlaceholder({
   style,
   title = 'Titre du livre',
   author = 'Auteur',
+  icon = 'menu-book',
 }: Props) {
   const flat = StyleSheet.flatten(style) as
     | { width?: number; height?: number; borderRadius?: number }
@@ -56,7 +59,7 @@ export function BookPlaceholder({
           backgroundColor: 'rgba(58, 50, 43, 0.12)',
         }}
       />
-      <MaterialIcons name="menu-book" size={iconSize} color="#8a7a66" />
+      <MaterialIcons name={icon} size={iconSize} color="#8a7a66" />
       {showLabels ? (
         <View style={{ alignItems: 'center', width: '100%' }}>
           <Text

@@ -269,6 +269,10 @@ export default function PublicSheetScreen() {
             <SheetPinchZoom
               naturalWidth={SHEET_MAX_WIDTH}
               availableWidth={windowWidth - 32}
+              outerStyle={{
+                backgroundColor: appearance.bgColor,
+                borderRadius: appearance.frame.radius,
+              }}
               skiaUnderlay={
                 useSkiaFond
                   ? ({
@@ -292,7 +296,7 @@ export default function PublicSheetScreen() {
                         translateX={translateX}
                         translateY={translateY}
                         fitScale={fitScale}
-                        yOffset={4}
+                        borderRadius={appearance.frame.radius}
                       />
                     )
                   : undefined
@@ -315,7 +319,6 @@ export default function PublicSheetScreen() {
                   translateX={translateX}
                   translateY={translateY}
                   fitScale={fitScale}
-                  yOffset={4}
                 />
               )}
             >
@@ -323,20 +326,12 @@ export default function PublicSheetScreen() {
                 entering={FadeInDown.duration(400)}
                 style={{
                   width: SHEET_MAX_WIDTH,
-                  marginTop: 4,
                   position: "relative",
                 }}
               >
                 <SheetSurface
                 appearance={appearance}
                 disableFond={useSkiaFond}
-                style={{
-                  shadowColor: "#000",
-                  shadowOpacity: 0.12,
-                  shadowRadius: 14,
-                  shadowOffset: { width: 0, height: 6 },
-                  elevation: 6,
-                }}
               >
                 <View className="flex-row items-start gap-3">
                   <BookCover

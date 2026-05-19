@@ -53,10 +53,19 @@
 // régression pour itérer.
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
+import {
+  Platform,
+  StyleSheet,
+  type StyleProp,
+  useWindowDimensions,
+  View,
+  type ViewStyle,
+} from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
+  runOnJS,
   type SharedValue,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -98,6 +107,13 @@ type Props = {
   // on désactive automatiquement sur web.
   enabled?: boolean;
   maxScaleCap?: number;
+  // Style appliqué à l'outer Animated.View (dim FIXE, hors CSS transform).
+  // Typt. utilisé pour la shadow + bgColor + borderRadius du sheet : posés
+  // sur l'outer, ils ne scale pas avec le pinch (vs la même shadow sur la
+  // SheetSurface qui scalerait par le CSS transform du inner). bgColor +
+  // borderRadius doivent matcher le sheet pour que la shadow épouse sa
+  // forme. Width/height sont overridés par les dims animées de l'outer.
+  outerStyle?: StyleProp<ViewStyle>;
 };
 
 const DEFAULT_MAX = 2.5;
@@ -110,6 +126,7 @@ export function SheetPinchZoom({
   skiaOverlay,
   enabled,
   maxScaleCap = DEFAULT_MAX,
+  outerStyle: outerStyleProp,
 }: Props) {
   const active = enabled ?? Platform.OS !== 'web';
   const { width: vw } = useWindowDimensions();
@@ -130,10 +147,28 @@ export function SheetPinchZoom({
   const savedScale = useSharedValue(1);
   const savedTx = useSharedValue(0);
   const savedTy = useSharedValue(0);
+  // Saved values dédiées au pan (séparées du pinch pour éviter qu'une
+  // gesture concurrente écrase les bases de l'autre).
+  const panSavedTx = useSharedValue(0);
+  const panSavedTy = useSharedValue(0);
   // True dès que l'user a pinch manuellement → on arrête de re-sync
   // automatiquement scale sur fitScale (sinon une rotation device ou
   // re-layout du parent clobbrerait son zoom).
   const userPinched = useSharedValue(false);
+
+  // `isZoomed` réactif au scale shared value, exposé au JS thread pour
+  // toggle l'enabled du Pan. Quand pas zoomé, le Pan est désactivé → le
+  // touch tombe dans le ScrollView parent (qui gère le scroll vertical
+  // de la page). Quand zoomé (scale > fitScale), le Pan capture le drag
+  // 1-doigt pour pan le contenu zoomé dans la zone visible.
+  const [isZoomed, setIsZoomed] = useState(false);
+  useAnimatedReaction(
+    () => scale.value > fitScale + 0.001,
+    (zoomed, prev) => {
+      if (zoomed !== prev) runOnJS(setIsZoomed)(zoomed);
+    },
+    [fitScale],
+  );
 
   // Re-sync scale = fitScale tant que l'user n'a pas pinch.
   useEffect(() => {
@@ -143,6 +178,32 @@ export function SheetPinchZoom({
       translateY.value = 0;
     }
   }, [fitScale, scale, translateX, translateY, userPinched]);
+
+  // Pan 1-doigt actif uniquement quand zoomé. activeOffsetX/Y([-5, 5])
+  // laisse passer les taps brefs sur les enfants (stickers, etc.) sans
+  // capturer le touch dès le 1er px de drift involontaire.
+  const pan = Gesture.Pan()
+    .enabled(active && isZoomed)
+    .maxPointers(1)
+    .activeOffsetX([-5, 5])
+    .activeOffsetY([-5, 5])
+    .onStart(() => {
+      'worklet';
+      userPinched.value = true;
+      panSavedTx.value = translateX.value;
+      panSavedTy.value = translateY.value;
+    })
+    .onUpdate((e) => {
+      'worklet';
+      const visualW = naturalWidth * scale.value;
+      const visualH = contentHeight * scale.value;
+      const outerW = naturalWidth * fitScale;
+      const outerH = contentHeight * fitScale;
+      const tx = panSavedTx.value + e.translationX;
+      const ty = panSavedTy.value + e.translationY;
+      translateX.value = Math.max(outerW - visualW, Math.min(0, tx));
+      translateY.value = Math.max(outerH - visualH, Math.min(0, ty));
+    });
 
   const pinch = Gesture.Pinch()
     .enabled(active)
@@ -222,9 +283,14 @@ export function SheetPinchZoom({
     naturalHeight: contentHeight,
   };
 
+  // Simultaneous : permet à pinch (2-doigts) et pan (1-doigt) de coexister
+  // — typt. l'user pince pour zoomer puis enchaîne sur un drag 1-doigt
+  // pour pan le contenu zoomé.
+  const gesture = Gesture.Simultaneous(pinch, pan);
+
   return (
-    <GestureDetector gesture={pinch}>
-      <Animated.View style={outerStyle}>
+    <GestureDetector gesture={gesture}>
+      <Animated.View style={[outerStyleProp, outerStyle]}>
         {/* Underlay Skia : rendu AVANT l'inner JSX → sous en z-order.
             absoluteFill sur l'outer, pointerEvents none. */}
         {skiaUnderlay && contentHeight > 0 ? (

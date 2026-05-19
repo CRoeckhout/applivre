@@ -2,6 +2,7 @@ import { BookCover } from '@/components/book-cover';
 import { BookPlaceholder } from '@/components/book-placeholder';
 import { SheetSurface } from '@/components/sheet-surface';
 import { StaticStickerLayer } from '@/components/static-sticker-layer';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import {
   hexWithAlpha,
   resolveSectionIcon,
@@ -30,6 +31,11 @@ type Props = {
   compact?: boolean;
   // Affiche une étoile "premium" en coin si true.
   premiumBadge?: boolean;
+  // Default true : la card s'enveloppe d'un wrapper paper-bg + radius +
+  // ombre pour se détacher du background. À mettre à false quand un parent
+  // gère déjà l'ombre (typt. consommateur dans un Swipeable, dont
+  // `overflow:'hidden'` clipperait l'ombre interne).
+  withShadow?: boolean;
 };
 
 export function TemplateCard({
@@ -39,7 +45,9 @@ export function TemplateCard({
   onPress,
   compact,
   premiumBadge,
+  withShadow = true,
 }: Props) {
+  const theme = useThemeColors();
   const appearance = template.appearance;
   const fontDef = getFont(appearance.fontId as any);
   const displayFont = fontDef.variants.display;
@@ -140,20 +148,37 @@ export function TemplateCard({
   // Wrapper position:relative pour aligner les bornes du StaticStickerLayer
   // sur celles de la SheetSurface (cf. app/sheet/view/[id].tsx) — les
   // positions x/y des stickers sont en fraction [0,1] de cette boîte.
+  //
+  // Ombre : on enveloppe la SheetSurface dans un wrapper `paper-bg + radius`
+  // pour qu'iOS calcule un `shadowPath` qui suit la forme arrondie (sans
+  // backgroundColor, le shadow tombe en rectangle sur le bbox). `paper` =
+  // couleur du bg de page → wrapper visuellement invisible. Désactivable
+  // via `withShadow={false}` quand un parent (typt. consommateur
+  // Swipeable dont `overflow:'hidden'` clipperait cette ombre) prend la
+  // responsabilité de l'ombre.
+  const inner_surface = (
+    <SheetSurface appearance={appearance} padding={compact ? 10 : 12}>
+      {inner}
+    </SheetSurface>
+  );
   const surface = (
     <View style={{ position: 'relative' }}>
-      <SheetSurface
-        appearance={appearance}
-        padding={compact ? 10 : 12}
-        style={{
-          shadowColor: '#000',
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
-          shadowOffset: { width: 0, height: 3 },
-          elevation: 2,
-        }}>
-        {inner}
-      </SheetSurface>
+      {withShadow ? (
+        <View
+          style={{
+            borderRadius: appearance.frame.radius,
+            backgroundColor: theme.paper,
+            shadowColor: '#000',
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            shadowOffset: { width: 0, height: 1 },
+            elevation: 2,
+          }}>
+          {inner_surface}
+        </View>
+      ) : (
+        inner_surface
+      )}
       {/* Stickers cachés en headerOnly (galerie/liste) : la mini-card n'a
           pas les bonnes proportions pour rendre les positions x/y telles
           quelles. Affichés en preview pleine (édition, viewer public). */}

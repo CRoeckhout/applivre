@@ -500,6 +500,10 @@ export default function TemplateEditorScreen() {
             <SheetPinchZoom
               naturalWidth={SHEET_MAX_WIDTH}
               availableWidth={windowWidth}
+              outerStyle={{
+                backgroundColor: appearance.bgColor,
+                borderRadius: appearance.frame.radius,
+              }}
               skiaUnderlay={
                 useSkiaFond
                   ? ({
@@ -523,7 +527,7 @@ export default function TemplateEditorScreen() {
                         translateX={translateX}
                         translateY={translateY}
                         fitScale={fitScale}
-                        yOffset={8}
+                        borderRadius={appearance.frame.radius}
                       />
                     )
                   : undefined
@@ -547,23 +551,15 @@ export default function TemplateEditorScreen() {
                   translateX={translateX}
                   translateY={translateY}
                   fitScale={fitScale}
-                  yOffset={8}
                 />
               )}
             >
               <Animated.View
                 entering={FadeInDown.duration(400)}
-                style={{ width: SHEET_MAX_WIDTH, marginTop: 8, position: 'relative' }}>
+                style={{ width: SHEET_MAX_WIDTH, position: 'relative' }}>
                 <SheetSurface
                 appearance={appearance}
-                disableFond={useSkiaFond}
-                style={{
-                  shadowColor: '#000',
-                  shadowOpacity: 0.12,
-                  shadowRadius: 14,
-                  shadowOffset: { width: 0, height: 6 },
-                  elevation: 6,
-                }}>
+                disableFond={useSkiaFond}>
                 <View className="flex-row items-start gap-3">
                   <BookPlaceholder style={{ width: 48, height: 72, borderRadius: 6 }} />
                   <View className="flex-1">

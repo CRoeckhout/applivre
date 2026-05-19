@@ -86,6 +86,9 @@ export function SkiaStaticStickerLayer({
   const visibleStickers = skipIds && skipIds.length > 0
     ? stickers.filter((s) => !skipIds.includes(s.id))
     : stickers;
+  // Skip complet si aucun sticker à rendre → pas de Canvas vide qui
+  // poserait un artefact d'antialiasing sur les rounded corners JSX.
+  const shouldRender = visibleStickers.length > 0;
   // Transform appliquée à TOUT le contenu du Canvas.
   // `scale.value` côté SheetPinchZoom est DÉJÀ clampé à [fitScale, maxScale]
   // (l'useEffect de re-sync force scale.value = fitScale à l'idle). On
@@ -120,6 +123,8 @@ export function SkiaStaticStickerLayer({
     },
     [translateX, translateY, scale, yOffset],
   );
+
+  if (!shouldRender) return null;
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">

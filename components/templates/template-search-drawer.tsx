@@ -1,19 +1,16 @@
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { useReadingSheetTemplates, type TemplateSort } from '@/store/reading-sheet-templates';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
 import {
   Modal,
   Pressable,
   ScrollView,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export type SearchDrawerValue = {
-  search: string;
   genres: string[];
   sort: TemplateSort;
   includePremium: boolean;
@@ -22,8 +19,8 @@ export type SearchDrawerValue = {
 type Props = {
   open: boolean;
   onClose: () => void;
-  initial: SearchDrawerValue;
-  onApply: (next: SearchDrawerValue) => void;
+  value: SearchDrawerValue;
+  onChange: (next: SearchDrawerValue) => void;
 };
 
 const SORT_OPTIONS: { value: TemplateSort; label: string }[] = [
@@ -32,47 +29,32 @@ const SORT_OPTIONS: { value: TemplateSort; label: string }[] = [
   { value: 'liked', label: 'Les plus aimés' },
 ];
 
-// Drawer plein écran avec filtres : recherche texte (nom user/template),
-// checkboxes genres prédéfinis, tri, et coche Premium (cochée par défaut à
-// chaque ouverture). La coche Premium est volontairement re-cochée à chaque
-// ouverture — l'idée est que la décision "je veux voir aussi les premium"
-// soit prise consciemment à chaque session.
-export function TemplateSearchDrawer({ open, onClose, initial, onApply }: Props) {
+export const DEFAULT_TEMPLATE_FILTERS: SearchDrawerValue = {
+  genres: [],
+  sort: 'popular',
+  includePremium: true,
+};
+
+// Drawer plein écran avec filtres : checkboxes genres, tri, coche Premium.
+// La recherche texte vit hors drawer, en input dédié dans le parent (même
+// pattern que /sheets). Pas de bouton Appliquer — les changements remontent
+// immédiatement au parent.
+export function TemplateSearchDrawer({ open, onClose, value, onChange }: Props) {
   const theme = useThemeColors();
   const insets = useSafeAreaInsets();
   const genres = useReadingSheetTemplates((s) => s.genres);
 
-  const [search, setSearch] = useState(initial.search);
-  const [selectedGenres, setSelectedGenres] = useState<string[]>(initial.genres);
-  const [sort, setSort] = useState<TemplateSort>(initial.sort);
-  const [includePremium, setIncludePremium] = useState(true); // re-coché à chaque open
-
-  useEffect(() => {
-    if (open) {
-      setSearch(initial.search);
-      setSelectedGenres(initial.genres);
-      setSort(initial.sort);
-      setIncludePremium(true);
-    }
-  }, [open, initial]);
-
   const toggleGenre = (slug: string) => {
-    setSelectedGenres((prev) =>
-      prev.includes(slug) ? prev.filter((g) => g !== slug) : [...prev, slug],
-    );
+    const next = value.genres.includes(slug)
+      ? value.genres.filter((g) => g !== slug)
+      : [...value.genres, slug];
+    onChange({ ...value, genres: next });
   };
 
-  const apply = () => {
-    onApply({ search: search.trim(), genres: selectedGenres, sort, includePremium });
-    onClose();
-  };
-
-  const reset = () => {
-    setSearch('');
-    setSelectedGenres([]);
-    setSort('popular');
-    setIncludePremium(true);
-  };
+  const setSort = (sort: TemplateSort) => onChange({ ...value, sort });
+  const togglePremium = () =>
+    onChange({ ...value, includePremium: !value.includePremium });
+  const reset = () => onChange(DEFAULT_TEMPLATE_FILTERS);
 
   return (
     <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
@@ -90,30 +72,10 @@ export function TemplateSearchDrawer({ open, onClose, initial, onApply }: Props)
         <ScrollView
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}
           keyboardShouldPersistTaps="handled">
-          <View className="rounded-2xl bg-paper-warm px-3 py-2">
-            <View className="flex-row items-center gap-2">
-              <MaterialIcons name="search" size={18} color={theme.inkMuted} />
-              <TextInput
-                value={search}
-                onChangeText={setSearch}
-                placeholder="Nom de template ou d’utilisateur…"
-                placeholderTextColor={theme.inkMuted}
-                style={{ color: theme.ink, flex: 1, fontSize: 14 }}
-                autoCorrect={false}
-                returnKeyType="search"
-              />
-              {search.length > 0 ? (
-                <Pressable onPress={() => setSearch('')} hitSlop={8}>
-                  <MaterialIcons name="close" size={16} color={theme.inkMuted} />
-                </Pressable>
-              ) : null}
-            </View>
-          </View>
-
-          <Text className="mt-5 font-sans-med text-sm text-ink-muted">Genres</Text>
+          <Text className="font-sans-med text-sm text-ink-muted">Genres</Text>
           <View className="mt-2 flex-row flex-wrap gap-2">
             {genres.map((g) => {
-              const active = selectedGenres.includes(g.slug);
+              const active = value.genres.includes(g.slug);
               return (
                 <Pressable
                   key={g.slug}
@@ -136,7 +98,7 @@ export function TemplateSearchDrawer({ open, onClose, initial, onApply }: Props)
           <Text className="mt-5 font-sans-med text-sm text-ink-muted">Trier par</Text>
           <View className="mt-2 gap-2">
             {SORT_OPTIONS.map((opt) => {
-              const active = sort === opt.value;
+              const active = value.sort === opt.value;
               return (
                 <Pressable
                   key={opt.value}
@@ -154,7 +116,7 @@ export function TemplateSearchDrawer({ open, onClose, initial, onApply }: Props)
           </View>
 
           <Pressable
-            onPress={() => setIncludePremium((v) => !v)}
+            onPress={togglePremium}
             className="mt-5 flex-row items-center justify-between rounded-2xl bg-paper-warm px-4 py-3 active:bg-paper-shade">
             <View className="flex-row items-center gap-2">
               <MaterialIcons name="star" size={16} color="#f59e0b" />
@@ -164,23 +126,18 @@ export function TemplateSearchDrawer({ open, onClose, initial, onApply }: Props)
               </View>
             </View>
             <MaterialIcons
-              name={includePremium ? 'check-box' : 'check-box-outline-blank'}
+              name={value.includePremium ? 'check-box' : 'check-box-outline-blank'}
               size={22}
-              color={includePremium ? theme.accent : theme.inkMuted}
+              color={value.includePremium ? theme.accent : theme.inkMuted}
             />
           </Pressable>
         </ScrollView>
 
-        <View className="flex-row gap-3 px-5 pt-3" style={{ paddingBottom: 12 }}>
+        <View className="px-5 pt-3" style={{ paddingBottom: 12 }}>
           <Pressable
             onPress={reset}
-            className="flex-1 items-center rounded-full bg-paper-warm px-4 py-3 active:bg-paper-shade">
+            className="items-center rounded-full bg-paper-warm px-4 py-3 active:bg-paper-shade">
             <Text className="font-sans-med text-sm text-ink">Réinitialiser</Text>
-          </Pressable>
-          <Pressable
-            onPress={apply}
-            className="flex-1 items-center rounded-full bg-accent px-4 py-3 active:opacity-80">
-            <Text className="font-sans-med text-sm text-paper">Appliquer</Text>
           </Pressable>
         </View>
       </View>
