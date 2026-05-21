@@ -1,4 +1,5 @@
 import { PremiumPaywallModal } from '@/components/premium-paywall-modal';
+import { ReportMenuButton } from '@/components/report/report-menu-button';
 import { TemplateCard } from '@/components/template-card';
 import { UserCard } from '@/components/user-card';
 import { useAuth } from '@/hooks/use-auth';
@@ -115,17 +116,28 @@ export default function TemplateViewScreen() {
           className="h-10 w-10 items-center justify-center rounded-full active:opacity-60">
           <MaterialIcons name="arrow-back" size={22} color={theme.ink} />
         </Pressable>
-        <Pressable
-          onPress={handleLike}
-          hitSlop={8}
-          className="flex-row items-center gap-1 rounded-full bg-paper-warm px-3 py-1.5 active:bg-paper-shade">
-          <MaterialIcons
-            name={template.isLiked ? 'favorite' : 'favorite-border'}
-            size={16}
-            color={template.isLiked ? '#d4493e' : theme.ink}
+        <View className="flex-row items-center gap-2">
+          <Pressable
+            onPress={handleLike}
+            hitSlop={8}
+            className="flex-row items-center gap-1 rounded-full bg-paper-warm px-3 py-1.5 active:bg-paper-shade">
+            <MaterialIcons
+              name={template.isLiked ? 'favorite' : 'favorite-border'}
+              size={16}
+              color={template.isLiked ? '#d4493e' : theme.ink}
+            />
+            <Text className="font-sans-med text-sm text-ink">{template.likesCount}</Text>
+          </Pressable>
+          {/* Signaler : visible uniquement sur un template qui n'est pas le
+              nôtre (hidden=isOwner masque totalement — on ne signale pas
+              son propre contenu, le serveur le rejetterait aussi). */}
+          <ReportMenuButton
+            target={{ kind: 'template', id: template.id }}
+            size={20}
+            color={theme.ink}
+            hidden={isOwner}
           />
-          <Text className="font-sans-med text-sm text-ink">{template.likesCount}</Text>
-        </Pressable>
+        </View>
       </View>
 
       <ScrollView contentContainerClassName="px-4 pb-32">

@@ -100,6 +100,7 @@ export function TemplateChooserModal({
       genres: filters.genres,
       sort: filters.sort,
       includePremium: filters.includePremium,
+      likedOnly: filters.likedOnly,
       limit: 50,
     })
       .then((rows) => {
@@ -117,7 +118,8 @@ export function TemplateChooserModal({
   const hasActiveDrawerFilters =
     filters.genres.length !== DEFAULT_TEMPLATE_FILTERS.genres.length ||
     filters.sort !== DEFAULT_TEMPLATE_FILTERS.sort ||
-    filters.includePremium !== DEFAULT_TEMPLATE_FILTERS.includePremium;
+    filters.includePremium !== DEFAULT_TEMPLATE_FILTERS.includePremium ||
+    filters.likedOnly !== DEFAULT_TEMPLATE_FILTERS.likedOnly;
 
   const pick = (
     t: ReadingSheetTemplate | PublicReadingSheetTemplate,

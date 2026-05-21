@@ -15,7 +15,7 @@
 -- ═════════════ Table principale ═════════════
 
 create table if not exists public.reading_sheets_templates (
-  id              uuid primary key default uuid_generate_v4(),
+  id              uuid primary key default gen_random_uuid(),
   user_id         uuid not null references auth.users(id) on delete cascade,
   name            text not null check (char_length(name) between 1 and 80),
   -- jsonb miroir du content des reading_sheets : { appearance, sections,

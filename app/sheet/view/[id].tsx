@@ -222,13 +222,9 @@ export default function PublicSheetScreen() {
             <Text className="font-sans-med text-xs text-ink">Éditer</Text>
           </Pressable>
         ) : (
-          <View className="h-10 w-10 items-center justify-center">
-            <ReportMenuButton
-              target={{ kind: "sheet", id: bundle.sheet_id }}
-              size={22}
-              color={themeInk}
-            />
-          </View>
+          // Spacer pour préserver le justify-between du header. Le report
+          // est désormais dans la pill sticky en bas, à droite du love.
+          <View className="h-10 w-10" />
         )}
       </View>
 
@@ -426,6 +422,9 @@ export default function PublicSheetScreen() {
           >
             <View
               style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
                 paddingHorizontal: 20,
                 paddingVertical: 10,
                 borderRadius: 999,
@@ -443,6 +442,27 @@ export default function PublicSheetScreen() {
                 target={{ kind: "sheet", id: bundle.sheet_id }}
                 currentUserId={currentUserId}
               />
+              {/* Menu Signaler : visible uniquement sur une fiche qui n'est
+                  pas la nôtre (ReportMenuButton avec hidden=isOwner — masque
+                  totalement, on ne signale pas sa propre fiche). Séparateur
+                  vertical pour démarquer l'action engagement (love) de
+                  l'action modération (...). */}
+              {!isOwner ? (
+                <>
+                  <View
+                    style={{
+                      width: 1,
+                      height: 22,
+                      backgroundColor: hexWithAlpha(themeInk, 0.18),
+                    }}
+                  />
+                  <ReportMenuButton
+                    target={{ kind: "sheet", id: bundle.sheet_id }}
+                    size={20}
+                    color={themeInk}
+                  />
+                </>
+              ) : null}
             </View>
           </View>
         ) : null}

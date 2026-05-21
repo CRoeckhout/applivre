@@ -130,13 +130,19 @@ export default function TemplateEditorScreen() {
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
   const [finalizeOpen, setFinalizeOpen] = useState(false);
+  // Drawer "Publication" pour éditer name/genres/isPublic d'un template
+  // existant. Reprend FinalizeDrawer en mode 'edit' (pas de bouton "Créer").
+  const [publishDrawerOpen, setPublishDrawerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Draft local + historique undo/redo unifié pour sections + stickers +
   // appearance. Aligné sur l'éditeur de fiche : toute mutation est undoable,
   // rien n'est persisté en DB avant tap sur le bouton Enregistrer.
-  // Le name / les genres / isPublic restent hors undo (gérés via le
-  // FinalizeDrawer pour les nouveaux templates, immuables pour les existants).
+  // Le name / les genres / isPublic sont VOLONTAIREMENT hors undo : ce sont
+  // de la metadata de publication, conceptuellement séparée du design. En
+  // édition, ils sont persistés directement au tap "Enregistrer" du drawer
+  // Publication (cf. persistMetadata), pas via le save du header.
+  // En création, ils sont collectés une fois par FinalizeDrawer au "Valider".
   const {
     draft: sections,
     draftStickers: stickers,
@@ -340,13 +346,12 @@ export default function TemplateEditorScreen() {
   const persistUpdate = async () => {
     if (!existing) return;
     setSaving(true);
+    // Header save = design uniquement. name / genres / isPublic sont
+    // gérés séparément par le drawer Publication (cf. persistMetadata).
     const t = await updateTemplate(existing.id, {
-      name,
       appearance,
       sections,
       stickers,
-      genres: selectedGenres,
-      isPublic,
     });
     setSaving(false);
     if (!t) {
@@ -354,6 +359,35 @@ export default function TemplateEditorScreen() {
       return;
     }
     router.back();
+  };
+
+  // Persiste immédiatement les changements de publication (name/genres/
+  // isPublic) sans toucher au design. Branché sur le bouton "Enregistrer"
+  // du drawer Publication, donc seulement appelé en édition d'un existing.
+  const persistMetadata = async () => {
+    if (!existing) return;
+    setSaving(true);
+    const t = await updateTemplate(existing.id, {
+      name: name.trim() || existing.name,
+      genres: selectedGenres,
+      isPublic,
+    });
+    setSaving(false);
+    if (!t) {
+      Alert.alert('Erreur', "Impossible d'enregistrer la publication.");
+      return;
+    }
+    setPublishDrawerOpen(false);
+  };
+
+  // Revert : si l'user ferme le drawer sans valider, on remet les valeurs
+  // persistées pour éviter qu'un toggle non-confirmé ne traîne en state
+  // local jusqu'à la prochaine sauvegarde.
+  const revertMetadata = () => {
+    if (!existing) return;
+    setName(existing.name);
+    setSelectedGenres(existing.genres);
+    setIsPublic(existing.isPublic);
   };
 
   const handleDelete = () => {
@@ -386,10 +420,10 @@ export default function TemplateEditorScreen() {
   const fontDef = getFont(appearance.fontId as any);
   const fontFamily = fontDef.variants.display;
 
-  // Dirty check pour le bouton save :
+  // Dirty check pour le bouton save du header :
   //   - Existing : compare draft (sections/stickers/appearance) vs persisté.
-  //     Name/genres/isPublic ne sont pas éditables côté éditeur (seul le
-  //     FinalizeDrawer les modifie, et il n'est utilisé qu'à la création).
+  //     name / genres / isPublic ne participent PAS — ils sont saved
+  //     directement au tap "Enregistrer" du drawer Publication.
   //   - New : on autorise dès qu'il y a au moins une section — `handleNext`
   //     ouvrira le FinalizeDrawer pour collecter nom/genres avant persist.
   const dirty = isNew
@@ -646,6 +680,20 @@ export default function TemplateEditorScreen() {
               label: 'Ajouter un sticker',
               onPress: () => setStickerPickerOpen(true),
             },
+            // Publication : pas pertinent à la création (FinalizeDrawer s'en
+            // charge au tap "Valider"), seulement en édition d'un existing.
+            ...(isNew
+              ? []
+              : [
+                  {
+                    key: 'publish-status' as const,
+                    icon: 'public' as const,
+                    label: 'Publication',
+                    description: 'Nom, catégories, partage public',
+                    active: isPublic,
+                    onPress: () => setPublishDrawerOpen(true),
+                  },
+                ]),
           ]}
         />
 
@@ -698,9 +746,25 @@ export default function TemplateEditorScreen() {
         }}
       />
 
+      {/* Drawer commun création + édition.
+          - Mode 'create' (isNew) : collecte nom/genres/partage puis appelle
+            persistCreate qui POST le template complet.
+          - Mode 'edit' (existing) : "Enregistrer" appelle persistMetadata
+            (updateTemplate partiel — name/genres/isPublic uniquement, le
+            design n'est pas touché). Fermer sans valider (X / backdrop)
+            revert au state persisté pour éviter qu'un toggle non-confirmé
+            ne reste en mémoire. */}
       <FinalizeDrawer
-        open={finalizeOpen}
-        onClose={() => setFinalizeOpen(false)}
+        mode={isNew ? 'create' : 'edit'}
+        open={isNew ? finalizeOpen : publishDrawerOpen}
+        onClose={() => {
+          if (isNew) {
+            setFinalizeOpen(false);
+            return;
+          }
+          setPublishDrawerOpen(false);
+          revertMetadata();
+        }}
         name={name}
         onChangeName={setName}
         defaultName={seed?.defaultName}
@@ -710,7 +774,7 @@ export default function TemplateEditorScreen() {
         isPublic={isPublic}
         onToggleIsPublic={setIsPublic}
         saving={saving}
-        onConfirm={persistCreate}
+        onConfirm={isNew ? persistCreate : persistMetadata}
         theme={theme}
       />
     </SafeAreaView>
@@ -718,10 +782,16 @@ export default function TemplateEditorScreen() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Drawer de finalisation : ouvert après l'édition pour collecter
-// nom + catégories + partage. Le bouton "Créer le template" persiste en DB.
+// Drawer de finalisation / publication.
+//   - Mode 'create' (template neuf) : collecte nom + catégories + partage,
+//     puis persiste via "Créer le template" (onConfirm = createTemplate).
+//   - Mode 'edit' (template existant) : édite les mêmes champs mais en
+//     local state seulement. onConfirm ferme le drawer ; la persistance
+//     passe par le bouton Enregistrer du header (le dirty check inclut
+//     name/genres/isPublic).
 // ═══════════════════════════════════════════════════════════════════════
 function FinalizeDrawer({
+  mode,
   open,
   onClose,
   name,
@@ -736,6 +806,7 @@ function FinalizeDrawer({
   onConfirm,
   theme,
 }: {
+  mode: 'create' | 'edit';
   open: boolean;
   onClose: () => void;
   name: string;
@@ -751,6 +822,7 @@ function FinalizeDrawer({
   theme: { ink: string; inkMuted: string };
 }) {
   const insets = useSafeAreaInsets();
+  const heading = mode === 'create' ? 'Finaliser le template' : 'Publication';
   return (
     <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable onPress={onClose} className="flex-1 bg-ink/40" />
@@ -758,7 +830,7 @@ function FinalizeDrawer({
         className="absolute bottom-0 left-0 right-0 rounded-t-3xl bg-paper"
         style={{ paddingBottom: insets.bottom, maxHeight: '90%' }}>
         <View className="flex-row items-center justify-between px-5 pb-3 pt-4">
-          <Text className="font-display text-xl text-ink">Finaliser le template</Text>
+          <Text className="font-display text-xl text-ink">{heading}</Text>
           <Pressable
             onPress={onClose}
             hitSlop={8}
@@ -820,20 +892,38 @@ function FinalizeDrawer({
         </ScrollView>
 
         <View className="flex-row gap-3 px-5 pt-3" style={{ paddingBottom: 12 }}>
-          <Pressable
-            onPress={onClose}
-            className="flex-1 items-center rounded-full bg-paper-warm px-4 py-3 active:bg-paper-shade">
-            <Text className="font-sans-med text-sm text-ink">Retour</Text>
-          </Pressable>
-          <Pressable
-            onPress={onConfirm}
-            disabled={saving}
-            className="flex-1 items-center rounded-full bg-accent px-4 py-3 active:opacity-80"
-            style={{ opacity: saving ? 0.6 : 1 }}>
-            <Text className="font-sans-med text-sm text-paper">
-              {saving ? 'Enregistrement…' : 'Créer le template'}
-            </Text>
-          </Pressable>
+          {mode === 'create' ? (
+            <>
+              <Pressable
+                onPress={onClose}
+                className="flex-1 items-center rounded-full bg-paper-warm px-4 py-3 active:bg-paper-shade">
+                <Text className="font-sans-med text-sm text-ink">Retour</Text>
+              </Pressable>
+              <Pressable
+                onPress={onConfirm}
+                disabled={saving}
+                className="flex-1 items-center rounded-full bg-accent px-4 py-3 active:opacity-80"
+                style={{ opacity: saving ? 0.6 : 1 }}>
+                <Text className="font-sans-med text-sm text-paper">
+                  {saving ? 'Enregistrement…' : 'Créer le template'}
+                </Text>
+              </Pressable>
+            </>
+          ) : (
+            // Mode édition : "Enregistrer" persiste immédiatement la
+            // metadata (name/genres/isPublic) via updateTemplate partiel.
+            // Le design (sections/stickers/appearance) reste géré par le
+            // save du header.
+            <Pressable
+              onPress={onConfirm}
+              disabled={saving}
+              className="flex-1 items-center rounded-full bg-accent px-4 py-3 active:opacity-80"
+              style={{ opacity: saving ? 0.6 : 1 }}>
+              <Text className="font-sans-med text-sm text-paper">
+                {saving ? 'Enregistrement…' : 'Enregistrer'}
+              </Text>
+            </Pressable>
+          )}
         </View>
       </View>
     </Modal>

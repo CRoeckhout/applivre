@@ -14,6 +14,7 @@ export type SearchDrawerValue = {
   genres: string[];
   sort: TemplateSort;
   includePremium: boolean;
+  likedOnly: boolean;
 };
 
 type Props = {
@@ -33,6 +34,7 @@ export const DEFAULT_TEMPLATE_FILTERS: SearchDrawerValue = {
   genres: [],
   sort: 'popular',
   includePremium: true,
+  likedOnly: false,
 };
 
 // Drawer plein écran avec filtres : checkboxes genres, tri, coche Premium.
@@ -54,6 +56,8 @@ export function TemplateSearchDrawer({ open, onClose, value, onChange }: Props) 
   const setSort = (sort: TemplateSort) => onChange({ ...value, sort });
   const togglePremium = () =>
     onChange({ ...value, includePremium: !value.includePremium });
+  const toggleLikedOnly = () =>
+    onChange({ ...value, likedOnly: !value.likedOnly });
   const reset = () => onChange(DEFAULT_TEMPLATE_FILTERS);
 
   return (
@@ -116,8 +120,27 @@ export function TemplateSearchDrawer({ open, onClose, value, onChange }: Props) 
           </View>
 
           <Pressable
-            onPress={togglePremium}
+            onPress={toggleLikedOnly}
             className="mt-5 flex-row items-center justify-between rounded-2xl bg-paper-warm px-4 py-3 active:bg-paper-shade">
+            <View className="flex-row items-center gap-2">
+              <MaterialIcons name="favorite" size={16} color="#d4493e" />
+              <View>
+                <Text className="text-sm text-ink">Que j&apos;ai aimés</Text>
+                <Text className="text-xs text-ink-muted">
+                  Limite aux templates que tu as likés.
+                </Text>
+              </View>
+            </View>
+            <MaterialIcons
+              name={value.likedOnly ? 'check-box' : 'check-box-outline-blank'}
+              size={22}
+              color={value.likedOnly ? theme.accent : theme.inkMuted}
+            />
+          </Pressable>
+
+          <Pressable
+            onPress={togglePremium}
+            className="mt-3 flex-row items-center justify-between rounded-2xl bg-paper-warm px-4 py-3 active:bg-paper-shade">
             <View className="flex-row items-center gap-2">
               <MaterialIcons name="star" size={16} color="#f59e0b" />
               <View>

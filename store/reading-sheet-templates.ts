@@ -42,6 +42,8 @@ export type ListPublicFilters = {
   creatorId?: string;
   limit?: number;
   offset?: number;
+  // Restreint aux templates likés par le caller (auth.uid() côté serveur).
+  likedOnly?: boolean;
 };
 
 type State = {
@@ -211,6 +213,7 @@ export const useReadingSheetTemplates = create<State>((set, get) => ({
       p_creator_id: filters.creatorId ?? null,
       p_limit: filters.limit ?? 30,
       p_offset: filters.offset ?? 0,
+      p_liked_only: filters.likedOnly ?? false,
     });
     if (error) {
       console.warn('[templates] listPublic failed', error.message);

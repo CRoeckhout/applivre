@@ -28,7 +28,8 @@ export type ReportTargetKind =
   | "comment"
   | "sheet"
   | "bingo"
-  | "user";
+  | "user"
+  | "template";
 
 export type ReportTarget = {
   kind: ReportTargetKind;
@@ -62,6 +63,7 @@ const KIND_LABELS: Record<ReportTargetKind, string> = {
   sheet: "cette fiche de lecture",
   bingo: "ce bingo",
   user: "ce profil",
+  template: "ce template",
 };
 
 type Props = {

@@ -84,6 +84,7 @@ export default function TemplatesScreen() {
       genres: filters.genres,
       sort: filters.sort,
       includePremium: filters.includePremium,
+      likedOnly: filters.likedOnly,
       limit: 50,
     })
       .then((rows) => {
@@ -109,7 +110,8 @@ export default function TemplatesScreen() {
   const hasActiveDrawerFilters =
     filters.genres.length !== DEFAULT_TEMPLATE_FILTERS.genres.length ||
     filters.sort !== DEFAULT_TEMPLATE_FILTERS.sort ||
-    filters.includePremium !== DEFAULT_TEMPLATE_FILTERS.includePremium;
+    filters.includePremium !== DEFAULT_TEMPLATE_FILTERS.includePremium ||
+    filters.likedOnly !== DEFAULT_TEMPLATE_FILTERS.likedOnly;
 
   // Filtre local de "Mes templates" : par nom, et par genres si la coche
   // genre est posée dans le drawer. La sort/premium du drawer ne s'applique
