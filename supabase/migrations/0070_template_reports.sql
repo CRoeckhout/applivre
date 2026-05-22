@@ -1,10 +1,16 @@
--- 0070 — Signalements pour templates de fiches de lecture.
+-- 0070 — Signalements de templates + filtre "Que j'ai aimés".
 --
--- Ajoute le kind 'template' au flow de modération existant (cf. 0065) :
---   - whitelist user-side `report_content`
---   - switch-case admin (queue / user_reports / moderate)
---   - colonnes de soft-delete sur `reading_sheets_templates`
---   - filtre `removed_at is null` dans les RPCs de listing public.
+-- Deux concerns groupés (squash de l'ancien 0070+0071) :
+--
+-- 1) Modération templates (kind 'template' ajouté au flow de 0065) :
+--    - whitelist user-side `report_content`
+--    - switch-case admin (queue / user_reports / moderate)
+--    - colonnes de soft-delete sur `reading_sheets_templates`
+--    - filtre `removed_at is null` dans les RPCs de listing public.
+--
+-- 2) Galerie communautaire : param `p_liked_only` sur `list_public_templates`.
+--    Quand true, restreint aux templates likés par auth.uid() (EXISTS, pour
+--    ne pas casser le sort 'liked' qui order by likes_count global).
 --
 -- Tout est idempotent (create or replace + if not exists) — sûr à re-jouer.
 
@@ -397,10 +403,21 @@ $$;
 
 grant execute on function public.admin_moderate(uuid[], text, text) to authenticated;
 
--- ═════════════ list_public_templates : filtre removed ═════════════
+-- ═════════════ list_public_templates : filtre removed + liked-only ═════════════
 -- Un template soft-deleted disparait de la galerie publique. Le creator
 -- voit toujours sa row côté `mine` (fetchMine ne passe pas par cette RPC)
 -- mais ne peut plus la repartager tant que l'admin n'a pas restauré.
+--
+-- `p_liked_only` (EXISTS) : restreint aux templates likés par auth.uid().
+-- EXISTS plutôt que JOIN pour ne pas dédupliquer ou casser le sort 'liked'
+-- qui order by `likes_count` global (et pas par like du caller).
+--
+-- Drop explicite de l'ancienne signature 7-param (créée par 0068) avant
+-- d'ajouter la version 8-param — sinon PostgreSQL laisse les deux overloads
+-- coexister et le client appelle l'ancienne tant qu'on ne précise pas
+-- p_liked_only.
+drop function if exists public.list_public_templates(text, text[], text, boolean, uuid, integer, integer);
+
 create or replace function public.list_public_templates(
   p_search          text default null,
   p_genres          text[] default null,
@@ -408,7 +425,8 @@ create or replace function public.list_public_templates(
   p_include_premium boolean default true,
   p_creator_id      uuid default null,
   p_limit           integer default 30,
-  p_offset          integer default 0
+  p_offset          integer default 0,
+  p_liked_only      boolean default false
 )
 returns table (
   template_id     uuid,
@@ -465,6 +483,13 @@ as $$
       p_genres is null or array_length(p_genres, 1) is null
       or t.genres && p_genres
     )
+    and (
+      not coalesce(p_liked_only, false)
+      or exists (
+        select 1 from public.reading_sheets_template_likes l
+         where l.template_id = t.id and l.user_id = auth.uid()
+      )
+    )
   order by
     case when p_sort = 'liked' then t.likes_count end desc nulls last,
     case when p_sort = 'recent' or p_sort = 'popular' then t.updated_at end desc nulls last,
@@ -473,7 +498,7 @@ as $$
   offset greatest(coalesce(p_offset, 0), 0);
 $$;
 
-grant execute on function public.list_public_templates(text, text[], text, boolean, uuid, integer, integer) to authenticated;
+grant execute on function public.list_public_templates(text, text[], text, boolean, uuid, integer, integer, boolean) to authenticated;
 
 -- ═════════════ get_public_template : filtre removed ═════════════
 -- L'owner reste autorisé à voir sa propre row (même soft-deleted, utile
