@@ -21,6 +21,7 @@ export type QueuedOp =
   | { kind: 'deleteUserBook'; payload: { id: string } }
   | { kind: 'insertSession'; payload: { session: ReadingSession } }
   | { kind: 'deleteSession'; payload: { id: string } }
+  | { kind: 'updateSessionNote'; payload: { id: string; note: string | null } }
   | { kind: 'upsertCycle'; payload: { cycle: ReadCycle } }
   | { kind: 'upsertLoan'; payload: { loan: BookLoan } }
   | { kind: 'deleteLoan'; payload: { id: string } }

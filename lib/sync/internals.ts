@@ -120,6 +120,18 @@ export async function internalDeleteSession(id: string): Promise<void> {
   await throwIfError(supabase.from('reading_sessions').delete().eq('id', id));
 }
 
+export async function internalUpdateSessionNote(
+  id: string,
+  note: string | null,
+): Promise<void> {
+  await throwIfError(
+    supabase
+      .from('reading_sessions')
+      .update({ note: note && note.trim() ? note.trim() : null })
+      .eq('id', id),
+  );
+}
+
 // Read cycles
 export async function internalUpsertCycle(c: ReadCycle): Promise<void> {
   await throwIfError(

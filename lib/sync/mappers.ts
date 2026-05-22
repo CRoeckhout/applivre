@@ -124,6 +124,10 @@ export type DbReadingSession = {
   duration_sec: number;
   stopped_at_page: number;
   started_at: string;
+  // Note libre (migration 0072). Nullable côté DB — côté store on expose
+  // undefined (jamais '' pour distinguer "vide" de "pas saisie", utile
+  // pour décider d'afficher l'indicateur dans la liste).
+  note: string | null;
 };
 
 export function sessionFromDb(row: DbReadingSession): ReadingSession {
@@ -134,6 +138,7 @@ export function sessionFromDb(row: DbReadingSession): ReadingSession {
     durationSec: row.duration_sec,
     stoppedAtPage: row.stopped_at_page,
     startedAt: row.started_at,
+    note: row.note ?? undefined,
   };
 }
 
@@ -145,6 +150,7 @@ export function sessionToDb(s: ReadingSession): DbReadingSession {
     duration_sec: s.durationSec,
     stopped_at_page: s.stoppedAtPage,
     started_at: s.startedAt,
+    note: s.note?.trim() ? s.note.trim() : null,
   };
 }
 

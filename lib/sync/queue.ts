@@ -10,6 +10,7 @@ import {
   internalDeleteStreakDay,
   internalEnsureStreakDayAuto,
   internalDeleteSession,
+  internalUpdateSessionNote,
   internalDeleteUserBook,
   internalInsertSession,
   internalUpsertBingo,
@@ -46,6 +47,8 @@ export async function executeEntry(entry: QueueEntry): Promise<void> {
       return internalInsertSession(entry.payload.session);
     case 'deleteSession':
       return internalDeleteSession(entry.payload.id);
+    case 'updateSessionNote':
+      return internalUpdateSessionNote(entry.payload.id, entry.payload.note);
     case 'upsertCycle':
       return internalUpsertCycle(entry.payload.cycle);
     case 'upsertLoan':

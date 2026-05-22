@@ -3,6 +3,7 @@ import { KeyboardDismissBar } from "@/components/keyboard-dismiss-bar";
 import { PremiumPaywallModal } from "@/components/premium-paywall-modal";
 import { RatingIcon } from "@/components/rating-row";
 import { CategoryDrawer } from "@/components/sheet/category-drawer";
+import { SessionNotesDrawer } from "@/components/session-notes-drawer";
 import { SheetActionBar } from "@/components/sheet/sheet-action-bar";
 import { SheetSectionEditor } from "@/components/sheet/sheet-section-editor";
 import { ShareSheetModal } from "@/components/sheet/share-sheet-modal";
@@ -220,6 +221,16 @@ export default function SheetScreen() {
   const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
   const [customizerOpen, setCustomizerOpen] = useState(false);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
+  const [sessionNotesOpen, setSessionNotesOpen] = useState(false);
+  // Compte des notes de sessions pour ce livre — sert juste à conditionner
+  // le sous-titre et le flag `active` du bouton de l'action bar. Pas de
+  // sélecteur dérivé dans le store pour éviter les re-renders inutiles.
+  const sessionNotesCount = useTimer((s) =>
+    userBook
+      ? s.sessions.filter((x) => x.userBookId === userBook.id && x.note?.trim())
+          .length
+      : 0,
+  );
   const [selectedStickerId, setSelectedStickerId] = useState<string | null>(
     null,
   );
@@ -972,6 +983,17 @@ export default function SheetScreen() {
               onPress: () => setStickerPickerOpen(true),
             },
             {
+              key: 'session-notes',
+              icon: 'edit-note',
+              label: 'Notes de sessions',
+              description:
+                sessionNotesCount > 0
+                  ? `${sessionNotesCount} note${sessionNotesCount > 1 ? 's' : ''} sur ce livre`
+                  : "Tes pensées notées pendant tes lectures",
+              active: sessionNotesCount > 0,
+              onPress: () => setSessionNotesOpen(true),
+            },
+            {
               key: 'save-as-template',
               icon: 'auto-awesome-mosaic',
               label: 'Sauvegarder comme template',
@@ -1069,6 +1091,12 @@ export default function SheetScreen() {
           const placedId = placeStickerDraft(stickerId);
           if (placedId) setSelectedStickerId(placedId);
         }}
+      />
+
+      <SessionNotesDrawer
+        open={sessionNotesOpen}
+        onClose={() => setSessionNotesOpen(false)}
+        userBookId={userBook.id}
       />
 
       <PremiumPaywallModal

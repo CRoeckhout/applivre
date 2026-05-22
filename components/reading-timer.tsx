@@ -1,11 +1,14 @@
 import { BookCover } from "@/components/book-cover";
 import { MusicPlayerPanel } from "@/components/reading-music/music-player-panel";
+import { SessionNoteEditorModal } from "@/components/session-note-editor-modal";
 import { formatDuration, useElapsedTime } from "@/hooks/use-elapsed-time";
 import { useBookshelf } from "@/store/bookshelf";
 import { useTimer } from "@/store/timer";
+import { MaterialIcons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
-import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = {
   userBookId: string;
@@ -176,11 +179,13 @@ export function ActiveTimerPanel({
   const active = useTimer((s) => s.active);
   const pause = useTimer((s) => s.pause);
   const resume = useTimer((s) => s.resume);
+  const setDraftNote = useTimer((s) => s.setDraftNote);
   const ub = useBookshelf((s) =>
     active ? s.books.find((b) => b.id === active.userBookId) : undefined,
   );
   const elapsed = useElapsedTime();
   const [finishOpen, setFinishOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
 
   useEffect(() => {
     if (autoOpenFinish) {
@@ -265,7 +270,33 @@ export function ActiveTimerPanel({
         </Pressable>
       </View>
 
+      {/* Bouton Notes : ouvre l'éditeur. Affiche "Modifier ma note" quand un
+          draft existe déjà — l'user voit immédiatement qu'il en a écrit une. */}
+      <Pressable
+        onPress={() => setNoteOpen(true)}
+        accessibilityLabel="Ajouter une note à cette session"
+        className="mt-4 flex-row items-center justify-center gap-2 rounded-full bg-paper/10 px-4 py-2.5 active:opacity-70"
+      >
+        <MaterialIcons
+          name={active.draftNote?.trim() ? 'edit-note' : 'note-add'}
+          size={18}
+          color="#fbf8f4"
+        />
+        <Text className="font-sans-med text-sm text-paper">
+          {active.draftNote?.trim() ? 'Modifier ma note' : 'Ajouter une note'}
+        </Text>
+      </Pressable>
+
       <MusicPlayerPanel />
+
+      <SessionNoteEditorModal
+        open={noteOpen}
+        onClose={() => setNoteOpen(false)}
+        initialValue={active.draftNote}
+        onSave={(text) => setDraftNote(text)}
+        title="Note de session"
+        subtitle="Brouillon — sauvegardé à la fin de la session."
+      />
 
       <FinishSessionModal
         open={finishOpen}
@@ -299,6 +330,12 @@ function FinishSessionModal({
     return p && p > 0 ? p : undefined;
   });
   const [page, setPage] = useState("");
+  // Note pré-remplie depuis le draft (saisi pendant la session). À la
+  // fermeture du modal, on resync ce local state quand open passe à true.
+  const [note, setNote] = useState("");
+  useEffect(() => {
+    if (open) setNote(active?.draftNote ?? "");
+  }, [open, active?.draftNote]);
 
   const parsed = parseInt(page, 10);
   const overLimit =
@@ -306,8 +343,9 @@ function FinishSessionModal({
 
   const commit = (pageNum: number, markFinished: boolean) => {
     const safe = Math.max(0, pageNum);
-    stop(safe);
+    stop(safe, note);
     setPage("");
+    setNote("");
     onClose();
     if (markFinished) onBookFinished?.(safe);
   };
@@ -324,17 +362,48 @@ function FinishSessionModal({
   };
 
   // "Fini" marque toujours le livre terminé, avec ou sans pages connues.
+  // Action non-réversible (clôt le cycle, change le statut du livre) → on
+  // demande confirmation pour éviter un tap accidentel à côté du save.
   const onFini = () => {
     const n = parseInt(page, 10);
     const final = totalPages ?? (Number.isFinite(n) ? n : 0);
-    commit(final, true);
+    Alert.alert(
+      "Tu as fini le livre ?",
+      "Le livre passera en « lu » et ce cycle de lecture sera clôturé.",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Oui, j'ai fini",
+          style: "default",
+          onPress: () => commit(final, true),
+        },
+      ],
+    );
   };
 
+  // Jeter perd la session en cours (temps + éventuelle note draft). Pareil :
+  // confirmation pour éviter de tout perdre par accident.
   const onDiscard = () => {
-    cancel();
-    setPage("");
-    onClose();
+    Alert.alert(
+      "Jeter cette session ?",
+      "Le temps écoulé et la note en cours seront perdus. Cette action est irréversible.",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Jeter",
+          style: "destructive",
+          onPress: () => {
+            cancel();
+            setPage("");
+            setNote("");
+            onClose();
+          },
+        },
+      ],
+    );
   };
+
+  const insets = useSafeAreaInsets();
 
   return (
     <Modal
@@ -347,13 +416,29 @@ function FinishSessionModal({
         onPress={onClose}
         className="flex-1 bg-ink/60"
       >
+        {/* paddingTop/Bottom = insets pour respecter la safe area top
+            (status bar) et bottom (home indicator). justifyContent: center
+            calé sur l'espace disponible entre les insets → la modal ne
+            déborde plus quand le clavier monte (le ScrollView interne
+            scrolle si le contenu dépasse). */}
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1, justifyContent: "center", paddingHorizontal: 24 }}
+          style={{
+            flex: 1,
+            justifyContent: "center",
+            paddingHorizontal: 24,
+            paddingTop: insets.top + 12,
+            paddingBottom: insets.bottom + 12,
+          }}
         >
         <Pressable
-          className="rounded-3xl bg-paper p-6"
+          className="rounded-3xl bg-paper"
           onPress={(e) => e.stopPropagation()}
+        >
+        <ScrollView
+          contentContainerStyle={{ padding: 24 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           <Text className="font-display text-2xl text-ink">Fin de session</Text>
           <Text className="mt-2 text-ink-muted">
@@ -391,6 +476,25 @@ function FinishSessionModal({
               Plafonné à {totalPages} pages.
             </Text>
           )}
+
+          {/* Note libre — optionnelle. Pré-remplie depuis le draft saisi
+              pendant la session. Persistée avec la session au tap save. */}
+          <Text className="mt-5 mb-2 text-xs font-sans-med uppercase text-ink-muted">
+            Note (optionnel)
+          </Text>
+          <View className="rounded-2xl bg-paper-warm px-4 py-3">
+            <TextInput
+              value={note}
+              onChangeText={setNote}
+              placeholder="Ce que tu retiens, un passage…"
+              placeholderTextColor="#6b6259"
+              multiline
+              maxLength={5000}
+              textAlignVertical="top"
+              style={{ color: "#1a1410", minHeight: 80, fontSize: 14 }}
+            />
+          </View>
+
           <View className="mt-6 gap-2">
             <Pressable
               onPress={onSave}
@@ -417,6 +521,7 @@ function FinishSessionModal({
               </Text>
             </Pressable>
           </View>
+        </ScrollView>
         </Pressable>
         </KeyboardAvoidingView>
       </Pressable>

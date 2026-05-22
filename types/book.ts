@@ -53,6 +53,9 @@ export type ReadingSession = {
   durationSec: number;
   stoppedAtPage: number;
   startedAt: string;
+  // Note libre saisie par l'utilisateur pendant ou après la session.
+  // Editable a posteriori depuis la liste de sessions ou la fiche du livre.
+  note?: string;
 };
 
 export type BookLoan = {

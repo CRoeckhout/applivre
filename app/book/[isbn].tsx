@@ -7,6 +7,7 @@ import { LoanTracker } from "@/components/loan-tracker";
 import { PauseBookModal } from "@/components/pause-book-modal";
 import { PublicSheetsForBook } from "@/components/public-sheets-for-book";
 import { ReadingTimer } from "@/components/reading-timer";
+import { SessionNoteEditorModal } from "@/components/session-note-editor-modal";
 import { SheetCard } from "@/components/sheet-card";
 import { useAuth } from "@/hooks/use-auth";
 import { formatDurationHuman } from "@/hooks/use-elapsed-time";
@@ -755,6 +756,7 @@ function SessionRow({
     day: "2-digit",
     month: "short",
   });
+  const [noteOpen, setNoteOpen] = useState(false);
 
   // La validation du défi quotidien est dérivée des sessions (autoDays =
   // somme des durées par jour). Supprimer une session recalcule donc la
@@ -775,29 +777,51 @@ function SessionRow({
     );
   };
 
+  const hasNote = !!session.note?.trim();
+
   return (
-    <Swipeable
-      renderRightActions={() => <DeleteSessionAction onPress={onDelete} />}
-      overshootRight={false}
-      rightThreshold={48}
-    >
-      <View
-        className={`mt-2 flex-row items-center justify-between rounded-xl px-4 py-3 ${
-          inCard ? "bg-paper" : "bg-paper-warm"
-        }`}
+    <>
+      <Swipeable
+        renderRightActions={() => <DeleteSessionAction onPress={onDelete} />}
+        overshootRight={false}
+        rightThreshold={48}
       >
-        <Text className="text-sm text-ink-soft">{dateStr}</Text>
-        <View className="flex-row gap-4">
-          <Text className="text-sm text-ink">
-            {formatDurationHuman(session.durationSec)}
-          </Text>
-          <Text className="text-sm text-ink-muted">
-            p. {session.stoppedAtPage}
-            {delta > 0 ? ` · +${delta}` : ""}
-          </Text>
-        </View>
-      </View>
-    </Swipeable>
+        <Pressable
+          onPress={() => setNoteOpen(true)}
+          accessibilityLabel={
+            hasNote ? "Voir et modifier la note" : "Ajouter une note"
+          }
+          className={`mt-2 flex-row items-center justify-between rounded-xl px-4 py-3 active:opacity-80 ${
+            inCard ? "bg-paper" : "bg-paper-warm"
+          }`}
+        >
+          <View className="flex-row items-center gap-2">
+            <Text className="text-sm text-ink-soft">{dateStr}</Text>
+            {hasNote ? (
+              <MaterialIcons name="edit-note" size={16} color="#c27b52" />
+            ) : null}
+          </View>
+          <View className="flex-row gap-4">
+            <Text className="text-sm text-ink">
+              {formatDurationHuman(session.durationSec)}
+            </Text>
+            <Text className="text-sm text-ink-muted">
+              p. {session.stoppedAtPage}
+              {delta > 0 ? ` · +${delta}` : ""}
+            </Text>
+          </View>
+        </Pressable>
+      </Swipeable>
+      <SessionNoteEditorModal
+        open={noteOpen}
+        onClose={() => setNoteOpen(false)}
+        initialValue={session.note}
+        onSave={(text) =>
+          useTimer.getState().updateSessionNote(session.id, text)
+        }
+        subtitle={`${dateStr} · ${formatDurationHuman(session.durationSec)} · p. ${session.stoppedAtPage}`}
+      />
+    </>
   );
 }
 

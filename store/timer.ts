@@ -6,6 +6,7 @@ import {
   rpcFinishReadingCycle,
   syncDeleteSession,
   syncInsertSession,
+  syncUpdateSessionNote,
   syncUpsertCycle,
 } from '@/lib/sync/writers';
 import { useBookshelf } from '@/store/bookshelf';
@@ -26,6 +27,10 @@ type ActiveSession = {
   startedAt: number;
   accumulatedPausedMs: number;
   pausedAt: number | null;
+  // Brouillon de note saisi pendant la session via le bouton Notes du
+  // timer. Flushé sur la ReadingSession finale au stop. Persisté avec
+  // l'active pour survivre à un kill app pendant que le timer tourne.
+  draftNote?: string;
 };
 
 type TimerState = {
@@ -42,9 +47,17 @@ type TimerState = {
   // `resumeRef` : soit `{ virtualStartMs }` (Live Activity iOS — startedAt
   // déjà avancé natif), soit `{ atMs }` (instant du tap), soit rien (in-app).
   resume: (resumeRef?: { atMs?: number; virtualStartMs?: number }) => void;
-  stop: (stoppedAtPage: number) => ReadingSession | null;
+  // `note` : override le draftNote (typique depuis TimerStopModal qui a
+  // sa propre textarea pré-remplie). Si omis, on flush draftNote tel quel.
+  stop: (stoppedAtPage: number, note?: string) => ReadingSession | null;
   cancel: () => void;
   deleteSession: (sessionId: string) => void;
+  // Saisie pendant la session active. Pas de persistance DB tant que la
+  // session n'est pas stoppée — le draft vit dans `active`.
+  setDraftNote: (note: string) => void;
+  // Édition a posteriori d'une note de session déjà persistée. Met à
+  // jour le store local + push (queueable).
+  updateSessionNote: (sessionId: string, note: string) => void;
 
   // Cycles
   finishCycle: (
@@ -135,7 +148,7 @@ export const useTimer = create<TimerState>()(
         });
       },
 
-      stop: (stoppedAtPage) => {
+      stop: (stoppedAtPage, note) => {
         const { active } = get();
         if (!active) return null;
         const endTime = active.pausedAt ?? Date.now();
@@ -143,6 +156,11 @@ export const useTimer = create<TimerState>()(
           0,
           Math.round((endTime - active.startedAt - active.accumulatedPausedMs) / 1000),
         );
+        // L'override `note` du caller (typique : TimerStopModal) prend le
+        // pas sur le draft. trim → null pour rester cohérent avec la DB
+        // qui reçoit null pour les notes vides (cf. sessionToDb).
+        const rawNote = note ?? active.draftNote;
+        const trimmed = rawNote?.trim();
         const session: ReadingSession = {
           id: newId(),
           userBookId: active.userBookId,
@@ -150,6 +168,7 @@ export const useTimer = create<TimerState>()(
           durationSec,
           stoppedAtPage: Math.max(0, Math.floor(stoppedAtPage)),
           startedAt: new Date(active.startedAt).toISOString(),
+          note: trimmed ? trimmed : undefined,
         };
         set((s) => ({ active: null, sessions: [session, ...s.sessions] }));
         const userId = getSyncUserId();
@@ -168,6 +187,31 @@ export const useTimer = create<TimerState>()(
       },
 
       cancel: () => set({ active: null }),
+
+      setDraftNote: (note) => {
+        const { active } = get();
+        if (!active) return;
+        set({ active: { ...active, draftNote: note } });
+      },
+
+      updateSessionNote: (sessionId, note) => {
+        const trimmed = note.trim();
+        const next = trimmed ? trimmed : undefined;
+        let changed = false;
+        set((s) => {
+          const idx = s.sessions.findIndex((x) => x.id === sessionId);
+          if (idx < 0) return s;
+          if (s.sessions[idx].note === next) return s;
+          changed = true;
+          const sessions = [...s.sessions];
+          sessions[idx] = { ...sessions[idx], note: next };
+          return { sessions };
+        });
+        if (!changed) return;
+        if (getSyncUserId()) {
+          void syncUpdateSessionNote(sessionId, trimmed || null);
+        }
+      },
 
       deleteSession: (sessionId) => {
         const removed = get().sessions.find((s) => s.id === sessionId);
