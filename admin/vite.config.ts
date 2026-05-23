@@ -4,6 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_JSON_PATH = path.resolve(dirname, '../app.json');
 const ADMIN_PACKAGE_PATH = path.resolve(dirname, 'package.json');
@@ -58,7 +60,7 @@ function watchAppVersion(): Plugin {
 // même résolution que Metro : un fichier `.web.js` est préféré au `.js`.
 // Skia v2 et RN-Web s'appuient sur cette convention.
 export default defineConfig({
-  plugins: [react(), watchAppVersion()],
+  plugins: [react(), watchAppVersion(), cloudflare()],
   server: {
     host: '0.0.0.0',
     port: 5173,
