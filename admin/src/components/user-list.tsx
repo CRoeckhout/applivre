@@ -84,7 +84,8 @@ export function UserList({
           key={u.user_id}
           onClick={() => onSelect(u.user_id)}
           selected={selectedUserId === u.user_id}
-          title={name}>
+          title={name}
+        >
           <div
             style={{
               width: "100%",
@@ -99,7 +100,8 @@ export function UserList({
               fontSize: 10,
               fontWeight: 600,
               color: "var(--ink-muted)",
-            }}>
+            }}
+          >
             {u.avatar_url ? (
               <img
                 src={u.avatar_url}
@@ -131,229 +133,242 @@ export function UserList({
         </CollapsedAsideStrip>
       )}
       {isMobile && <MobileAsideBackdrop onClose={toggleCollapsed} />}
-    <aside
-      ref={scrollerRef}
-      style={{
-        width: 360,
-        borderRight: "1px solid var(--line)",
-        overflow: "auto",
-        background: "var(--surface)",
-        ...(isMobile ? MOBILE_ASIDE_OVERLAY_STYLE : null),
-      }}>
-      <div
+      <aside
+        ref={scrollerRef}
         style={{
-          padding: "12px 16px",
-          borderBottom: "1px solid var(--line)",
-          position: "sticky",
-          top: 0,
+          width: 300,
+          borderRight: "1px solid var(--line)",
+          overflow: "auto",
           background: "var(--surface)",
-          zIndex: 1,
-        }}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
-          <AsideCollapseButton onCollapse={toggleCollapsed} />
-          <input
-            type="search"
-            placeholder="username, display name, email…"
-            value={query}
-            onChange={(e) => onQueryChange(e.target.value)}
+          ...(isMobile ? MOBILE_ASIDE_OVERLAY_STYLE : null),
+        }}
+      >
+        <div
+          style={{
+            padding: "12px 16px",
+            borderBottom: "1px solid var(--line)",
+            position: "sticky",
+            top: 0,
+            background: "var(--surface)",
+            zIndex: 1,
+          }}
+        >
+          <div
             style={{
-              flex: 1,
-              minWidth: 0,
-              padding: "6px 10px",
-              border: "1px solid var(--line)",
-              borderRadius: 6,
-              fontSize: 13,
-              boxSizing: "border-box",
+              display: "flex",
+              gap: 8,
+              marginBottom: 8,
+              alignItems: "center",
             }}
-          />
-        </div>
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 6,
-            marginTop: 8,
-          }}>
-          {USER_FILTERS.map((f) => {
-            const active = activeFilters.has(f);
-            return (
-              <button
-                key={f}
-                onClick={() => onToggleFilter(f)}
-                style={{
-                  padding: "4px 10px",
-                  borderRadius: 999,
-                  border: "1px solid",
-                  borderColor: active ? "var(--accent)" : "var(--line)",
-                  background: active ? "var(--accent)" : "var(--surface)",
-                  color: active ? "white" : "var(--ink)",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}>
-                {FILTER_LABELS[f]}
-              </button>
-            );
-          })}
-        </div>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginTop: 8,
-            gap: 8,
-          }}>
-          <select
-            value={sort}
-            onChange={(e) => onSortChange(e.target.value as UserListSort)}
-            style={{
-              flex: 1,
-              padding: "4px 8px",
-              border: "1px solid var(--line)",
-              borderRadius: 6,
-              background: "var(--surface)",
-              fontSize: 12,
-            }}>
-            {USER_SORTS.map((s) => (
-              <option key={s} value={s}>
-                Tri : {SORT_LABELS[s]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
-          {loading
-            ? "Chargement…"
-            : `${users.length} affichés / ${total} total`}
-        </div>
-      </div>
-      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-        {users.map((u) => {
-          const selected = selectedUserId === u.user_id;
-          const name =
-            u.username || u.display_name || u.email || "(anonyme)";
-          const initials = initialsOf(name);
-          return (
-            <li
-              key={u.user_id}
-              onClick={() => onSelect(u.user_id)}
+          >
+            <AsideCollapseButton onCollapse={toggleCollapsed} />
+            <input
+              type="search"
+              placeholder="username, display name, email…"
+              value={query}
+              onChange={(e) => onQueryChange(e.target.value)}
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "10px 16px",
-                cursor: "pointer",
-                background: selected
-                  ? "var(--surface-2)"
-                  : "transparent",
-                borderBottom: "1px solid var(--line)",
-              }}>
-              <div
+                flex: 1,
+                minWidth: 0,
+                padding: "6px 10px",
+                border: "1px solid var(--line)",
+                borderRadius: 6,
+                fontSize: 13,
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 6,
+              marginTop: 8,
+            }}
+          >
+            {USER_FILTERS.map((f) => {
+              const active = activeFilters.has(f);
+              return (
+                <button
+                  key={f}
+                  onClick={() => onToggleFilter(f)}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 999,
+                    border: "1px solid",
+                    borderColor: active ? "var(--accent)" : "var(--line)",
+                    background: active ? "var(--accent)" : "var(--surface)",
+                    color: active ? "white" : "var(--ink)",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {FILTER_LABELS[f]}
+                </button>
+              );
+            })}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginTop: 8,
+              gap: 8,
+            }}
+          >
+            <select
+              value={sort}
+              onChange={(e) => onSortChange(e.target.value as UserListSort)}
+              style={{
+                flex: 1,
+                padding: "4px 8px",
+                border: "1px solid var(--line)",
+                borderRadius: 6,
+                background: "var(--surface)",
+                fontSize: 12,
+              }}
+            >
+              {USER_SORTS.map((s) => (
+                <option key={s} value={s}>
+                  Tri : {SORT_LABELS[s]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
+            {loading
+              ? "Chargement…"
+              : `${users.length} affichés / ${total} total`}
+          </div>
+        </div>
+        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {users.map((u) => {
+            const selected = selectedUserId === u.user_id;
+            const name = u.username || u.display_name || u.email || "(anonyme)";
+            const initials = initialsOf(name);
+            return (
+              <li
+                key={u.user_id}
+                onClick={() => onSelect(u.user_id)}
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: "50%",
-                  background: "var(--surface-3)",
-                  border: "1px solid var(--line)",
-                  overflow: "hidden",
-                  flexShrink: 0,
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: "var(--ink-muted)",
-                }}>
-                {u.avatar_url ? (
-                  <img
-                    src={u.avatar_url}
-                    alt=""
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                    }}
-                  />
-                ) : (
-                  initials
-                )}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
+                  gap: 12,
+                  padding: "10px 16px",
+                  cursor: "pointer",
+                  background: selected ? "var(--surface-2)" : "transparent",
+                  borderBottom: "1px solid var(--line)",
+                }}
+              >
                 <div
                   style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: "50%",
+                    background: "var(--surface-3)",
+                    border: "1px solid var(--line)",
+                    overflow: "hidden",
+                    flexShrink: 0,
                     display: "flex",
                     alignItems: "center",
-                    gap: 6,
+                    justifyContent: "center",
                     fontSize: 13,
                     fontWeight: 600,
-                    overflow: "hidden",
-                  }}>
-                  <span
+                    color: "var(--ink-muted)",
+                  }}
+                >
+                  {u.avatar_url ? (
+                    <img
+                      src={u.avatar_url}
+                      alt=""
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                    />
+                  ) : (
+                    initials
+                  )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
                     style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {name}
+                    </span>
+                    {u.is_premium ? (
+                      <span title="Premium" style={miniChip("#d4a017")}>
+                        P
+                      </span>
+                    ) : null}
+                    {u.is_admin ? (
+                      <span title="Admin" style={miniChip("var(--accent)")}>
+                        A
+                      </span>
+                    ) : null}
+                  </div>
+                  <div
+                    className="muted"
+                    style={{
+                      fontSize: 11,
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
-                    }}>
-                    {name}
-                  </span>
-                  {u.is_premium ? (
-                    <span title="Premium" style={miniChip("#d4a017")}>
-                      P
-                    </span>
-                  ) : null}
-                  {u.is_admin ? (
-                    <span title="Admin" style={miniChip("var(--accent)")}>
-                      A
-                    </span>
-                  ) : null}
+                    }}
+                  >
+                    {u.email ?? "—"}
+                  </div>
+                  <div className="muted" style={{ fontSize: 10, marginTop: 2 }}>
+                    {u.last_activity_at
+                      ? formatRelative(u.last_activity_at)
+                      : "jamais actif"}{" "}
+                    · {u.books_count} livre{u.books_count > 1 ? "s" : ""}
+                  </div>
                 </div>
-                <div
-                  className="muted"
-                  style={{
-                    fontSize: 11,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}>
-                  {u.email ?? "—"}
-                </div>
-                <div
-                  className="muted"
-                  style={{ fontSize: 10, marginTop: 2 }}>
-                  {u.last_activity_at
-                    ? formatRelative(u.last_activity_at)
-                    : "jamais actif"}{" "}
-                  · {u.books_count} livre{u.books_count > 1 ? "s" : ""}
-                </div>
-              </div>
+              </li>
+            );
+          })}
+          {!loading && users.length === 0 && (
+            <li style={{ padding: 24, textAlign: "center" }} className="muted">
+              Aucun utilisateur
             </li>
-          );
-        })}
-        {!loading && users.length === 0 && (
-          <li
-            style={{ padding: 24, textAlign: "center" }}
-            className="muted">
-            Aucun utilisateur
-          </li>
-        )}
-        {users.length > 0 && hasMore && (
-          <li
-            style={{ padding: 12, textAlign: "center", fontSize: 11 }}
-            className="muted">
-            {loadingMore ? "Chargement…" : `${users.length} / ${total}`}
-          </li>
-        )}
-        {users.length > 0 && !hasMore && (
-          <li
-            style={{ padding: 12, textAlign: "center", fontSize: 11 }}
-            className="muted">
-            Fin · {total} utilisateur{total > 1 ? "s" : ""}
-          </li>
-        )}
-      </ul>
-    </aside>
+          )}
+          {users.length > 0 && hasMore && (
+            <li
+              style={{ padding: 12, textAlign: "center", fontSize: 11 }}
+              className="muted"
+            >
+              {loadingMore ? "Chargement…" : `${users.length} / ${total}`}
+            </li>
+          )}
+          {users.length > 0 && !hasMore && (
+            <li
+              style={{ padding: 12, textAlign: "center", fontSize: 11 }}
+              className="muted"
+            >
+              Fin · {total} utilisateur{total > 1 ? "s" : ""}
+            </li>
+          )}
+        </ul>
+      </aside>
     </>
   );
 }

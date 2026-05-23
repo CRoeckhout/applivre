@@ -414,6 +414,7 @@ export type ReadingSessionRow = {
   stopped_at_page: number;
   started_at: string;
   cycle_id: string | null;
+  note: string | null;
 };
 
 export type LoanDirection = 'lent' | 'borrowed';

@@ -45,7 +45,7 @@ export type LoanWithBook = BookLoanRow & {
 export type SessionWithBook = ReadingSessionRow & {
   user_book: {
     book_isbn: string;
-    book: { isbn: string; title: string } | null;
+    book: { isbn: string; title: string; cover_url: string | null } | null;
   };
 };
 
