@@ -466,6 +466,7 @@ export function App() {
             collapsed={sidebarCollapsed}
             onClick={() => supabase.auth.signOut()}
           />
+          <VersionBadge collapsed={sidebarCollapsed} />
         </div>
       </aside>
 
@@ -683,6 +684,132 @@ function MoonIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
     </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 8h.01M11 12h1v4h1" />
+    </svg>
+  );
+}
+
+// Badge version backoffice : déclencheur sobre (icône "i") dans le pied de
+// sidebar. Tooltip révélé au hover (desktop) OU au click — le click pin
+// l'état pour le tactile, où le hover CSS ne s'applique pas. Cliquer ailleurs
+// referme. Pas de lib externe — un peu de state + CSS suffit.
+function VersionBadge({ collapsed }: { collapsed: boolean }) {
+  const [pinned, setPinned] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!pinned) return;
+    function onDocClick(e: MouseEvent) {
+      if (!wrapRef.current) return;
+      if (!wrapRef.current.contains(e.target as Node)) setPinned(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [pinned]);
+
+  return (
+    <>
+      <style>{`
+        .version-badge-wrap { position: relative; }
+        .version-badge-tooltip {
+          position: absolute;
+          bottom: calc(100% + 6px);
+          left: 12px;
+          background: var(--ink);
+          color: var(--surface);
+          padding: 6px 10px;
+          border-radius: 6px;
+          font-size: 11px;
+          font-weight: 500;
+          white-space: nowrap;
+          pointer-events: none;
+          opacity: 0;
+          transform: translateY(2px);
+          transition: opacity 140ms ease, transform 140ms ease;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+          z-index: 10;
+        }
+        .version-badge-tooltip.centered {
+          left: 50%;
+          transform: translate(-50%, 2px);
+        }
+        .version-badge-tooltip::after {
+          content: "";
+          position: absolute;
+          top: 100%;
+          left: 12px;
+          width: 8px;
+          height: 8px;
+          background: var(--ink);
+          transform: translateY(-4px) rotate(45deg);
+        }
+        .version-badge-tooltip.centered::after {
+          left: 50%;
+          margin-left: -4px;
+        }
+        .version-badge-wrap:hover .version-badge-tooltip,
+        .version-badge-tooltip.pinned {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        .version-badge-wrap:hover .version-badge-tooltip.centered,
+        .version-badge-tooltip.centered.pinned {
+          transform: translate(-50%, 0);
+        }
+      `}</style>
+      <div ref={wrapRef} className="version-badge-wrap">
+        <button
+          onClick={() => setPinned((p) => !p)}
+          aria-label={`Version backoffice : v${__ADMIN_VERSION__}`}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            textAlign: "left",
+            padding: collapsed ? "6px 0" : "6px 12px",
+            justifyContent: collapsed ? "center" : "flex-start",
+            borderRadius: 8,
+            border: "none",
+            background: "transparent",
+            color: "var(--ink-muted)",
+            fontSize: 11,
+            fontWeight: 500,
+            cursor: "pointer",
+            width: "100%",
+            opacity: 0.7,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.opacity = "1";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.opacity = "0.7";
+          }}
+        >
+          <span style={{ display: "inline-flex", flexShrink: 0 }}>
+            <InfoIcon />
+          </span>
+          {!collapsed && <span>Backoffice</span>}
+        </button>
+        <div
+          className={[
+            "version-badge-tooltip",
+            collapsed ? "centered" : "",
+            pinned ? "pinned" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          Backoffice v{__ADMIN_VERSION__}
+        </div>
+      </div>
+    </>
   );
 }
 

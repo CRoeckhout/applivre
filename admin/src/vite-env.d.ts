@@ -12,3 +12,7 @@ interface ImportMeta {
 // Injecté par vite.config.ts depuis `app.json > expo.version` au build.
 // Utilisé par le form "Quoi de neuf" pour pré-remplir la version courante.
 declare const __APP_VERSION__: string;
+
+// Injecté par vite.config.ts depuis `admin/package.json > version`.
+// Affichée dans le tooltip en pied de sidebar.
+declare const __ADMIN_VERSION__: string;

@@ -6,6 +6,7 @@ import { defineConfig, type Plugin } from 'vite';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_JSON_PATH = path.resolve(dirname, '../app.json');
+const ADMIN_PACKAGE_PATH = path.resolve(dirname, 'package.json');
 
 // Source de vérité de la version de l'app mobile : `app.json` à la racine
 // du repo, lu au build (et au démarrage du dev server). Injecté via
@@ -16,6 +17,13 @@ const appJson = JSON.parse(readFileSync(APP_JSON_PATH, 'utf-8')) as {
   expo?: { version?: string };
 };
 const APP_VERSION = appJson.expo?.version ?? '0.0.0';
+
+// Version du backoffice lui-même (admin/package.json). Affichée dans un
+// tooltip en pied de sidebar pour identifier la révision déployée.
+const adminPackage = JSON.parse(readFileSync(ADMIN_PACKAGE_PATH, 'utf-8')) as {
+  version?: string;
+};
+const ADMIN_VERSION = adminPackage.version ?? '0.0.0';
 
 // Plugin : surveille `app.json` (hors du root admin) et redémarre le dev
 // server quand il change. Sans ça, un bump de `expo.version` reste invisible
@@ -93,6 +101,7 @@ export default defineConfig({
     // dans le browser. On l'alias sur `globalThis` (= `window` en web).
     global: 'globalThis',
     __APP_VERSION__: JSON.stringify(APP_VERSION),
+    __ADMIN_VERSION__: JSON.stringify(ADMIN_VERSION),
   },
   optimizeDeps: {
     include: [
