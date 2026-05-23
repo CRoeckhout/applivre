@@ -6,28 +6,43 @@ import Foundation
 // Activity. S'exécutent dans le process du widget (ou de l'app si elle est
 // en foreground) → pas d'ouverture de l'app contrairement aux Link.
 //
-// Important : on met à jour le ContentState de l'Activity DIRECTEMENT ici
-// avec un timestamp `Date()` capturé à l'instant du tap. Raison : si le
-// device est verrouillé, le process JS de l'app est suspendu et le Darwin
-// notification observer ne firera qu'au déverouillage. Sans update local,
-// la Live Activity afficherait encore le timer qui tourne (ou qui tournerait
-// encore après resume) jusqu'à ce que JS réveille — feedback cassé.
+// Architecture deux-writers :
 //
-// L'app principale est ensuite notifiée via la Darwin notification (queuée
-// par l'OS si l'app dort). Quand JS se réveille, il lit le ContentState
-// déjà à jour (pausedAt côté pause, startedAt avancé côté resume) pour
-// réconcilier le store avec le timestamp natif du tap au lieu de Date.now().
+//   1. L'intent fait un update best-effort de l'Activity DIRECTEMENT depuis
+//      le widget process. Critique car les updates faites par l'app en
+//      background sont throttled par iOS (économie batterie), alors que les
+//      updates du widget process passent toujours immédiatement. C'est le
+//      seul moyen fiable de refléter le tap pause/play sur la Live Activity
+//      quand l'app dort.
+//
+//   2. L'intent poste aussi une Darwin notif. JS l'attrape côté app, met
+//      à jour son store et pousse une update PAR-DESSUS via
+//      updateReadingActivity(). Cette deuxième update porte la math
+//      autoritaire (calculée localement en JS avec Date.now() - pausedAt) ce
+//      qui rectifie les cas où l'intent a fait un read stale sur l'Activity
+//      (typiquement la resume qui a besoin de pausedAt pour avancer
+//      startedAt correctement).
+//
+// Pour la pause, la math est triviale (figer le timer à `now`) donc l'intent
+// se suffit à lui-même. Pour la resume, on peut faire un read stale du
+// pausedAt → on tente quand même, et JS rectifie. Pire cas : visuel
+// légèrement off pendant que JS rattrape.
 
 @available(iOS 17.0, *)
 struct PauseReadingIntent: LiveActivityIntent {
   static var title: LocalizedStringResource = "Mettre en pause la lecture"
+  // .alwaysAllowed laisse l'intent tourner même device verrouillé. Sans ça,
+  // iOS peut demander un déverrouillage avant l'exécution dans certains états.
+  static var authenticationPolicy: IntentAuthenticationPolicy = .alwaysAllowed
 
   func perform() async throws -> some IntentResult {
     let now = Date()
     if #available(iOS 16.2, *) {
       for activity in Activity<ReadingActivityAttributes>.activities {
         let state = activity.content.state
-        guard !state.isPaused else { continue }
+        // Overwrite inconditionnel : on ne lit pas state.isPaused (peut être
+        // stale cross-process). Si déjà en pause, on rétablit juste pausedAt
+        // — pas grave en pratique.
         let newState = ReadingActivityAttributes.ContentState(
           startedAt: state.startedAt,
           isPaused: true,
@@ -44,17 +59,22 @@ struct PauseReadingIntent: LiveActivityIntent {
 @available(iOS 17.0, *)
 struct ResumeReadingIntent: LiveActivityIntent {
   static var title: LocalizedStringResource = "Reprendre la lecture"
+  static var authenticationPolicy: IntentAuthenticationPolicy = .alwaysAllowed
 
   func perform() async throws -> some IntentResult {
     let now = Date()
     if #available(iOS 16.2, *) {
       for activity in Activity<ReadingActivityAttributes>.activities {
         let state = activity.content.state
-        guard state.isPaused, let pausedAt = state.pausedAt else { continue }
-        let pausedDuration = now.timeIntervalSince(pausedAt)
-        // Avance le virtual startedAt de la durée de pause pour que
-        // Text(timerInterval:) reprenne l'elapsed pile où il s'était figé.
-        let newStartedAt = state.startedAt.addingTimeInterval(pausedDuration)
+        // Best-effort math : si on a pausedAt, on advance startedAt. Sinon
+        // on clear juste isPaused (JS rectifiera la math via son store).
+        let newStartedAt: Date
+        if let pausedAt = state.pausedAt {
+          let pausedDuration = now.timeIntervalSince(pausedAt)
+          newStartedAt = state.startedAt.addingTimeInterval(pausedDuration)
+        } else {
+          newStartedAt = state.startedAt
+        }
         let newState = ReadingActivityAttributes.ContentState(
           startedAt: newStartedAt,
           isPaused: false,

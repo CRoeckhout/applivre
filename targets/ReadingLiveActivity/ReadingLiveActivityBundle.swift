@@ -35,6 +35,11 @@ struct ReadingLiveActivityWidget: Widget {
             .monospacedDigit()
             .font(.title3.bold())
             .foregroundStyle(.tint)
+            // Force SwiftUI à teardown/recreate le Text quand isPaused flippe.
+            // Sans ça, le composant Text(timerInterval:) ne pickup pas
+            // toujours le nouveau pauseTime sur un re-render normal — bug
+            // matche le symptôme "pause widget ne fait pas figer le timer".
+            .id(context.state.isPaused)
         }
         Spacer()
 
@@ -75,6 +80,7 @@ struct ReadingLiveActivityWidget: Widget {
           )
             .monospacedDigit()
             .font(.caption.bold())
+            .id(context.state.isPaused)
         }
       } compactLeading: {
         BookCoverView(data: context.attributes.bookCoverData, size: .compactIsland)
@@ -85,6 +91,7 @@ struct ReadingLiveActivityWidget: Widget {
           countsDown: false
         )
           .monospacedDigit()
+          .id(context.state.isPaused)
       } minimal: {
         // L'aire `minimal` est trop petite (~20pt) pour qu'un cover soit
         // lisible — on garde l'icône système.

@@ -1,25 +1,22 @@
-import { APP_SLUG } from '@/constants/app';
-import { newId } from '@/lib/id';
-import { dayOfSession, isDayAutoValidated } from '@/lib/streak-validation';
-import { getSyncUserId } from '@/lib/sync/session';
+import { APP_SLUG } from "@/constants/app";
+import { newId } from "@/lib/id";
+import { dayOfSession, isDayAutoValidated } from "@/lib/streak-validation";
+import { getSyncUserId } from "@/lib/sync/session";
 import {
   rpcFinishReadingCycle,
   syncDeleteSession,
   syncInsertSession,
   syncUpdateSessionNote,
   syncUpsertCycle,
-} from '@/lib/sync/writers';
-import { useBookshelf } from '@/store/bookshelf';
-import { usePreferences } from '@/store/preferences';
-import { useReadingStreak } from '@/store/reading-streak';
-import type {
-  ReadCycle,
-  ReadCycleOutcome,
-  ReadingSession,
-} from '@/types/book';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+} from "@/lib/sync/writers";
+import { useBookshelf } from "@/store/bookshelf";
+import { usePreferences } from "@/store/preferences";
+import { useReadingStreak } from "@/store/reading-streak";
+import type { ReadCycle, ReadCycleOutcome, ReadingSession } from "@/types/book";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { updateReadingActivity } from "grimolia-live-activity";
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 type ActiveSession = {
   userBookId: string;
@@ -115,7 +112,7 @@ export const useTimer = create<TimerState>()(
             pausedAt: null,
           },
         });
-        useBookshelf.getState().updateStatus(userBookId, 'reading');
+        useBookshelf.getState().updateStatus(userBookId, "reading");
         // Si nouveau cycle → push serveur (FK pour la session à venir).
         if (getSyncUserId() && cycles !== prev) {
           void syncUpsertCycle(cycle);
@@ -125,26 +122,34 @@ export const useTimer = create<TimerState>()(
       pause: (atMs) => {
         const { active } = get();
         if (!active || active.pausedAt !== null) return;
-        set({ active: { ...active, pausedAt: atMs ?? Date.now() } });
+        const t = atMs ?? Date.now();
+        const next = { ...active, pausedAt: t };
+        set({ active: next });
+        const virtualStartMs = next.startedAt + next.accumulatedPausedMs;
+        void updateReadingActivity({
+          startedAtMs: virtualStartMs,
+          isPaused: true,
+          pausedAtMs: t,
+        });
       },
 
       resume: (resumeRef) => {
         const { active } = get();
         if (!active || active.pausedAt === null) return;
-        // Côté Live Activity iOS, l'intent a déjà calculé le nouveau virtual
-        // start (startedAt + pausedDuration). On en déduit accumulatedPausedMs
-        // sans dépendre du timing JS — fiable même si JS s'est réveillé tard.
+        const t = resumeRef?.atMs ?? Date.now();
         const newAccumulatedPausedMs =
-          resumeRef?.virtualStartMs !== undefined
-            ? resumeRef.virtualStartMs - active.startedAt
-            : active.accumulatedPausedMs +
-              ((resumeRef?.atMs ?? Date.now()) - active.pausedAt);
-        set({
-          active: {
-            ...active,
-            pausedAt: null,
-            accumulatedPausedMs: newAccumulatedPausedMs,
-          },
+          active.accumulatedPausedMs + (t - active.pausedAt);
+        const next = {
+          ...active,
+          pausedAt: null,
+          accumulatedPausedMs: newAccumulatedPausedMs,
+        };
+        set({ active: next });
+        const virtualStartMs = next.startedAt + next.accumulatedPausedMs;
+        void updateReadingActivity({
+          startedAtMs: virtualStartMs,
+          isPaused: false,
+          pausedAtMs: null,
         });
       },
 
@@ -154,7 +159,9 @@ export const useTimer = create<TimerState>()(
         const endTime = active.pausedAt ?? Date.now();
         const durationSec = Math.max(
           0,
-          Math.round((endTime - active.startedAt - active.accumulatedPausedMs) / 1000),
+          Math.round(
+            (endTime - active.startedAt - active.accumulatedPausedMs) / 1000,
+          ),
         );
         // L'override `note` du caller (typique : TimerStopModal) prend le
         // pas sur le draft. trim → null pour rester cohérent avec la DB
@@ -276,7 +283,9 @@ export const useTimer = create<TimerState>()(
           .sessions.filter((s) => s.userBookId === userBookId)
           .reduce((sum, s) => sum + s.durationSec, 0),
       lastPageFor: (userBookId) => {
-        const cycle = get().cyclesFor(userBookId).find((c) => !c.finishedAt);
+        const cycle = get()
+          .cyclesFor(userBookId)
+          .find((c) => !c.finishedAt);
         if (!cycle) return 0;
         return get()
           .sessions.filter((s) => s.cycleId === cycle.id)
@@ -306,7 +315,11 @@ export const useTimer = create<TimerState>()(
         // v1 → v2 : le champ pagesRead (delta) devient stoppedAtPage (absolu).
         // La conversion exacte est impossible (on perd les index absolus), on vide les sessions.
         if (version < 2) {
-          return { active: null, sessions: [], cycles: [] } as Partial<TimerState>;
+          return {
+            active: null,
+            sessions: [],
+            cycles: [],
+          } as Partial<TimerState>;
         }
         // v2 → v3 : rattache toutes les sessions existantes à un cycle rétroactif
         // par livre. Le cycle est clos si le livre avait déjà un statut final
@@ -328,14 +341,20 @@ export const useTimer = create<TimerState>()(
           const migratedSessions: ReadingSession[] = [];
           for (const [userBookId, list] of byBook) {
             const sorted = [...list].sort(
-              (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
+              (a, b) =>
+                new Date(a.startedAt).getTime() -
+                new Date(b.startedAt).getTime(),
             );
             const first = sorted[0];
             const last = sorted[sorted.length - 1];
             const ub = books.find((b) => b.id === userBookId);
             const status = ub?.status;
             const outcome: ReadCycleOutcome | undefined =
-              status === 'read' ? 'read' : status === 'abandoned' ? 'abandoned' : undefined;
+              status === "read"
+                ? "read"
+                : status === "abandoned"
+                  ? "abandoned"
+                  : undefined;
             const cycle: ReadCycle = {
               id: newId(),
               userBookId,
@@ -352,13 +371,14 @@ export const useTimer = create<TimerState>()(
           }
           // Sessions arrivées hors ordre — on remet tri desc comme l'existant.
           migratedSessions.sort(
-            (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+            (a, b) =>
+              new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
           );
           // L'active éventuel : si présent, attacher à un cycle ouvert (nouveau si livre read).
           let active = p.active ?? null;
           if (active) {
             const ub = books.find((b) => b.id === active!.userBookId);
-            if (ub?.status === 'read' || ub?.status === 'abandoned') {
+            if (ub?.status === "read" || ub?.status === "abandoned") {
               // Livre déjà clos — l'active devient invalide, on le drop.
               active = null;
             } else {
