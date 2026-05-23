@@ -19,11 +19,12 @@ import { useSheetTemplates } from "@/store/sheet-templates";
 import type { PublicReadingSheetTemplate, SheetAppearance } from "@/types/book";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Pressable,
+  RefreshControl,
   ScrollView,
   Text,
   TextInput,
@@ -65,6 +66,7 @@ export default function TemplatesScreen() {
   const [search, setSearch] = useState("");
   const [community, setCommunity] = useState<PublicReadingSheetTemplate[]>([]);
   const [communityLoading, setCommunityLoading] = useState(false);
+  const [communityRefreshing, setCommunityRefreshing] = useState(false);
   const [paywall, setPaywall] = useState(false);
   const [globalEditOpen, setGlobalEditOpen] = useState(false);
 
@@ -74,19 +76,23 @@ export default function TemplatesScreen() {
     return () => clearTimeout(t);
   }, [searchDraft, search]);
 
-  // Fetch public à l'arrivée sur l'onglet OU à chaque changement de filtre.
-  useEffect(() => {
-    if (tab !== "community") return;
-    let cancelled = false;
-    setCommunityLoading(true);
-    listPublic({
+  const fetchCommunity = useCallback(() => {
+    return listPublic({
       search,
       genres: filters.genres,
       sort: filters.sort,
       includePremium: filters.includePremium,
       likedOnly: filters.likedOnly,
       limit: 50,
-    })
+    });
+  }, [listPublic, search, filters]);
+
+  // Fetch public à l'arrivée sur l'onglet OU à chaque changement de filtre.
+  useEffect(() => {
+    if (tab !== "community") return;
+    let cancelled = false;
+    setCommunityLoading(true);
+    fetchCommunity()
       .then((rows) => {
         if (cancelled) return;
         setCommunity(rows);
@@ -97,7 +103,17 @@ export default function TemplatesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [tab, search, filters, listPublic]);
+  }, [tab, fetchCommunity]);
+
+  const handleCommunityRefresh = useCallback(async () => {
+    setCommunityRefreshing(true);
+    try {
+      const rows = await fetchCommunity();
+      setCommunity(rows);
+    } finally {
+      setCommunityRefreshing(false);
+    }
+  }, [fetchCommunity]);
 
   // Re-fetch mes templates au focus (au cas où on arrive depuis l'éditeur).
   useEffect(() => {
@@ -259,6 +275,15 @@ export default function TemplatesScreen() {
       <ScrollView
         contentContainerClassName="px-4 pt-4 pb-32"
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          tab === "community" ? (
+            <RefreshControl
+              refreshing={communityRefreshing}
+              onRefresh={handleCommunityRefresh}
+              tintColor={theme.inkMuted}
+            />
+          ) : undefined
+        }
       >
         {tab === "mine" ? (
           <MineList
