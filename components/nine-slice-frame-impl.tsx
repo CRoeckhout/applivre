@@ -24,6 +24,10 @@ import type {
 
 type Insets = { top: number; right: number; bottom: number; left: number };
 
+// Rentré (dp) appliqué au bord bas/droit d'un fond IMAGE pleine-couverture,
+// pour qu'il ne dépasse pas sous le contour anti-aliasé du cadre. Cf. usage.
+const FOND_EDGE_INSET = 1;
+
 export type RepeatMode = 'stretch' | 'round';
 
 type Props = {
@@ -157,6 +161,37 @@ function computeTransform(cell: CellSpec) {
   };
 }
 
+// Taille intrinsèque d'un SVG, lue depuis son XML. On parse d'abord le
+// `viewBox` (les exports Illustrator n'ont qu'un viewBox, souvent fractionnaire
+// ex. `0 0 197.22 98.12`), puis les attributs width/height numériques en
+// fallback. Source DÉTERMINISTE et cross-platform : `skSvg.width()/height()`
+// peut renvoyer 0 sur Skia natif quand le <svg> n'a pas d'attributs width/
+// height — on ne s'y fie donc qu'en dernier recours. Sert à scaler le SVG pour
+// remplir exactement l'imageSize déclarée (cf. drawNodes).
+function parseSvgIntrinsicSize(
+  svgXml: string | undefined,
+): { w: number; h: number } | null {
+  if (!svgXml) return null;
+  const head = svgXml.slice(0, 1000);
+  const vb = head.match(
+    /viewBox\s*=\s*["']\s*[-\d.]+[ ,]+[-\d.]+[ ,]+([-\d.]+)[ ,]+([-\d.]+)/i,
+  );
+  if (vb) {
+    const w = Number.parseFloat(vb[1]);
+    const h = Number.parseFloat(vb[2]);
+    if (w > 0 && h > 0) return { w, h };
+  }
+  // width/height seulement s'ils sont en unités absolues (pas `%`).
+  const wm = head.match(/\bwidth\s*=\s*["']\s*([\d.]+)(px)?\s*["']/i);
+  const hm = head.match(/\bheight\s*=\s*["']\s*([\d.]+)(px)?\s*["']/i);
+  if (wm && hm) {
+    const w = Number.parseFloat(wm[1]);
+    const h = Number.parseFloat(hm[1]);
+    if (w > 0 && h > 0) return { w, h };
+  }
+  return null;
+}
+
 // NineSliceFrame : grille N-slice rendue dans un canvas Skia unique. Layout
 // math identique au 9-slice classique, rendering accéléré GPU. Une seule
 // native view par frame ; les cells sont des draw calls dans le canvas.
@@ -204,6 +239,10 @@ export function NineSliceFrame({
     if (!svgXml) return null;
     return Skia.SVG.MakeFromString(svgXml);
   }, [svgXml]);
+  // Dimensions intrinsèques du SVG (viewBox), lues sur le XML — déterministe
+  // et indépendant de la plateforme. Sert à scaler le SVG pour qu'il remplisse
+  // l'imageSize déclarée même si son viewBox diffère (cf. drawNodes).
+  const svgIntrinsic = useMemo(() => parseSvgIntrinsicSize(svgXml), [svgXml]);
 
   const grid = useMemo<BorderSliceExtras>(() => {
     return sliceExtras ?? deriveDefault9Slice(iw, ih, slice, repeat);
@@ -215,11 +254,15 @@ export function NineSliceFrame({
   const [frameSize, setFrameSize] = useState<{ w: number; h: number } | null>(null);
   const onFrameLayout = useCallback((e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
+    // Arrondi au pixel SUPÉRIEUR : le canvas du cadre couvre alors toujours au
+    // moins toute la box du contenu (hauteur presque toujours fractionnaire).
+    // Indispensable pour les bg UNIS : sans ça le bord bas du cadre tombe sur
+    // une frontière sous-pixel → anti-aliasing → liseré de la couleur de fond.
+    const w = Math.ceil(width);
+    const h = Math.ceil(height);
     setFrameSize((prev) => {
-      if (prev && Math.abs(prev.w - width) < 0.5 && Math.abs(prev.h - height) < 0.5) {
-        return prev;
-      }
-      return { w: width, h: height };
+      if (prev && prev.w === w && prev.h === h) return prev;
+      return { w, h };
     });
   }, []);
 
@@ -326,6 +369,15 @@ export function NineSliceFrame({
     if (!cellSpecs) return null;
     if (!skImage && !skSvg) return null;
     const isPng = !!skImage;
+    // Le SVG est dessiné à sa taille intrinsèque (viewBox) puis scalé pour
+    // remplir exactement (0,0,iw,ih) — l'espace de coords dans lequel les
+    // slices/cuts sont définis. Nécessaire car `canvas.drawSvg(svg, w, h)` ne
+    // scale PAS le SVG vers w×h sur toutes les plateformes (no-op sur web) :
+    // sans ce scale, un viewBox fractionnaire (export Illustrator, ex.
+    // 197.22×98.12) plus petit que l'imageSize déclarée (ex. 200×100) laisse
+    // les bords bas/droit non peints → liseré du fond visible + cadre tronqué.
+    const svgW = svgIntrinsic?.w ?? ((skSvg && skSvg.width()) || iw);
+    const svgH = svgIntrinsic?.h ?? ((skSvg && skSvg.height()) || ih);
     const renderSourceAtNative = (key: string) =>
       isPng ? (
         <SkiaImage
@@ -338,7 +390,9 @@ export function NineSliceFrame({
           height={ih}
         />
       ) : (
-        <ImageSVG key={key} svg={skSvg} x={0} y={0} width={iw} height={ih} />
+        <Group key={key} transform={[{ scaleX: iw / svgW }, { scaleY: ih / svgH }]}>
+          <ImageSVG svg={skSvg} x={0} y={0} width={svgW} height={svgH} />
+        </Group>
       );
 
     return cellSpecs.map((cell) => {
@@ -404,7 +458,7 @@ export function NineSliceFrame({
         </Group>
       );
     });
-  }, [cellSpecs, skImage, skSvg, iw, ih]);
+  }, [cellSpecs, skImage, skSvg, svgIntrinsic, iw, ih]);
 
   // Source absente OU loading pas terminé → on render juste le bg + children
   // (le grid s'affichera dès que skImage/skSvg est dispo). Pour le PNG,
@@ -413,24 +467,15 @@ export function NineSliceFrame({
 
   return (
     <View style={style}>
-      {innerBackground ? (
-        <View
-          pointerEvents="none"
-          style={
-            innerBackgroundCover === 'full'
-              ? [StyleSheet.absoluteFillObject, { overflow: 'hidden' }]
-              : {
-                  position: 'absolute',
-                  top: bgi.top,
-                  right: bgi.right,
-                  bottom: bgi.bottom,
-                  left: bgi.left,
-                  overflow: 'hidden',
-                }
-          }>
-          {innerBackground}
-        </View>
-      ) : innerBackgroundColor ? (
+      {/* Backing solide rendu EN PREMIER (sous tout). Deux rôles :
+          1. cadre sans fond image → c'est le bg uni de la fiche ;
+          2. cadre AVEC fond image → backing derrière le fond. La couche fond
+             image est rentrée de 1px en bas/à droite (cf. plus bas) ; ce
+             backing remplit ce liseré avec sa couleur (= theme.paper côté
+             CardFrame = couleur du bord du cadre), au lieu de laisser
+             transparaître la couche encore en dessous (bgColor du pinch-zoom,
+             page…). Invisible car ça matche le bord du cadre. */}
+      {innerBackgroundColor ? (
         <View
           pointerEvents="none"
           style={
@@ -446,6 +491,40 @@ export function NineSliceFrame({
                 }
           }
         />
+      ) : null}
+      {innerBackground ? (
+        <View
+          pointerEvents="none"
+          style={
+            innerBackgroundCover === 'full'
+              ? {
+                  // Couche fond IMAGE (expo-image / react-native-svg) : une
+                  // native view séparée du canvas Skia du cadre. Au bord
+                  // bas/droit, ces deux vues ne s'alignent pas au sous-pixel →
+                  // l'image dépasse sous le contour anti-aliasé du cadre =
+                  // liseré du fond (le bg solide, lui, est une simple couleur
+                  // de View qui compose proprement, d'où l'absence de bug).
+                  // On rentre le fond de 1px en bas/à droite : caché sous le
+                  // contour épais du cadre, et le backing solide remplit ce
+                  // liseré → invisible à l'intérieur comme au bord.
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: FOND_EDGE_INSET,
+                  bottom: FOND_EDGE_INSET,
+                  overflow: 'hidden',
+                }
+              : {
+                  position: 'absolute',
+                  top: bgi.top,
+                  right: bgi.right,
+                  bottom: bgi.bottom,
+                  left: bgi.left,
+                  overflow: 'hidden',
+                }
+          }>
+          {innerBackground}
+        </View>
       ) : null}
 
       {/* Skia canvas en absoluteFill, sized par le frame (driven par children

@@ -14,13 +14,16 @@ type Props = {
   // c'est `def.cardPadding` qui pilote l'espacement.
   padding?: number;
   // Surcharges de tokens injectées par le parent selon le contexte de rendu.
-  // Permet par ex. à un preview imbriqué dans une modal de remapper le token
-  // `paper` du cadre SVG vers la couleur de fond de la modal — la matière du
-  // cadre se fond alors avec son entourage immédiat plutôt qu'avec la fiche
-  // elle-même. Ordre de précédence (du plus faible au plus fort) :
-  // appearanceOverrides auto → tokenOverrides parent → frame.colorOverrides
-  // sauvés. Ainsi une override explicite saved par l'utilisateur reste
-  // souveraine.
+  // Par défaut un cadre SVG résout ses tokens vers le thème user courant (via
+  // applyTokens : userPref puis slots de thème) — c'est ce que promet l'éditeur
+  // de cadre (« le cadre utilise les couleurs du thème »). Ainsi le token
+  // `paper` épouse `theme.paper` = le fond de page `bg-paper`, et la matière
+  // autour du tracé se fond dans son entourage. Un parent dont le wrapper n'est
+  // PAS `theme.paper` (preview en modal, card sur surface paperWarm…) passe ici
+  // un remap des tokens de fond vers sa propre couleur (cf.
+  // makeFondTokenOverrides). Ordre de précédence (du plus faible au plus fort) :
+  // cascade thème → tokenOverrides parent → frame.colorOverrides sauvés. Une
+  // override explicite de l'utilisateur reste souveraine.
   tokenOverrides?: Record<string, string>;
   // Style additionnel sur le wrapper externe (margin, shadow, animation…).
   style?: StyleProp<ViewStyle>;
@@ -53,7 +56,7 @@ export function SheetSurface({
   disableFond = false,
   children,
 }: Props) {
-  const { frame, fond, bgColor, textColor, mutedColor, accentColor } = appearance;
+  const { frame, fond, bgColor } = appearance;
   const isPerso = !frame.borderId || frame.borderId === PERSO_BORDER_ID;
   // `fond.fondId` peut être :
   //  - un id concret (ex. 'flowers') : ce fond.
@@ -81,42 +84,21 @@ export function SheetSurface({
   const effectiveFondOpacity =
     fond?.opacity ?? (isThemeActive ? themeFondOpacity : 1);
 
-  // Mappe les 4 couleurs snapshotées de l'appearance sur les noms de tokens
-  // les plus communs côté cadres (slots de theme + names de userPref). Ainsi
-  // un cadre SVG dont les tokens référencent `paperWarm`, `ink`, `accent`,
-  // `colorBg`, etc. utilise la couleur figée de la fiche au lieu du thème
-  // user courant. Les `frame.colorOverrides` explicites passent par-dessus.
-  const appearanceOverrides = useMemo<Record<string, string>>(
-    () => ({
-      // Bg variants
-      paper: bgColor,
-      paperWarm: bgColor,
-      paperShade: bgColor,
-      bgColor,
-      colorBg: bgColor,
-      // Text / ink variants
-      ink: textColor,
-      inkSoft: textColor,
-      inkMuted: mutedColor,
-      textColor,
-      mutedColor,
-      // Accent variants
-      accent: accentColor,
-      accentDeep: accentColor,
-      accentPale: accentColor,
-      accentColor,
-      colorPrimary: accentColor,
-    }),
-    [bgColor, textColor, mutedColor, accentColor],
-  );
-
+  // Surcharges de tokens du cadre SVG. On NE mappe PAS les couleurs snapshotées
+  // de l'appearance ici : le cadre doit résoudre ses tokens vers le thème user
+  // courant (cf. applyTokens → userPref puis slots de thème), comme le promet
+  // l'éditeur de cadre. C'est ce qui permet au token `paper` du cadre d'épouser
+  // `theme.paper` (= le fond de page `bg-paper`) et donc à la matière autour du
+  // tracé de se fondre dans la page, au lieu d'afficher un liseré à la `bgColor`
+  // figée de la fiche. Ne priment que : le remap de contexte `tokenOverrides`
+  // (parent dont le wrapper diffère de `theme.paper`) puis les
+  // `frame.colorOverrides` explicites sauvés par l'utilisateur.
   const mergedOverrides = useMemo(
     () => ({
-      ...appearanceOverrides,
       ...(tokenOverrides ?? {}),
       ...(frame.colorOverrides ?? {}),
     }),
-    [appearanceOverrides, tokenOverrides, frame.colorOverrides],
+    [tokenOverrides, frame.colorOverrides],
   );
 
   if (isPerso) {
@@ -153,7 +135,8 @@ export function SheetSurface({
   //     transparente entre l'encre extérieure du cadre et le contenu).
   //  2. Pour les SVG : un path/rect de fond DANS le SVG lui-même, peint avec
   //     un hex sentinel mappé à `colorBg`/`paperWarm` via les tokens — c'est
-  //     `applyBorderTokens` (avec `appearanceOverrides`) qui remplace au render.
+  //     `applyTokens` qui le remplace au render par la couleur de thème
+  //     correspondante (ou un override de contexte / explicite).
   return (
     <CardFrame
       borderId={frame.borderId}

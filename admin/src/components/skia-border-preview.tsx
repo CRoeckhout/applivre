@@ -150,6 +150,33 @@ function computeTransform(cell: CellSpec) {
   };
 }
 
+// Taille intrinsèque d'un SVG lue sur son XML (viewBox d'abord — souvent
+// fractionnaire dans les exports Illustrator —, puis width/height absolus).
+// Déterministe et cross-platform, contrairement à `skSvg.width()/height()`.
+// Idem nine-slice-frame-impl.tsx côté app.
+function parseSvgIntrinsicSize(
+  svgXml: string | null | undefined,
+): { w: number; h: number } | null {
+  if (!svgXml) return null;
+  const head = svgXml.slice(0, 1000);
+  const vb = head.match(
+    /viewBox\s*=\s*["']\s*[-\d.]+[ ,]+[-\d.]+[ ,]+([-\d.]+)[ ,]+([-\d.]+)/i,
+  );
+  if (vb) {
+    const w = Number.parseFloat(vb[1]);
+    const h = Number.parseFloat(vb[2]);
+    if (w > 0 && h > 0) return { w, h };
+  }
+  const wm = head.match(/\bwidth\s*=\s*["']\s*([\d.]+)(px)?\s*["']/i);
+  const hm = head.match(/\bheight\s*=\s*["']\s*([\d.]+)(px)?\s*["']/i);
+  if (wm && hm) {
+    const w = Number.parseFloat(wm[1]);
+    const h = Number.parseFloat(hm[1]);
+    if (w > 0 && h > 0) return { w, h };
+  }
+  return null;
+}
+
 export function SkiaBorderPreview({
   src,
   isSvg,
@@ -187,6 +214,10 @@ export function SkiaBorderPreview({
     if (!decoded) return null;
     return Skia.SVG.MakeFromString(decoded);
   }, [isSvg, src]);
+  const svgIntrinsic = useMemo(
+    () => (isSvg && src ? parseSvgIntrinsicSize(decodeDataUriSvg(src)) : null),
+    [isSvg, src],
+  );
 
   const grid = useMemo<BorderSliceExtras>(() => {
     return extras ?? deriveDefault9Slice(iw, ih, slice, repeatMode);
@@ -267,6 +298,13 @@ export function SkiaBorderPreview({
   const drawNodes = useMemo<ReactNode>(() => {
     if (!cellSpecs) return null;
     if (!skImage && !skSvg) return null;
+    // Le SVG est dessiné à sa taille intrinsèque (viewBox) puis scalé pour
+    // remplir (0,0,iw,ih) — espace de coords des slices/cuts. `drawSvg` ne
+    // scale pas le SVG vers w×h sur web (no-op), donc un viewBox fractionnaire
+    // (export Illustrator) plus petit que l'imageSize laisserait les bords
+    // bas/droit non peints. Idem nine-slice-frame-impl.tsx côté app.
+    const svgW = svgIntrinsic?.w ?? ((skSvg && skSvg.width()) || iw);
+    const svgH = svgIntrinsic?.h ?? ((skSvg && skSvg.height()) || ih);
     const renderSourceAtNative = (key: string) =>
       skImage ? (
         <SkiaImage
@@ -279,7 +317,9 @@ export function SkiaBorderPreview({
           height={ih}
         />
       ) : (
-        <ImageSVG key={key} svg={skSvg} x={0} y={0} width={iw} height={ih} />
+        <Group key={key} transform={[{ scaleX: iw / svgW }, { scaleY: ih / svgH }]}>
+          <ImageSVG svg={skSvg} x={0} y={0} width={svgW} height={svgH} />
+        </Group>
       );
 
     return cellSpecs.map((cell) => {
@@ -342,7 +382,7 @@ export function SkiaBorderPreview({
         </Group>
       );
     });
-  }, [cellSpecs, skImage, skSvg, iw, ih]);
+  }, [cellSpecs, skImage, skSvg, svgIntrinsic, iw, ih]);
 
   return (
     <div style={{ position: 'relative', width: outerWidth, height: outerHeight }}>

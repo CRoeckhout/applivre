@@ -1,6 +1,5 @@
 import { BookCover } from "@/components/book-cover";
 import { SheetSurface } from "@/components/sheet-surface";
-import { useThemeColors } from "@/hooks/use-theme-colors";
 import {
   hexWithAlpha,
   resolveSectionIcon,
@@ -30,11 +29,6 @@ type Props = {
   // Masque le contenu des sections : ne rend que le header (cover/titre/
   // auteur/date). Utilisé dans la liste des fiches.
   headerOnly?: boolean;
-  // Default true : la card s'enveloppe d'un wrapper paper-bg + radius +
-  // ombre pour se détacher du background. À mettre à false quand un parent
-  // gère déjà l'ombre (typt. consommateur dans un Swipeable, dont
-  // `overflow:'hidden'` clipperait l'ombre interne).
-  withShadow?: boolean;
 };
 
 function timeAgo(iso: string): string {
@@ -57,9 +51,7 @@ export function SheetCard({
   hideBookHeader,
   readOnly,
   headerOnly,
-  withShadow = true,
 }: Props) {
-  const theme = useThemeColors();
   const fontDef = getFont(appearance.fontId as any);
   const displayFont = fontDef.variants.display;
   const sansFont = fontDef.variants.sans;
@@ -153,32 +145,12 @@ export function SheetCard({
     </>
   );
 
-  // Ombre : on enveloppe la SheetSurface dans un wrapper `paper-bg + radius`
-  // pour qu'iOS calcule un `shadowPath` qui suit la forme arrondie (sans
-  // backgroundColor, le shadow tombe en rectangle sur le bbox). `paper` =
-  // couleur du bg de page → wrapper visuellement invisible. Désactivable
-  // via `withShadow={false}` quand un parent (Swipeable etc.) prend la
-  // responsabilité de l'ombre.
-  const inner_surface = (
+  // Pas d'ombre : la card reste plate, le cadre se fond dans le bg de page
+  // (cf. SheetSurface — token `paper` du cadre = `theme.paper`).
+  const surface = (
     <SheetSurface appearance={appearance} padding={12}>
       {inner}
     </SheetSurface>
-  );
-  const surface = withShadow ? (
-    <View
-      style={{
-        borderRadius: appearance.frame.radius,
-        backgroundColor: theme.paper,
-        shadowColor: "#000",
-        shadowOpacity: 0.15,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: 3,
-      }}>
-      {inner_surface}
-    </View>
-  ) : (
-    inner_surface
   );
 
   if (readOnly || !onPress) {

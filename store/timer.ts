@@ -7,6 +7,7 @@ import {
   syncDeleteSession,
   syncInsertSession,
   syncUpdateSessionNote,
+  syncUpdateSessionPage,
   syncUpsertCycle,
 } from "@/lib/sync/writers";
 import { useBookshelf } from "@/store/bookshelf";
@@ -55,6 +56,8 @@ type TimerState = {
   // Édition a posteriori d'une note de session déjà persistée. Met à
   // jour le store local + push (queueable).
   updateSessionNote: (sessionId: string, note: string) => void;
+  // Édition a posteriori de la page d'arrêt d'une session déjà persistée.
+  updateSessionPage: (sessionId: string, stoppedAtPage: number) => void;
 
   // Cycles
   finishCycle: (
@@ -217,6 +220,24 @@ export const useTimer = create<TimerState>()(
         if (!changed) return;
         if (getSyncUserId()) {
           void syncUpdateSessionNote(sessionId, trimmed || null);
+        }
+      },
+
+      updateSessionPage: (sessionId, stoppedAtPage) => {
+        const next = Math.max(0, Math.floor(stoppedAtPage));
+        let changed = false;
+        set((s) => {
+          const idx = s.sessions.findIndex((x) => x.id === sessionId);
+          if (idx < 0) return s;
+          if (s.sessions[idx].stoppedAtPage === next) return s;
+          changed = true;
+          const sessions = [...s.sessions];
+          sessions[idx] = { ...sessions[idx], stoppedAtPage: next };
+          return { sessions };
+        });
+        if (!changed) return;
+        if (getSyncUserId()) {
+          void syncUpdateSessionPage(sessionId, next);
         }
       },
 

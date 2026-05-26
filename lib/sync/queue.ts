@@ -11,6 +11,7 @@ import {
   internalEnsureStreakDayAuto,
   internalDeleteSession,
   internalUpdateSessionNote,
+  internalUpdateSessionPage,
   internalDeleteUserBook,
   internalInsertSession,
   internalUpsertBingo,
@@ -49,6 +50,11 @@ export async function executeEntry(entry: QueueEntry): Promise<void> {
       return internalDeleteSession(entry.payload.id);
     case 'updateSessionNote':
       return internalUpdateSessionNote(entry.payload.id, entry.payload.note);
+    case 'updateSessionPage':
+      return internalUpdateSessionPage(
+        entry.payload.id,
+        entry.payload.stoppedAtPage,
+      );
     case 'upsertCycle':
       return internalUpsertCycle(entry.payload.cycle);
     case 'upsertLoan':

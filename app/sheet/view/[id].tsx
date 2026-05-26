@@ -266,7 +266,10 @@ export default function PublicSheetScreen() {
               naturalWidth={SHEET_MAX_WIDTH}
               availableWidth={windowWidth - 32}
               outerStyle={{
-                backgroundColor: appearance.bgColor,
+                // Cf. app/sheet/[isbn].tsx : pour un cadre catalog, le backing
+                // de l'outer = la page (transparent → `bg-paper`), pas
+                // `appearance.bgColor`, sinon liseré sous-pixel en bas au scale.
+                backgroundColor: isPersoFrame ? appearance.bgColor : "transparent",
                 borderRadius: appearance.frame.radius,
               }}
               skiaUnderlay={

@@ -7,6 +7,7 @@ import {
   internalDeleteLoan,
   internalDeleteSession,
   internalUpdateSessionNote,
+  internalUpdateSessionPage,
   internalDeleteSheet,
   internalDeleteStreakDay,
   internalEnsureStreakDayAuto,
@@ -115,6 +116,16 @@ export function syncUpdateSessionNote(
   return runOrQueue(
     () => internalUpdateSessionNote(id, note),
     () => ({ kind: 'updateSessionNote', payload: { id, note } }),
+  );
+}
+
+export function syncUpdateSessionPage(
+  id: string,
+  stoppedAtPage: number,
+): Promise<void> {
+  return runOrQueue(
+    () => internalUpdateSessionPage(id, stoppedAtPage),
+    () => ({ kind: 'updateSessionPage', payload: { id, stoppedAtPage } }),
   );
 }
 

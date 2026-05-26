@@ -132,6 +132,18 @@ export async function internalUpdateSessionNote(
   );
 }
 
+export async function internalUpdateSessionPage(
+  id: string,
+  stoppedAtPage: number,
+): Promise<void> {
+  await throwIfError(
+    supabase
+      .from('reading_sessions')
+      .update({ stopped_at_page: Math.max(0, Math.floor(stoppedAtPage)) })
+      .eq('id', id),
+  );
+}
+
 // Read cycles
 export async function internalUpsertCycle(c: ReadCycle): Promise<void> {
   await throwIfError(

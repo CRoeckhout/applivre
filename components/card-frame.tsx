@@ -142,7 +142,13 @@ export function CardFrame({
       // laisse passer le parent (page bg). Les paths SVG mappés sur `paper`
       // peignent par-dessus pour les cadres qui veulent simuler la couleur
       // de la page autour du tracé.
-      innerBackgroundColor={hasFond ? undefined : bgColor}
+      // AVEC fond image : on pose quand même un backing `theme.paper` (=
+      // couleur du bord du cadre / de la page) derrière le fond. Il remplit le
+      // liseré de 1px que l'inset du fond laisse au bord bas/droit (cf.
+      // NineSliceFrame), donc le bord ne révèle ni le fond ni la couche encore
+      // en dessous (bgColor du pinch-zoom…). Invisible : les zones transparentes
+      // du fond montraient déjà la page (= theme.paper).
+      innerBackgroundColor={hasFond ? theme.paper : bgColor}
       innerBackground={
         hasFond ? (
           <FondLayer

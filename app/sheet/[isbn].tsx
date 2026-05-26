@@ -771,7 +771,14 @@ export default function SheetScreen() {
               naturalWidth={SHEET_MAX_WIDTH}
               availableWidth={windowWidth - 32}
               outerStyle={{
-                backgroundColor: appearance.bgColor,
+                // Cadre catalog : la matière du cadre se fond dans la page
+                // (token `paper` = bg de page). Le backing de l'outer doit donc
+                // être la page (transparent → `bg-paper` de l'écran derrière),
+                // pas `appearance.bgColor` — sinon un éventuel gap sous-pixel en
+                // bas (dû au scale du pinch-zoom) laisse voir un liseré de cette
+                // couleur (c'est LA ligne visible uniquement dans l'éditeur).
+                // Perso : on garde bgColor pour backer les coins arrondis.
+                backgroundColor: isPersoFrame ? appearance.bgColor : "transparent",
                 borderRadius: appearance.frame.radius,
               }}
               skiaUnderlay={

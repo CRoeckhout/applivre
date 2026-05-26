@@ -412,14 +412,7 @@ function MineList({
         <SheetSurface
           appearance={globalAppearance}
           padding={12}
-          style={{
-            borderRadius: globalAppearance.frame.radius,
-            shadowColor: "#000",
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            shadowOffset: { width: 0, height: 1 },
-            elevation: 2,
-          }}
+          style={{ borderRadius: globalAppearance.frame.radius }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
             <BookPlaceholder
@@ -515,20 +508,13 @@ function MineList({
       {globalEditButton}
       {templates.map((t, i) => (
         <Animated.View key={t.id} entering={FadeIn.duration(300).delay(i * 40)}>
-          {/* Ombre rendue ICI (hors Swipeable) car `Swipeable` impose
-              `overflow:hidden` sur son container, ce qui clippe toute ombre
-              cast par les enfants. Le wrapper a `backgroundColor: paperColor`
-              (matche le bg de page → invisible) + `borderRadius` pour qu'iOS
-              calcule un shadowPath qui suit la forme arrondie. */}
+          {/* Backing `paper-bg + radius` derrière le Swipeable (qui impose
+              `overflow:hidden`) : remplit les coins arrondis pendant le
+              swipe. Pas d'ombre — la card reste plate. */}
           <View
             style={{
               borderRadius: t.appearance.frame.radius,
               backgroundColor: paperColor,
-              shadowColor: "#000",
-              shadowOpacity: 0.1,
-              shadowRadius: 4,
-              shadowOffset: { width: 0, height: 1 },
-              elevation: 2,
             }}
           >
             <Swipeable
@@ -549,7 +535,6 @@ function MineList({
                   headerOnly
                   onPress={() => onPressTemplate(t.id)}
                   premiumBadge={t.isPremium}
-                  withShadow={false}
                 />
               </View>
             </Swipeable>

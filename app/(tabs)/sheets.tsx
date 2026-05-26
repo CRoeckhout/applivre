@@ -245,21 +245,13 @@ export default function SheetsScreen() {
                   key={e.sheet.userBookId}
                   entering={FadeIn.duration(300).delay(i * 40)}
                 >
-                  {/* Ombre rendue ICI (hors Swipeable) car `Swipeable`
-                      impose `overflow:'hidden'` sur son container, ce qui
-                      clipperait toute ombre cast par les enfants. Le
-                      wrapper a `backgroundColor: paper` (matche le bg de
-                      page → invisible) + `borderRadius` pour qu'iOS
-                      calcule un shadowPath qui suit la forme arrondie. */}
+                  {/* Backing `paper-bg + radius` derrière le Swipeable (qui
+                      impose `overflow:'hidden'`) : remplit les coins arrondis
+                      pendant le swipe. Pas d'ombre — la card reste plate. */}
                   <View
                     style={{
                       borderRadius: effective.frame.radius,
                       backgroundColor: theme.paper,
-                      shadowColor: "#000",
-                      shadowOpacity: 0.15,
-                      shadowRadius: 6,
-                      shadowOffset: { width: 0, height: 2 },
-                      elevation: 3,
                     }}
                   >
                     <Swipeable
@@ -281,7 +273,6 @@ export default function SheetsScreen() {
                           appearance={effective}
                           isCustom={isCustom}
                           headerOnly
-                          withShadow={false}
                           onPress={() =>
                             // Read-only par défaut. Fallback éditeur si pas
                             // encore sync'ée (id absent).

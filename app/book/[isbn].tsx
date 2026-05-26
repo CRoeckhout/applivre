@@ -63,7 +63,8 @@ export default function BookDetailScreen() {
   const setGenres = useBookshelf((s) => s.setGenres);
   const toggleFavorite = useBookshelf((s) => s.toggleFavorite);
   const sheets = useReadingSheets((s) => s.sheets);
-  const { openChooser, modals: templateChooserModals } = useTemplateChooserFlow();
+  const { openChooser, modals: templateChooserModals } =
+    useTemplateChooserFlow();
   const [genreModalOpen, setGenreModalOpen] = useState(false);
   const [congratsOpen, setCongratsOpen] = useState(false);
   const [pauseModalOpen, setPauseModalOpen] = useState(false);
@@ -118,6 +119,13 @@ export default function BookDetailScreen() {
   });
 
   const data = existing?.book ?? fetched;
+
+  // Livre en cours + fiche encore vide : le CTA « Ta fiche t'attend » passe
+  // sous la progression. Une fiche déjà remplie (preview) reste en haut.
+  const ownSheet = existing ? sheets[existing.id] : undefined;
+  const ownSheetHasContent = !!ownSheet && ownSheet.sections.length > 0;
+  const sheetCtaBelowProgression =
+    existing?.status === "reading" && !ownSheetHasContent;
 
   if (isLoading) {
     return (
@@ -331,7 +339,9 @@ export default function BookDetailScreen() {
             />
           )}
 
-          {existing && <SheetPreview userBook={existing} />}
+          {existing && !sheetCtaBelowProgression && (
+            <SheetPreview userBook={existing} />
+          )}
           {isbn ? (
             <PublicSheetsForBook isbn={isbn} currentUserId={currentUserId} />
           ) : null}
@@ -341,6 +351,10 @@ export default function BookDetailScreen() {
               userBookId={existing.id}
               totalPages={data.pages && data.pages > 0 ? data.pages : undefined}
             />
+          )}
+          {/* En cours + fiche vide : le CTA « Ta fiche t'attend » sous la progression. */}
+          {existing && sheetCtaBelowProgression && (
+            <SheetPreview userBook={existing} />
           )}
           {existing && <LoanTracker userBookId={existing.id} />}
 
@@ -480,6 +494,19 @@ function NavArrow({
   );
 }
 
+function formatRemainingTime(totalSec: number): string {
+  if (totalSec < 3600) {
+    const minutes = Math.max(1, Math.round(totalSec / 60));
+    return `${minutes} min`;
+  }
+  const totalHours = Math.round(totalSec / 3600);
+  if (totalHours < 24) return `${totalHours} h.`;
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  if (hours === 0) return `${days} j.`;
+  return `${days} j. et ${hours} h.`;
+}
+
 function ReadingStats({
   userBookId,
   totalPages,
@@ -534,8 +561,10 @@ function ReadingStats({
 
   if (sessions.length === 0 && bookCycles.length === 0) return null;
 
-  const pagesPerHour =
-    totalSec > 0 ? Math.round((currentPage / totalSec) * 3600) : null;
+  const remainingSec =
+    totalPages && currentPage > 0 && totalSec > 0 && totalPages > currentPage
+      ? Math.round(((totalPages - currentPage) * totalSec) / currentPage)
+      : null;
   const progress = totalPages
     ? Math.min(100, Math.round((currentPage / totalPages) * 100))
     : null;
@@ -556,11 +585,14 @@ function ReadingStats({
       <View className="flex-row gap-3">
         <StatBox value={formatDurationHuman(totalSec)} label="Lecture" />
         <StatBox
-          value={`p. ${currentPage}${totalPages ? ` / ${totalPages}` : ""}`}
-          label={hasActiveCycle ? "Arrêt actuel" : "Dernière page"}
+          value={`${currentPage}${totalPages ? ` / ${totalPages}` : ""}`}
+          label="Pages lus"
         />
-        {pagesPerHour !== null && (
-          <StatBox value={`${pagesPerHour}/h`} label="Rythme" />
+        {remainingSec !== null && (
+          <StatBox
+            value={formatRemainingTime(remainingSec)}
+            label="Temps restant"
+          />
         )}
       </View>
 
@@ -582,10 +614,10 @@ function ReadingStats({
         <RecentSessionsCard
           sessions={[...sessions].sort(
             (a, b) =>
-              new Date(b.startedAt).getTime() -
-              new Date(a.startedAt).getTime(),
+              new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
           )}
           deltas={deltas}
+          totalPages={totalPages}
         />
       )}
 
@@ -673,9 +705,9 @@ function PastCyclesSection({
 
 function StatBox({ value, label }: { value: string; label: string }) {
   return (
-    <View className="flex-1 rounded-2xl bg-paper-warm p-4">
-      <Text className="font-display text-xl text-ink">{value}</Text>
-      <Text className="mt-1 text-xs text-ink-muted">{label}</Text>
+    <View className="flex-1 items-center justify-center rounded-2xl bg-paper-warm p-4">
+      <Text className="text-center font-display text-xl text-ink">{value}</Text>
+      <Text className="mt-1 text-center text-xs text-ink-muted">{label}</Text>
     </View>
   );
 }
@@ -683,9 +715,11 @@ function StatBox({ value, label }: { value: string; label: string }) {
 function RecentSessionsCard({
   sessions,
   deltas,
+  totalPages,
 }: {
   sessions: ReadingSession[];
   deltas: Map<string, number>;
+  totalPages?: number;
 }) {
   const PREVIEW = 5;
   const [expanded, setExpanded] = useState(false);
@@ -708,6 +742,7 @@ function RecentSessionsCard({
           session={s}
           delta={deltas.get(s.id) ?? 0}
           inCard
+          totalPages={totalPages}
         />
       ))}
       {expanded &&
@@ -717,7 +752,12 @@ function RecentSessionsCard({
             entering={FadeIn.duration(220)}
             exiting={FadeOut.duration(160)}
           >
-            <SessionRow session={s} delta={deltas.get(s.id) ?? 0} inCard />
+            <SessionRow
+              session={s}
+              delta={deltas.get(s.id) ?? 0}
+              inCard
+              totalPages={totalPages}
+            />
           </Animated.View>
         ))}
       {hasMore && (
@@ -725,7 +765,9 @@ function RecentSessionsCard({
           onPress={() => setExpanded((v) => !v)}
           className="mt-3 flex-row items-center justify-center gap-1 active:opacity-70"
           accessibilityLabel={
-            expanded ? "Afficher moins de sessions" : "Afficher toutes les sessions"
+            expanded
+              ? "Afficher moins de sessions"
+              : "Afficher toutes les sessions"
           }
         >
           <Text className="font-sans-med text-sm text-accent-deep">
@@ -746,10 +788,12 @@ function SessionRow({
   session,
   delta,
   inCard,
+  totalPages,
 }: {
   session: ReadingSession;
   delta: number;
   inCard?: boolean;
+  totalPages?: number;
 }) {
   const date = new Date(session.startedAt);
   const dateStr = date.toLocaleDateString("fr-FR", {
@@ -788,9 +832,7 @@ function SessionRow({
       >
         <Pressable
           onPress={() => setNoteOpen(true)}
-          accessibilityLabel={
-            hasNote ? "Voir et modifier la note" : "Ajouter une note"
-          }
+          accessibilityLabel="Modifier la session (note et page d'arrêt)"
           className={`mt-2 flex-row items-center justify-between rounded-xl px-4 py-3 active:opacity-80 ${
             inCard ? "bg-paper" : "bg-paper-warm"
           }`}
@@ -820,6 +862,11 @@ function SessionRow({
           useTimer.getState().updateSessionNote(session.id, text)
         }
         subtitle={`${dateStr} · ${formatDurationHuman(session.durationSec)} · p. ${session.stoppedAtPage}`}
+        initialPage={session.stoppedAtPage}
+        totalPages={totalPages}
+        onSavePage={(page) =>
+          useTimer.getState().updateSessionPage(session.id, page)
+        }
       />
     </>
   );
@@ -851,7 +898,8 @@ function SheetPreview({
   const router = useRouter();
   const sheet = useReadingSheets((s) => s.sheets[userBook.id]);
   const globalTemplate = useSheetTemplates((s) => s.global);
-  const { openChooser, modals: templateChooserModals } = useTemplateChooserFlow();
+  const { openChooser, modals: templateChooserModals } =
+    useTemplateChooserFlow();
 
   const isbn = userBook.book.isbn;
   const hasContent = !!sheet && sheet.sections.length > 0;
@@ -904,13 +952,14 @@ function SheetPreview({
         appearance={effective}
         isCustom={isCustom}
         hideBookHeader={compact}
-        onPress={() =>
-          // Sheet déjà sync'ée (id présent) → vue read-only canonique.
-          // Sheet locale jamais montée jusqu'au serveur → fallback éditeur
-          // pour permettre la 1re sauvegarde.
-          sheet.id
-            ? router.push(`/sheet/view/${sheet.id}`)
-            : router.push(`/sheet/${isbn}`)
+        onPress={
+          () =>
+            // Sheet déjà sync'ée (id présent) → vue read-only canonique.
+            // Sheet locale jamais montée jusqu'au serveur → fallback éditeur
+            // pour permettre la 1re sauvegarde.
+            sheet.id
+              ? router.push(`/sheet/view/${sheet.id}`)
+              : router.push(`/sheet/${isbn}`)
           // Note : ce call site est sur une fiche déjà existante (sheet truthy)
           // donc pas de chooser, on va direct à l'éditeur pour reprendre.
         }
