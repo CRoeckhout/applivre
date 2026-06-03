@@ -43,6 +43,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   Switch,
   Text,
   TextInput,
@@ -725,11 +726,16 @@ export function SheetCustomizer({
         transparent
         animationType="slide"
         onRequestClose={onClose}>
-        <Pressable
-          onPress={onClose}
-          style={{ flex: 1, justifyContent: 'flex-end' }}>
-          <Pressable
-            onPress={(e) => e.stopPropagation()}
+        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+          {/* Backdrop transparent rendu EN FRÈRE (derrière), pas en ancêtre,
+              du drawer. Un Pressable qui enveloppe le contenu vole le responder
+              tactile au ScrollView et casse le scroll par intermittence (RN
+              déconseille d'envelopper du scrollable dans un touchable). Ici le
+              drawer (View opaque) est au-dessus → il absorbe ses propres taps
+              et le scroll fonctionne ; le tap sur la zone au-dessus atteint le
+              backdrop → fermeture. */}
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+          <View
             style={{
               maxHeight: '50%',
               backgroundColor: themePaper,
@@ -746,8 +752,8 @@ export function SheetCustomizer({
               elevation: 12,
             }}>
             {body}
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     );
   }
