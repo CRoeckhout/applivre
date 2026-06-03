@@ -5,9 +5,10 @@
 // Tap toggle add/remove. Le drawer reste ouvert pour empiler des changements ;
 // le user le ferme via la croix ou en tapant le backdrop.
 //
-// Le bouton "+ Section personnalisée" ouvre l'IconPickerModal en mode
-// `withTitle` (champ nom + icône). À validation, ajoute la section ET
-// ferme tout (le user retourne directement à l'édition pour remplir le body).
+// Le bouton "+ Section personnalisée" ferme le drawer puis ouvre
+// l'IconPickerModal en mode `withTitle` (champ nom + icône) — on ne présente
+// jamais deux Modal natifs simultanément (cf. openCustomSection). À validation,
+// ajoute la section ; le user retourne directement à l'édition du body.
 
 import { IconPickerModal } from '@/components/icon-picker-modal';
 import { useThemeColors } from '@/hooks/use-theme-colors';
@@ -69,7 +70,17 @@ export function CategoryDrawer({
     [usedTitles],
   );
 
+  // Ouverture de l'IconPickerModal : on ferme d'abord le CategoryDrawer puis,
+  // son animation terminée, on présente le picker. On ne présente jamais deux
+  // Modal natifs en même temps (un seul backdrop) — sur iOS l'empilement laisse
+  // un backdrop résiduel qui gèle l'app (cf. pattern session-notes-drawer.tsx).
+  const openCustomSection = () => {
+    onClose();
+    setTimeout(() => setNewSectionOpen(true), 220);
+  };
+
   return (
+    <>
     <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable onPress={onClose} className="flex-1 bg-ink/40" />
       <View
@@ -137,18 +148,20 @@ export function CategoryDrawer({
           )}
 
           <Pressable
-            onPress={() => setNewSectionOpen(true)}
+            onPress={openCustomSection}
             className="mt-5 flex-row items-center justify-center gap-2 rounded-full bg-accent px-5 py-3 active:opacity-80">
             <MaterialIcons name="add" size={20} color="#fbf8f4" />
             <Text className="font-sans-med text-paper">Section personnalisée</Text>
           </Pressable>
         </ScrollView>
       </View>
+    </Modal>
 
-      {/* Ouvre l'IconPickerModal existant en mode `withTitle` : un champ
-          nom est ajouté au-dessus des onglets icône/emoji. C'est le même
-          drawer que celui qui sert à éditer l'icône d'une catégorie
-          existante — l'API est partagée pour rester cohérent. */}
+      {/* IconPickerModal en mode `withTitle` (champ nom + onglets icône/emoji).
+          Rendu en FRÈRE du drawer (pas imbriqué) : le drawer est déjà fermé
+          quand on l'ouvre (cf. openCustomSection), donc un seul Modal natif est
+          présenté à la fois. C'est le même picker que pour éditer l'icône d'une
+          catégorie existante — l'API est partagée. */}
       <IconPickerModal
         open={newSectionOpen}
         onClose={() => setNewSectionOpen(false)}
@@ -156,19 +169,19 @@ export function CategoryDrawer({
         title="Nouvelle section"
         titlePlaceholder="Ex. Personnages, Ambiance, Citations…"
         onPick={(result) => {
+          const title = result.title?.trim();
           setNewSectionOpen(false);
-          if (!result.title || !result.title.trim()) return;
+          if (!title) return;
+          // Le drawer est déjà fermé : il suffit d'ajouter la section. L'user
+          // retourne directement à l'édition pour remplir le body.
           onAddCustom({
-            title: result.title.trim(),
+            title,
             materialIcon: result.name,
             materialIconColor: result.color,
             emoji: result.emoji,
           });
-          // Valider une section personnalisée ferme aussi le CategoryDrawer
-          // — l'user retourne directement à l'édition pour remplir le body.
-          onClose();
         }}
       />
-    </Modal>
+    </>
   );
 }
