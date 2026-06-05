@@ -30,17 +30,13 @@ import {
 import { supabase } from "@/lib/supabase";
 import { getFont } from "@/lib/theme/fonts";
 import { usePreferences } from "@/store/preferences";
-import type {
-  PlacedSticker,
-  SheetAppearance,
-  SheetAppearanceOverride,
-  SheetSection,
-} from "@/types/book";
+import { useViewedSheets, type PublicSheetBundle } from "@/store/viewed-sheets";
+import type { SheetAppearance } from "@/types/book";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Reactions } from "@grimolia/social";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -51,24 +47,6 @@ import {
 } from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-type PublicSheetBundle = {
-  sheet_id: string;
-  user_book_id: string;
-  content: {
-    sections?: SheetSection[];
-    appearance?: SheetAppearanceOverride;
-    stickers?: PlacedSticker[];
-  } | null;
-  is_public: boolean;
-  updated_at: string;
-  owner_id: string;
-  book_isbn: string;
-  book_title: string;
-  book_authors: string[] | null;
-  book_cover_url: string | null;
-  book_pages: number | null;
-};
 
 // Aligné sur le minHeight du TextInput body de l'éditeur (cf. SectionEditor
 // dans app/sheet/[isbn].tsx). Garantit que les fiches éditées avec une
@@ -126,9 +104,18 @@ export default function PublicSheetScreen() {
     }, [queryClient, id]),
   );
 
-  const bundle = sheetQuery.data;
+  // Cache offline-first (SWR) : on lit le dernier bundle connu et on l'écrase
+  // à chaque fetch réussi. Hors ligne / avant le fetch, on rend le local au
+  // lieu d'afficher « Fiche introuvable ». Le backend reste le SSOT.
+  const cachedBundle = useViewedSheets((s) => (id ? s.byId[id] : undefined));
+  useEffect(() => {
+    if (sheetQuery.data) useViewedSheets.getState().save(sheetQuery.data);
+  }, [sheetQuery.data]);
 
-  if (sheetQuery.isLoading) {
+  const bundle: PublicSheetBundle | undefined = sheetQuery.data ?? cachedBundle;
+
+  // Spinner seulement si on n'a RIEN à afficher (ni fetch ni cache).
+  if (sheetQuery.isLoading && !bundle) {
     return (
       <SafeAreaView className="flex-1 items-center justify-center bg-paper">
         <ActivityIndicator color={themeInk} />
@@ -136,7 +123,9 @@ export default function PublicSheetScreen() {
     );
   }
 
-  if (sheetQuery.isError || !bundle) {
+  // « Introuvable » seulement si vraiment aucune donnée (jamais mise en cache
+  // et fetch impossible/refusé) — pas sur une simple erreur réseau hors ligne.
+  if (!bundle) {
     return (
       <SafeAreaView
         className="flex-1 items-center justify-center bg-paper px-8"

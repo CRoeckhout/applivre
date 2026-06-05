@@ -128,31 +128,39 @@ export function StartReadingButton({
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={onLongPress ? 280 : undefined}
-      className="rounded-3xl bg-ink px-5 py-4 active:opacity-80"
+      className="flex-row items-center gap-4 rounded-3xl bg-ink px-5 py-4 active:opacity-80"
     >
-      <View className="flex-row items-center justify-center gap-2">
-        <Text className="text-xl text-paper">{icon}</Text>
-        <Text className="font-sans-med text-paper  text-xl">{label}</Text>
+      {/* Bloc « livre » à gauche : couverture, puis le CTA juste au-dessus
+          du titre du livre. */}
+      <View className="flex-1 flex-row items-center gap-2">
+        {book ? (
+          <>
+            <BookCover
+              isbn={book.isbn}
+              coverUrl={book.coverUrl}
+              style={{ width: 32, height: 48, borderRadius: 4 }}
+            />
+            <View className="flex-1">
+              <Text className="font-sans-med text-xl text-paper">{label}</Text>
+              <Text
+                numberOfLines={1}
+                className="flex-shrink text-sm text-paper-shade"
+              >
+                {book.title}
+              </Text>
+            </View>
+          </>
+        ) : (
+          <View className="flex-1">
+            <Text className="font-sans-med text-xl text-paper">{label}</Text>
+            <Text className="text-sm text-paper-shade">{subtitle}</Text>
+          </View>
+        )}
       </View>
-      {book ? (
-        <View className="mt-3 flex-row items-center justify-center gap-2">
-          <BookCover
-            isbn={book.isbn}
-            coverUrl={book.coverUrl}
-            style={{ width: 32, height: 48, borderRadius: 4 }}
-          />
-          <Text
-            numberOfLines={1}
-            className="flex-shrink text-sm text-paper-shade"
-          >
-            {book.title}
-          </Text>
-        </View>
-      ) : (
-        <Text className="mt-2 text-center text-sm text-paper-shade">
-          {subtitle}
-        </Text>
-      )}
+
+      {/* Séparateur + gros bouton play à droite : c'est l'action « lire ». */}
+      <View className="h-12 w-px bg-paper/15" />
+      <Text className="text-4xl text-paper">{icon}</Text>
     </Pressable>
   );
 }

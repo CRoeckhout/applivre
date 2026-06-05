@@ -18,6 +18,7 @@ import { useReadingSheets } from '@/store/reading-sheets';
 import { useTimer } from '@/store/timer';
 import type { UserBook } from '@/types/book';
 import { MaterialIcons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -28,6 +29,15 @@ import DraggableFlatList, {
 } from 'react-native-draggable-flatlist';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// Luminance perçue d'un hex (#rrggbb) → vrai si fond sombre.
+function isDarkHex(hex: string): boolean {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 < 128;
+}
 
 function resolveOrder(saved: HomeCardId[]): HomeCardId[] {
   const known = saved.filter((id) => AVAILABLE_HOME_CARDS.includes(id));
@@ -54,6 +64,12 @@ export default function HomeScreen() {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const insets = useSafeAreaInsets();
+
+  // Le « mode sombre » vient du thème choisi (colorBg), pas du color scheme
+  // système → on dérive le tint du blur de la luminance du fond pour qu'il
+  // colle au fond dans tous les thèmes.
+  const theme = useThemeColors();
+  const blurTint = isDarkHex(theme.paper) ? 'dark' : 'light';
 
   const orderedIds = useMemo(() => resolveOrder(homeCardOrder), [homeCardOrder]);
 
@@ -202,6 +218,22 @@ export default function HomeScreen() {
         contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 64, paddingBottom: 120 }}
         ListHeaderComponent={<HomeHeader />}
         activationDistance={10}
+      />
+      {/* Backdrop frosted derrière la barre du haut : le contenu de la liste
+          scrolle dessous et se floute sous le logo / profil / réglages. */}
+      <BlurView
+        intensity={40}
+        tint={blurTint}
+        experimentalBlurMethod="dimezisBlurView"
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: insets.top + 64,
+          zIndex: 10,
+        }}
       />
       <View
         pointerEvents="box-none"

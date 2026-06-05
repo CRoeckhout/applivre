@@ -2,9 +2,13 @@ import {
   AVATAR_FRAMES as STATIC_AVATAR_FRAMES,
   type AvatarFrameDef,
 } from '@/lib/avatar-frames/catalog';
+import { APP_SLUG } from '@/constants/app';
 import { supabase } from '@/lib/supabase';
 import { usePremium } from '@/store/premium';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Image as ExpoImage } from 'expo-image';
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 
 type Availability = 'everyone' | 'premium' | 'badge' | 'unit';
 
@@ -59,7 +63,9 @@ function rowToDef(r: AvatarFrameRow): AvatarFrameDef | null {
   };
 }
 
-export const useAvatarFrameCatalog = create<AvatarFrameCatalogState>((set) => ({
+export const useAvatarFrameCatalog = create<AvatarFrameCatalogState>()(
+  persist(
+    (set) => ({
   remote: [],
   loaded: false,
   fetch: async (userId: string | null) => {
@@ -107,9 +113,34 @@ export const useAvatarFrameCatalog = create<AvatarFrameCatalogState>((set) => ({
         return def ? { def, availability: r.availability } : null;
       })
       .filter((e): e is AvatarFrameEntry => e !== null);
+
+    // Prefetch des PNG en cache disque pour que le cadre de la photo de profil
+    // reste rendable hors ligne (cf. border-catalog).
+    const uris = entries
+      .map((e) => {
+        const src = e.def.source;
+        if (src && typeof src === 'object' && 'uri' in src && typeof src.uri === 'string') {
+          return src.uri;
+        }
+        return null;
+      })
+      .filter((u): u is string => u !== null);
+    if (uris.length > 0) {
+      void ExpoImage.prefetch(uris, { cachePolicy: 'memory-disk' });
+    }
+
     set({ remote: entries, loaded: true });
   },
-}));
+    }),
+    {
+      // Cf. border-catalog : persisté pour l'offline-first (SWR).
+      name: `${APP_SLUG}-avatar-frame-catalog`,
+      version: 1,
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (s) => ({ remote: s.remote, loaded: s.loaded }),
+    },
+  ),
+);
 
 // Helper hook : retourne tous les cadres dispo (sentinel 'none' + DB), avec
 // `locked`/`lockReason` calculés depuis l'état premium courant.

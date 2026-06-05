@@ -138,6 +138,21 @@ export async function fetchReview(reviewId: string): Promise<BookReview | null> 
   };
 }
 
+// Lecture enrichie d'un avis isolé (note + texte + auteur complet) via le RPC
+// get_review (cf. migration 0073). Contrairement à fetchReview (lecture table,
+// auteur minimal), renvoie le snapshot profil complet — utilisé par la carte
+// éditoriale « Avis à la une ».
+export async function fetchReviewById(
+  reviewId: string,
+): Promise<BookReview | null> {
+  const { data, error } = await getClient().rpc('get_review', {
+    p_review_id: reviewId,
+  });
+  if (error) throw error;
+  if (!data) return null;
+  return mapReview(data as RawReview);
+}
+
 export type UpsertReviewInput = {
   bookIsbn: string;
   rating: number;

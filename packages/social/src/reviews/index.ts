@@ -1,6 +1,7 @@
 export {
   fetchBookReviews,
   fetchReview,
+  fetchReviewById,
   upsertReview,
   deleteReview,
   publishReviewToFeed,
@@ -13,6 +14,7 @@ export type { UpsertReviewInput } from './api';
 
 export {
   useBookReviews,
+  useReview,
   useMyReview,
   useUpsertReview,
   useDeleteReview,

@@ -7,6 +7,7 @@
 export type ReleaseNoteBlock =
   | { type: 'title'; text: string }
   | { type: 'text'; text: string }
+  | { type: 'quote'; text: string }
   | { type: 'list'; items: string[] }
   | { type: 'table'; headers: string[]; rows: string[][] }
   | { type: 'image'; url: string; alt?: string };
@@ -41,6 +42,8 @@ function parseBlock(raw: unknown): ReleaseNoteBlock | null {
       return typeof r.text === 'string' ? { type: 'title', text: r.text } : null;
     case 'text':
       return typeof r.text === 'string' ? { type: 'text', text: r.text } : null;
+    case 'quote':
+      return typeof r.text === 'string' ? { type: 'quote', text: r.text } : null;
     case 'list':
       return Array.isArray(r.items) && r.items.every((i) => typeof i === 'string')
         ? { type: 'list', items: r.items as string[] }

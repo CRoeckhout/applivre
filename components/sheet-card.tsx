@@ -29,6 +29,10 @@ type Props = {
   // Masque le contenu des sections : ne rend que le header (cover/titre/
   // auteur/date). Utilisé dans la liste des fiches.
   headerOnly?: boolean;
+  // Remap des tokens de fond du cadre SVG quand le wrapper parent n'est pas
+  // `theme.paper` (ex. card éditoriale en paperWarm) — cf. SheetSurface /
+  // makeFondTokenOverrides.
+  tokenOverrides?: Record<string, string>;
 };
 
 function timeAgo(iso: string): string {
@@ -51,6 +55,7 @@ export function SheetCard({
   hideBookHeader,
   readOnly,
   headerOnly,
+  tokenOverrides,
 }: Props) {
   const fontDef = getFont(appearance.fontId as any);
   const displayFont = fontDef.variants.display;
@@ -148,7 +153,7 @@ export function SheetCard({
   // Pas d'ombre : la card reste plate, le cadre se fond dans le bg de page
   // (cf. SheetSurface — token `paper` du cadre = `theme.paper`).
   const surface = (
-    <SheetSurface appearance={appearance} padding={12}>
+    <SheetSurface appearance={appearance} padding={12} tokenOverrides={tokenOverrides}>
       {inner}
     </SheetSurface>
   );

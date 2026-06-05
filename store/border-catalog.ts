@@ -3,10 +3,14 @@ import {
   type BorderDef,
   type BorderSliceExtras,
 } from '@/lib/borders/catalog';
+import { APP_SLUG } from '@/constants/app';
+import { ensureSkiaCached } from '@/lib/skia-image-cache';
 import { supabase } from '@/lib/supabase';
 import { usePremium } from '@/store/premium';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image as ExpoImage } from 'expo-image';
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 
 type Availability = 'everyone' | 'premium' | 'badge' | 'unit';
 
@@ -122,7 +126,9 @@ function rowToDef(r: BorderRow): BorderDef | null {
   return { ...baseDef, source: { uri } };
 }
 
-export const useBorderCatalog = create<BorderCatalogState>((set) => ({
+export const useBorderCatalog = create<BorderCatalogState>()(
+  persist(
+    (set) => ({
   remote: [],
   loaded: false,
   fetch: async (userId: string | null) => {
@@ -192,11 +198,26 @@ export const useBorderCatalog = create<BorderCatalogState>((set) => ({
       .filter((u): u is string => u !== null);
     if (uris.length > 0) {
       void ExpoImage.prefetch(uris, { cachePolicy: 'memory-disk' });
+      // Les bordures sont rendues via Skia (nine-slice), qui n'utilise pas le
+      // cache d'expo-image → on les télécharge aussi sur disque pour l'offline.
+      void Promise.all(uris.map((u) => ensureSkiaCached(u)));
     }
 
     set({ remote: entries, loaded: true });
   },
-}));
+    }),
+    {
+      // Persisté pour l'offline-first : le catalogue (métadonnées + svgXml/URL,
+      // texte uniquement) survit hors ligne. Hydrate depuis le storage →
+      // fetch() écrase quand on est en ligne (SWR). Les PNG sont déjà mis en
+      // cache disque par ExpoImage.prefetch ci-dessus.
+      name: `${APP_SLUG}-border-catalog`,
+      version: 1,
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (s) => ({ remote: s.remote, loaded: s.loaded }),
+    },
+  ),
+);
 
 // Helper hook : retourne tous les cadres dispo (statiques + DB) avec les
 // flags `locked`/`lockReason` calculés contre l'état premium courant.

@@ -21,6 +21,7 @@ import { usePremium } from "@/store/premium";
 import { useReadingSheetTemplates } from "@/store/reading-sheet-templates";
 import { useStickerCatalog } from "@/store/sticker-catalog";
 import { useDebug } from "@/store/debug";
+import { useNetwork } from "@/store/network";
 import { usePreferences } from "@/store/preferences";
 import { useProfile } from "@/store/profile";
 import {
@@ -33,7 +34,9 @@ import {
   DMSans_400Regular,
   DMSans_500Medium,
   DMSans_600SemiBold,
+  DMSans_600SemiBold_Italic,
   DMSans_700Bold,
+  DMSans_700Bold_Italic,
   useFonts,
 } from "@expo-google-fonts/dm-sans";
 import {
@@ -85,6 +88,7 @@ textInputWithProps.defaultProps = {
 };
 import "react-native-reanimated";
 import { BadgeUnlockToastHost } from "@/components/badges/badge-unlock-toast-host";
+import { OfflineBannerHost } from "@/components/offline/offline-banner";
 import { ReadingMusicEngine } from "@/components/reading-music/reading-music-engine";
 import { ReleaseNotesHost } from "@/components/release-notes/release-notes-host";
 import { useBadgeForegroundEval } from "@/hooks/use-badges";
@@ -96,6 +100,11 @@ configureSocial(supabase);
 export const unstable_settings = {
   anchor: "(tabs)",
 };
+
+// Délai max d'affichage de l'overlay « Synchronisation… » au login/cold start.
+// Au-delà, on rend la main (l'app reste utilisable avec les données locales
+// persistées) et la synchro réseau continue en arrière-plan.
+const SYNC_OVERLAY_TIMEOUT_MS = 8000;
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -111,7 +120,9 @@ export default function RootLayout() {
     DMSans_400Regular,
     DMSans_500Medium,
     DMSans_600SemiBold,
+    DMSans_600SemiBold_Italic,
     DMSans_700Bold,
+    DMSans_700Bold_Italic,
     Lora_400Regular,
     Lora_500Medium,
     Lora_600SemiBold,
@@ -252,21 +263,45 @@ function AuthGate() {
     const previousId = syncedUserId;
 
     if (currentId && currentId !== previousId) {
+      // Hors ligne : les stores persistés sont déjà hydratés. On active la sync
+      // des écritures (elles partiront en queue) mais on NE tente PAS flush/pull
+      // — ces fetch pendent ~60s hors ligne et afficheraient l'overlay pour rien.
+      // Le network watcher relance le flush au retour du réseau.
+      if (!useNetwork.getState().isOnline) {
+        setSyncUserId(currentId);
+        setSyncedUserId(currentId);
+        return;
+      }
       setSyncing(true);
       // 1) Flusher la queue offline (envoyer ce qui n'avait pas pu partir)
       // 2) Puis pull (avoir la vérité serveur à jour)
       // 3) Activer la sync auto des écritures courantes
       (async () => {
-        try {
-          await flushQueue();
-          await pullUserData(currentId);
-        } catch (err) {
-          console.warn("[sync] login sync failed", err);
-        } finally {
-          setSyncUserId(currentId);
-          setSyncedUserId(currentId);
-          setSyncing(false);
-        }
+        const work = (async () => {
+          try {
+            await flushQueue();
+            await pullUserData(currentId);
+          } catch (err) {
+            console.warn("[sync] login sync failed", err);
+          }
+        })();
+
+        // Hors ligne / réseau lent, flushQueue + pullUserData peuvent traîner
+        // (timeout TCP). On borne l'overlay : passé SYNC_OVERLAY_TIMEOUT_MS on
+        // rend la main à l'utilisateur (données locales déjà hydratées par les
+        // stores persistés) et la synchro se poursuit en arrière-plan.
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        await Promise.race([
+          work,
+          new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, SYNC_OVERLAY_TIMEOUT_MS);
+          }),
+        ]);
+        if (timer) clearTimeout(timer);
+
+        setSyncUserId(currentId);
+        setSyncedUserId(currentId);
+        setSyncing(false);
       })();
     } else if (!currentId && previousId) {
       setSyncedUserId(null);
@@ -322,6 +357,7 @@ function AuthGate() {
         <Stack.Screen name="profile/index" options={{ headerShown: false }} />
         <Stack.Screen name="profile/[userId]" options={{ headerShown: false }} />
         <Stack.Screen name="feed/[entryId]" options={{ headerShown: false }} />
+        <Stack.Screen name="news/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="messages/index" options={{ headerShown: false }} />
         <Stack.Screen name="messages/[threadId]" options={{ headerShown: false }} />
         <Stack.Screen name="bingo/index" options={{ headerShown: false }} />
@@ -355,6 +391,7 @@ function AuthGate() {
       )}
 
       <BadgeUnlockToastHost />
+      <OfflineBannerHost />
       <ReadingMusicEngine />
       <ReleaseNotesHost
         enabled={!!session && !loading && !syncing && !!username}

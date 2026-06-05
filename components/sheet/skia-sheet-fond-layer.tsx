@@ -25,6 +25,7 @@
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { applyTokens } from '@/lib/decorations/tokens';
 import { type FondDef } from '@/lib/fonds/catalog';
+import { useSkiaCachedUri } from '@/lib/skia-image-cache';
 import { useAllFonds } from '@/store/fond-catalog';
 import { usePreferences } from '@/store/preferences';
 import {
@@ -145,7 +146,10 @@ export function SkiaSheetFondLayer({
     }
     return null;
   }, [def?.source, def?.svgXml]);
-  const skImage = useImage(pngSource);
+  // Skia n'utilise pas le cache d'expo-image → on résout l'URL distante vers un
+  // file:// local pour que le fond reste rendable hors ligne.
+  const pngCachedUri = useSkiaCachedUri(typeof pngSource === 'string' ? pngSource : null);
+  const skImage = useImage(typeof pngSource === 'number' ? pngSource : pngCachedUri);
 
   // Transform global : scale.value est DÉJÀ clampé à [fitScale, maxScale]
   // par SheetPinchZoom (idle → scale.value = fitScale). Multiplier par

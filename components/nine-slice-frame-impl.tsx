@@ -21,6 +21,7 @@ import type {
   BorderBandMode,
   BorderSliceExtras,
 } from '@/lib/borders/catalog';
+import { useSkiaCachedUri } from '@/lib/skia-image-cache';
 
 type Insets = { top: number; right: number; bottom: number; left: number };
 
@@ -234,7 +235,10 @@ export function NineSliceFrame({
     }
     return null;
   }, [source]);
-  const skImage = useImage(skSource);
+  // Skia n'utilise pas le cache d'expo-image → on résout l'URL distante vers un
+  // file:// local pour que la bordure reste rendable hors ligne.
+  const cachedUri = useSkiaCachedUri(typeof skSource === 'string' ? skSource : null);
+  const skImage = useImage(typeof skSource === 'number' ? skSource : cachedUri);
   const skSvg = useMemo<SkSVG | null>(() => {
     if (!svgXml) return null;
     return Skia.SVG.MakeFromString(svgXml);

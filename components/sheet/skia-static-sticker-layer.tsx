@@ -20,6 +20,7 @@
 
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { applyTokens } from '@/lib/decorations/tokens';
+import { useSkiaCachedUri } from '@/lib/skia-image-cache';
 import {
   STICKER_NATURAL_WIDTH,
   type StickerDef,
@@ -199,7 +200,9 @@ function SkiaStickerNode({
     }
     return null;
   }, [def?.source, def?.svgXml]);
-  const skImage = useImage(pngSource);
+  // Skia n'utilise pas le cache d'expo-image → file:// local pour l'offline.
+  const pngCachedUri = useSkiaCachedUri(typeof pngSource === 'string' ? pngSource : null);
+  const skImage = useImage(typeof pngSource === 'number' ? pngSource : pngCachedUri);
 
   if (!def) return null;
 

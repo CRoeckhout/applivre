@@ -2,16 +2,22 @@
 // date relative, votes up/down. Style aligné sur les cartes paper-warm
 // utilisées ailleurs.
 
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import type { Reviews } from '@grimolia/social';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { Pressable, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Pressable, Text, View } from 'react-native';
 import { ReviewVoteButtons } from './review-vote-buttons';
 import { StarRatingDisplay } from './star-rating';
 
 type Props = {
   review: Reviews.BookReview;
   bookIsbn: string;
+  // Avis ciblé par un deep-link « Avis à la une » : ref pour le scroll + flag
+  // de surbrillance (anneau accent qui s'estompe).
+  containerRef?: React.Ref<View>;
+  highlighted?: boolean;
 };
 
 function relativeDate(iso: string): string {
@@ -26,14 +32,36 @@ function relativeDate(iso: string): string {
   return date.toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-export function ReviewCard({ review, bookIsbn }: Props) {
+export function ReviewCard({
+  review,
+  bookIsbn,
+  containerRef,
+  highlighted = false,
+}: Props) {
   const router = useRouter();
   const author = review.author;
   const displayName =
     author.display_name || author.username || 'Lecteur anonyme';
+  const theme = useThemeColors();
+
+  // Surbrillance one-shot : anneau accent qui apparaît puis s'estompe quand la
+  // carte est la cible d'un deep-link.
+  const ring = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!highlighted) return;
+    ring.setValue(1);
+    const anim = Animated.timing(ring, {
+      toValue: 0,
+      duration: 1600,
+      delay: 600,
+      useNativeDriver: true,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [highlighted, ring]);
 
   return (
-    <View className="rounded-3xl bg-paper-warm p-4">
+    <View ref={containerRef} className="rounded-3xl bg-paper-warm p-4">
       <View className="flex-row items-center gap-3">
         <Pressable
           onPress={() => router.push(`/profile/${author.id}`)}
@@ -70,6 +98,21 @@ export function ReviewCard({ review, bookIsbn }: Props) {
           score={review.score}
         />
       </View>
+
+      <Animated.View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          borderRadius: 24,
+          borderWidth: 2,
+          borderColor: theme.accent,
+          opacity: ring,
+        }}
+      />
     </View>
   );
 }

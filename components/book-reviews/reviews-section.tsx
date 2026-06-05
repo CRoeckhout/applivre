@@ -14,7 +14,7 @@
 import { useAuth } from '@/hooks/use-auth';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Reviews } from '@grimolia/social';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { ReviewCard } from './review-card';
 import { ReviewFormModal } from './review-form-modal';
@@ -24,14 +24,43 @@ import { ShareReviewModal } from './share-review-modal';
 type Props = {
   bookIsbn: string;
   bookTitle: string;
+  // Avis à la une : id de l'avis à cibler (scroll + surbrillance) + callback de
+  // scroll fourni par la page livre (qui possède la ScrollView).
+  highlightReviewId?: string | null;
+  scrollIntoView?: (node: View) => void;
 };
 
-export function ReviewsSection({ bookIsbn, bookTitle }: Props) {
+export function ReviewsSection({
+  bookIsbn,
+  bookTitle,
+  highlightReviewId = null,
+  scrollIntoView,
+}: Props) {
   const { session } = useAuth();
   const userId = session?.user.id ?? null;
 
   const reviewsQuery = Reviews.useBookReviews(bookIsbn);
   const myReviewQuery = Reviews.useMyReview(userId, bookIsbn);
+
+  // Cible du deep-link : on attache un ref à la carte ciblée, et une fois la
+  // liste chargée + le layout posé, on scrolle dessus et on l'allume.
+  const targetRef = useRef<View>(null);
+  const [highlightOn, setHighlightOn] = useState(false);
+  const didHighlightRef = useRef(false);
+
+  useEffect(() => {
+    if (!highlightReviewId || didHighlightRef.current) return;
+    const found = reviewsQuery.data?.reviews.some(
+      (r) => r.id === highlightReviewId,
+    );
+    if (!found) return;
+    didHighlightRef.current = true;
+    const t = setTimeout(() => {
+      if (targetRef.current && scrollIntoView) scrollIntoView(targetRef.current);
+      setHighlightOn(true);
+    }, 450);
+    return () => clearTimeout(t);
+  }, [highlightReviewId, reviewsQuery.data, scrollIntoView]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -99,9 +128,18 @@ export function ReviewsSection({ bookIsbn, bookTitle }: Props) {
 
       {payload.reviews.length > 0 ? (
         <View className="mt-6 gap-3">
-          {payload.reviews.map((r) => (
-            <ReviewCard key={r.id} review={r} bookIsbn={bookIsbn} />
-          ))}
+          {payload.reviews.map((r) => {
+            const isTarget = r.id === highlightReviewId;
+            return (
+              <ReviewCard
+                key={r.id}
+                review={r}
+                bookIsbn={bookIsbn}
+                containerRef={isTarget ? targetRef : undefined}
+                highlighted={isTarget && highlightOn}
+              />
+            );
+          })}
         </View>
       ) : null}
 

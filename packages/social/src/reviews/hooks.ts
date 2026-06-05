@@ -4,6 +4,7 @@ import type { UserId } from '../types';
 import {
   deleteReview,
   fetchBookReviews,
+  fetchReviewById,
   getMyReview,
   getMyVote,
   publishReviewToFeed,
@@ -12,6 +13,7 @@ import {
   voteReview,
   type UpsertReviewInput,
 } from './api';
+import type { BookReview } from './types';
 import type { BookReviewsPayload, ReviewVoteValue } from './types';
 
 const STALE_MS = 1000 * 30;
@@ -28,6 +30,17 @@ export function useBookReviews(bookIsbn: string | null | undefined) {
     queryKey: reviewsKey(bookIsbn ?? ''),
     queryFn: () => fetchBookReviews(bookIsbn!),
     enabled: Boolean(bookIsbn),
+    staleTime: STALE_MS,
+  });
+}
+
+// Lecture d'un avis isolé (note + texte + auteur). Pour la carte éditoriale
+// « Avis à la une » qui référence un avis par son id.
+export function useReview(reviewId: string | null | undefined) {
+  return useQuery<BookReview | null>({
+    queryKey: ['social', 'reviews', 'one', reviewId ?? ''],
+    queryFn: () => fetchReviewById(reviewId!),
+    enabled: Boolean(reviewId),
     staleTime: STALE_MS,
   });
 }

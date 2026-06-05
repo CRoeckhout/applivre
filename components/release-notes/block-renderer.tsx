@@ -1,3 +1,4 @@
+import { RichText } from '@/components/rich-text';
 import type { ReleaseNoteBlock } from '@/types/release-note';
 import { Image, type ImageLoadEventData } from 'expo-image';
 import { useState } from 'react';
@@ -24,6 +25,8 @@ function BlockItem({ block }: { block: ReleaseNoteBlock }) {
       return <TitleBlock text={block.text} />;
     case 'text':
       return <TextBlock text={block.text} />;
+    case 'quote':
+      return <QuoteBlock text={block.text} />;
     case 'list':
       return <ListBlock items={block.items} />;
     case 'table':
@@ -34,14 +37,58 @@ function BlockItem({ block }: { block: ReleaseNoteBlock }) {
 }
 
 function TitleBlock({ text }: { text: string }) {
-  return <Text className="font-display text-base text-ink">{text}</Text>;
+  return (
+    <RichText font="display" className="font-display text-base text-ink">
+      {text}
+    </RichText>
+  );
 }
 
 function TextBlock({ text }: { text: string }) {
+  // Le contenu peut mêler paragraphes et titres markdown (#, ##) issus du
+  // sélecteur de taille de l'admin. On rend ligne à ligne ; les lignes vides
+  // (séparateurs de paragraphes markdown) sont ignorées.
+  const lines = text.split('\n').filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return null;
   return (
-    <Text className="text-sm text-ink" style={{ lineHeight: 20 }}>
-      {text}
-    </Text>
+    <View className="gap-2">
+      {lines.map((line, idx) => {
+        const heading = line.match(/^(#{1,2})\s+(.*)$/);
+        if (heading) {
+          const big = heading[1].length === 1;
+          return (
+            <RichText
+              key={idx}
+              font="display"
+              className={`font-display text-ink ${big ? 'text-xl' : 'text-lg'}`}
+            >
+              {heading[2]}
+            </RichText>
+          );
+        }
+        return (
+          <RichText key={idx} className="text-sm text-ink" style={{ lineHeight: 20 }}>
+            {line}
+          </RichText>
+        );
+      })}
+    </View>
+  );
+}
+
+// Citation : barre verticale à gauche + texte en italique léger, sur fond
+// papier chaud pour le distinguer du corps.
+function QuoteBlock({ text }: { text: string }) {
+  return (
+    <View className="flex-row gap-3">
+      <View style={{ width: 3, borderRadius: 2 }} className="bg-accent" />
+      <RichText
+        className="flex-1 text-sm italic text-ink-muted"
+        style={{ lineHeight: 20 }}
+      >
+        {text}
+      </RichText>
+    </View>
   );
 }
 
@@ -59,9 +106,9 @@ function ListBlock({ items }: { items: string[] }) {
               backgroundColor: '#f59e0b',
             }}
           />
-          <Text className="flex-1 text-sm text-ink" style={{ lineHeight: 20 }}>
+          <RichText className="flex-1 text-sm text-ink" style={{ lineHeight: 20 }}>
             {item}
-          </Text>
+          </RichText>
         </View>
       ))}
     </View>

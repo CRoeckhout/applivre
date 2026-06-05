@@ -505,6 +505,7 @@ export type FreemiumSettingsRow = {
 export type ReleaseNoteBlock =
   | { type: 'title'; text: string }
   | { type: 'text'; text: string }
+  | { type: 'quote'; text: string }
   | { type: 'list'; items: string[] }
   | { type: 'table'; headers: string[]; rows: string[][] }
   | { type: 'image'; url: string; alt?: string };
@@ -512,6 +513,7 @@ export type ReleaseNoteBlock =
 export const RELEASE_NOTE_BLOCK_TYPES: ReleaseNoteBlock['type'][] = [
   'title',
   'text',
+  'quote',
   'list',
   'table',
   'image',
@@ -520,6 +522,7 @@ export const RELEASE_NOTE_BLOCK_TYPES: ReleaseNoteBlock['type'][] = [
 export const RELEASE_NOTE_BLOCK_LABELS: Record<ReleaseNoteBlock['type'], string> = {
   title: 'Titre',
   text: 'Texte',
+  quote: 'Citation',
   list: 'Liste à puces',
   table: 'Tableau',
   image: 'Image / GIF',
@@ -532,5 +535,103 @@ export type ReleaseNoteRow = {
   body: ReleaseNoteBlock[];
   published_at: string;
   created_at: string;
+};
+
+// ═══════════════ Fil d'actualité éditorial ═══════════════
+// cf. supabase/migrations/0073_editorial_feed.sql. Doit rester aligné avec
+// types/editorial.ts côté app (contrat avec la DB). Le `body` réutilise le
+// schéma de blocs des release notes (ReleaseNoteBlock).
+
+export type EditorialPostKind =
+  | 'announcement'
+  | 'partner'
+  | 'featured_review'
+  | 'book_of_month'
+  | 'featured_sheet';
+
+export type EditorialRefKind = 'feed_entry' | 'book' | 'sheet';
+
+export type EditorialPostStatus = 'draft' | 'published' | 'archived';
+
+export type EditorialCta = { label: string; deeplink: string };
+
+// Kinds éditables manuellement via le formulaire (phase 0/A). Les featured_*
+// sont créés via le panneau de candidats (phase B).
+export const EDITORIAL_MANUAL_KINDS: EditorialPostKind[] = ['announcement', 'partner'];
+
+export const EDITORIAL_KIND_LABELS: Record<EditorialPostKind, string> = {
+  announcement: 'Annonce',
+  partner: 'Partenariat',
+  featured_review: 'Avis mis en avant',
+  book_of_month: 'Livre du mois',
+  featured_sheet: 'Fiche mise en avant',
+};
+
+export const EDITORIAL_STATUS_LABELS: Record<EditorialPostStatus, string> = {
+  draft: 'Brouillon',
+  published: 'Publié',
+  archived: 'Archivé',
+};
+
+export type EditorialPostRow = {
+  id: string;
+  kind: EditorialPostKind;
+  title: string;
+  subtitle: string | null;
+  body: ReleaseNoteBlock[];
+  ref_kind: EditorialRefKind | null;
+  ref_id: string | null;
+  // Avis mis en avant : id de l'book_review ciblé (cf. migration 0073).
+  review_id: string | null;
+  cover_url: string | null;
+  cta: EditorialCta | null;
+  status: EditorialPostStatus;
+  pinned: boolean;
+  priority: number;
+  publish_at: string;
+  expire_at: string | null;
+  author_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+// ─── Candidats à la mise en avant (cf. RPC admin_editorial_candidates, 0073) ───
+
+export type EditorialCandidateCategory = 'book' | 'review' | 'sheet' | 'feed';
+
+export const EDITORIAL_CANDIDATE_CATEGORY_LABELS: Record<
+  EditorialCandidateCategory,
+  string
+> = {
+  book: 'Livres les plus ajoutés',
+  review: 'Avis les plus votés',
+  sheet: 'Fiches les plus aimées',
+  feed: 'Publications les plus aimées',
+};
+
+export type EditorialCandidate = {
+  category: EditorialCandidateCategory;
+  kind: EditorialPostKind;
+  ref_kind: EditorialRefKind;
+  ref_id: string;
+  title: string;
+  subtitle: string | null;
+  cover_url: string | null;
+  author_name: string | null;
+  metric_label: string;
+  metric_value: number;
+  // Catégorie « review » : id de l'avis mis en avant (null sinon).
+  review_id: string | null;
+};
+
+// Graine pour pré-remplir le formulaire depuis un candidat promu.
+export type EditorialSeed = {
+  kind: EditorialPostKind;
+  title: string;
+  subtitle: string | null;
+  cover_url: string | null;
+  ref_kind: EditorialRefKind | null;
+  ref_id: string | null;
+  review_id: string | null;
 };
 

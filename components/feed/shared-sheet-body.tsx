@@ -4,7 +4,12 @@
 // le tap → /sheet/view/[id].
 
 import { SheetCard } from "@/components/sheet-card";
-import { hexWithAlpha, resolvePublicAppearance } from "@/lib/sheet-appearance";
+import { useThemeColors } from "@/hooks/use-theme-colors";
+import {
+  hexWithAlpha,
+  makeFondTokenOverrides,
+  resolvePublicAppearance,
+} from "@/lib/sheet-appearance";
 import { supabase } from "@/lib/supabase";
 import { usePreferences } from "@/store/preferences";
 import type {
@@ -20,7 +25,9 @@ import { useRouter } from "expo-router";
 import { useMemo } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 
-type SheetBundle = {
+// Exportés : réutilisés par la carte éditoriale « Fiche à la une »
+// (components/editorial/featured-sheet-card.tsx), même RPC + même cache RQ.
+export type SheetBundle = {
   sheet_id: string;
   user_book_id: string;
   content: {
@@ -37,7 +44,7 @@ type SheetBundle = {
   book_cover_url: string | null;
 };
 
-async function fetchSheetBundle(sheetId: string): Promise<SheetBundle | null> {
+export async function fetchSheetBundle(sheetId: string): Promise<SheetBundle | null> {
   const { data, error } = await supabase.rpc("get_public_sheet", {
     p_sheet_id: sheetId,
   });
@@ -93,6 +100,15 @@ export function SharedSheetBody({ sheetId }: { sheetId: string }) {
     [bundle?.content?.appearance],
   );
 
+  // La card du feed (FeedItemFrame) est en paperWarm : on remappe les tokens
+  // de fond du cadre SVG dessus, sinon la matière autour du tracé reste en
+  // theme.paper et fait un liseré visible (cf. makeFondTokenOverrides).
+  const theme = useThemeColors();
+  const tokenOverrides = useMemo(
+    () => makeFondTokenOverrides(theme.paperWarm),
+    [theme.paperWarm],
+  );
+
   if (bundleQuery.isLoading) {
     return (
       <View style={{ paddingVertical: 24, alignItems: "center" }}>
@@ -120,6 +136,7 @@ export function SharedSheetBody({ sheetId }: { sheetId: string }) {
         appearance={appearance}
         isCustom={false}
         headerOnly
+        tokenOverrides={tokenOverrides}
         onPress={() => router.push(`/sheet/view/${bundle.sheet_id}`)}
       />
     </View>

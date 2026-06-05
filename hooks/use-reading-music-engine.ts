@@ -60,7 +60,6 @@ export function useReadingMusicEngine(): void {
   const setIsPlaying = useReadingMusicStore((s) => s.setIsPlaying);
   const _setStatus = useReadingMusicStore((s) => s._engineSetStatus);
   const _setTrackCount = useReadingMusicStore((s) => s._engineSetTrackCount);
-  const _setTrackIndex = useReadingMusicStore((s) => s._engineSetTrackIndex);
   const _setTitle = useReadingMusicStore((s) => s._engineSetCurrentTitle);
 
   const next = useReadingMusicStore((s) => s.next);
@@ -81,9 +80,20 @@ export function useReadingMusicEngine(): void {
   const player = useAudioPlayer(null);
   const playerStatus = useAudioPlayerStatus(player);
 
+  // Couplage avec le timer : la session pilote la lecture musicale. Dérivé tôt
+  // car l'effet lock-screen ci-dessous en dépend (relâche le widget Now Playing
+  // dès que la session se termine, même si le thème reste sélectionné en store).
+  const timerActive = useTimer((s) => s.active);
+  const timerPaused = !!timerActive?.pausedAt;
+  const hasTimer = !!timerActive;
+
   useEffect(() => {
     if (!currentTrack) return;
     player.replace(currentTrack.localUri);
+    // Tentative de lecture immédiate. `replace()` est asynchrone (chargement de
+    // la source) et remet le player en pause ; l'effet de réconciliation plus
+    // bas rattrape si cette tentative arrive avant que la source soit chargée.
+    if (useReadingMusicStore.getState().isPlaying) player.play();
   }, [currentTrack?.localUri, player]);
 
   // Sync status dans le store pour que l'UI affiche loading / downloading / etc.
@@ -119,20 +129,41 @@ export function useReadingMusicEngine(): void {
     void ensureAudioMode();
   }, []);
 
-  // Drive le player depuis l'intent isPlaying.
+  // Réconcilie l'état réel du player avec l'intent `isPlaying`. Robuste à la
+  // course replace→play : dès que la nouvelle source est chargée (isLoaded,
+  // playing encore false) on relance, ce qui corrige les transitions où la
+  // piste suivante restait figée en pause. On ne relance pas une piste qui
+  // vient de finir (didJustFinish) — l'auto-advance prend le relais.
   useEffect(() => {
-    if (!currentTrack) return;
-    if (isPlaying) player.play();
-    else player.pause();
-  }, [currentTrack?.localUri, isPlaying, player]);
+    if (!currentTrack || !playerStatus.isLoaded) return;
+    if (isPlaying && !playerStatus.playing && !playerStatus.didJustFinish) {
+      player.play();
+    } else if (!isPlaying && playerStatus.playing) {
+      player.pause();
+    }
+  }, [
+    isPlaying,
+    playerStatus.isLoaded,
+    playerStatus.playing,
+    playerStatus.didJustFinish,
+    currentTrack,
+    player,
+  ]);
 
-  // Auto-advance à la fin de la piste — boucle sur la queue.
+  // Auto-advance à la fin de la piste — boucle sur la queue. On passe par
+  // l'action `next()` du store (lit l'état frais via get(), pas de closure
+  // périmée). Queue d'une seule piste : `next()` ne changerait pas l'index donc
+  // l'effet de chargement ne se redéclencherait pas → on reboucle à la main.
   useEffect(() => {
     if (!playerStatus.didJustFinish) return;
     if (tracks.length === 0) return;
-    const nextIndex = (safeIndex + 1) % tracks.length;
-    _setTrackIndex(nextIndex);
-  }, [playerStatus.didJustFinish]);
+    if (tracks.length === 1) {
+      player.seekTo(0);
+      if (useReadingMusicStore.getState().isPlaying) player.play();
+      return;
+    }
+    next();
+  }, [playerStatus.didJustFinish, tracks.length, next, player]);
 
   // Lock-screen metadata. iOS only — sur Android le widget système Now
   // Playing serait un doublon du panel audio affiché in-app dans la
@@ -146,7 +177,11 @@ export function useReadingMusicEngine(): void {
   useEffect(() => {
     if (Platform.OS !== 'ios') return;
 
-    if (!currentTrack) {
+    // Session terminée (`!hasTimer`) ou pas de piste → on relâche le widget Now
+    // Playing. Le garde `hasTimer` est essentiel : le thème restant persisté en
+    // store garde `currentTrack` non-null après l'arrêt de la session, et sans
+    // ça iOS afficherait indéfiniment la piste figée de la session précédente.
+    if (!currentTrack || !hasTimer) {
       try {
         player.clearLockScreenControls();
       } catch {
@@ -167,7 +202,7 @@ export function useReadingMusicEngine(): void {
     // on les rajoute via notre module local pour que les boutons skip du
     // widget Now Playing soient cliquables.
     enableTrackSkipCommands();
-  }, [currentTrack?.id, isPlaying, player]);
+  }, [currentTrack?.id, isPlaying, hasTimer, player]);
 
   // Subscribe aux events natifs prev/next du widget Now Playing. Une seule
   // fois (les listeners persistent tant que l'engine est mounté).
@@ -183,11 +218,6 @@ export function useReadingMusicEngine(): void {
       unsubPrev();
     };
   }, [next, prev]);
-
-  // Couplage avec le timer : la session pilote la lecture musicale.
-  const timerActive = useTimer((s) => s.active);
-  const timerPaused = !!timerActive?.pausedAt;
-  const hasTimer = !!timerActive;
 
   useEffect(() => {
     if (!hasTimer) {

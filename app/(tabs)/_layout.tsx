@@ -2,6 +2,7 @@ import { HapticTab } from '@/components/haptic-tab';
 import { PersonalizationSheet } from '@/components/personalization-sheet';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { derivePalette } from '@/lib/theme/colors';
+import { useOnline } from '@/store/network';
 import { usePreferences } from '@/store/preferences';
 import { Tabs } from 'expo-router';
 import React, { useMemo } from 'react';
@@ -11,6 +12,7 @@ export default function TabLayout() {
   const primary = usePreferences((s) => s.colorPrimary);
   const secondary = usePreferences((s) => s.colorSecondary);
   const bg = usePreferences((s) => s.colorBg);
+  const isOnline = useOnline();
 
   const tabColors = useMemo(() => {
     const p = derivePalette(primary, secondary, bg);
@@ -40,6 +42,9 @@ export default function TabLayout() {
           name="index"
           options={{
             title: 'Communauté',
+            // Hors ligne, le feed communautaire (réseau requis) est masqué de la
+            // tab bar ; l'écran redirige de toute façon vers l'accueil.
+            href: isOnline ? undefined : null,
             tabBarIcon: ({ color }) => (
               <IconSymbol size={26} name="newspaper.fill" color={color} />
             ),

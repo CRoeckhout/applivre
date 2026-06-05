@@ -80,7 +80,10 @@ export function ReviewFormModal({
         <Pressable
           onPress={(e) => e.stopPropagation()}
           className="rounded-3xl bg-paper p-5"
-          style={{ maxHeight: '85%' }}
+          // flexShrink : quand le clavier réduit l'espace disponible, la card
+          // rétrécit pour y tenir (le maxHeight % seul se calcule sur la
+          // hauteur plein écran et laissait le contenu déborder sous la box).
+          style={{ maxHeight: '85%', flexShrink: 1 }}
         >
           <View className="flex-row items-center gap-3">
             <View className="h-12 w-12 items-center justify-center rounded-full bg-accent-pale">
@@ -115,6 +118,10 @@ export function ReviewFormModal({
             multiline
             textAlignVertical="top"
             className="mt-2 min-h-28 rounded-2xl bg-paper-warm px-5 py-3 text-base text-ink"
+            // Seul élément compressible de la card : un long commentaire se
+            // comprime (et scrolle en interne) au lieu de pousser les boutons
+            // hors de la modale.
+            style={{ flexShrink: 1 }}
           />
 
           <View className="mt-6 flex-row gap-2">

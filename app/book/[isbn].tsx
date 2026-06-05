@@ -35,7 +35,7 @@ import type {
 import { MaterialIcons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -54,11 +54,35 @@ import Animated, {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function BookDetailScreen() {
-  const { isbn, action } = useLocalSearchParams<{
+  const { isbn, action, highlightReview } = useLocalSearchParams<{
     isbn: string;
     action?: string;
+    // Avis à la une (cf. editorialHref) : id de l'avis à cibler → scroll +
+    // surbrillance dans la section avis.
+    highlightReview?: string;
   }>();
   const router = useRouter();
+
+  // Scroll-into-view d'un avis ciblé (deep-link « Avis à la une »). On mesure
+  // contre un View intérieur — la ScrollView n'est pas une cible valide pour
+  // measureLayout (cf. même pattern dans app/feed/[entryId].tsx).
+  const scrollViewRef = useRef<ScrollView>(null);
+  const contentRef = useRef<View>(null);
+  const scrollIntoView = useCallback((node: View) => {
+    const sv = scrollViewRef.current;
+    const content = contentRef.current;
+    if (!sv || !content) return;
+    // New Arch (Fabric) : measureLayout veut une instance ref comme cible, pas
+    // un node handle numérique (findNodeHandle no-op/throw sur Fabric).
+    node.measureLayout(
+      content,
+      (_x, y) => {
+        sv.scrollTo({ y: Math.max(0, y - 80), animated: true });
+      },
+      () => {},
+    );
+  }, []);
+
   const { books, addBook, updateStatus, removeBook } = useBookshelf();
   const setGenres = useBookshelf((s) => s.setGenres);
   const toggleFavorite = useBookshelf((s) => s.toggleFavorite);
@@ -257,9 +281,11 @@ export default function BookDetailScreen() {
   return (
     <View className="flex-1 bg-paper">
       <ScrollView
+        ref={scrollViewRef}
         className="flex-1 bg-paper"
         contentContainerClassName="px-6 pt-6 pb-32"
       >
+        <View ref={contentRef}>
         <Animated.View entering={FadeIn.duration(400)} className="items-center">
           <BookCover
             isbn={data.isbn}
@@ -371,7 +397,12 @@ export default function BookDetailScreen() {
           {isbn ? (
             <>
               <View className="mt-10 h-px bg-ink/10" />
-              <ReviewsSection bookIsbn={isbn} bookTitle={data.title} />
+              <ReviewsSection
+                bookIsbn={isbn}
+                bookTitle={data.title}
+                highlightReviewId={highlightReview ?? null}
+                scrollIntoView={scrollIntoView}
+              />
             </>
           ) : null}
 
@@ -429,6 +460,7 @@ export default function BookDetailScreen() {
             onConfirm={onPauseConfirm}
           />
         )}
+        </View>
       </ScrollView>
       {navigation?.prev && (
         <NavArrow
@@ -571,6 +603,23 @@ function ReadingStats({
 
   const pastCycles = bookCycles.filter((c) => !!c.finishedAt);
 
+  // Session qui a clôturé un livre = dernière session d'un cycle terminé en
+  // « lu ». On la met en avant (coupe) dans la liste des dernières sessions.
+  const finishedSessionIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const c of bookCycles) {
+      if (c.outcome !== "read") continue;
+      const last = allSessions
+        .filter((s) => s.cycleId === c.id)
+        .sort(
+          (a, b) =>
+            new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+        )[0];
+      if (last) ids.add(last.id);
+    }
+    return ids;
+  }, [bookCycles, allSessions]);
+
   return (
     <View className="mt-8">
       <View className="mb-3 flex-row items-baseline justify-between">
@@ -618,6 +667,7 @@ function ReadingStats({
           )}
           deltas={deltas}
           totalPages={totalPages}
+          finishedSessionIds={finishedSessionIds}
         />
       )}
 
@@ -716,10 +766,12 @@ function RecentSessionsCard({
   sessions,
   deltas,
   totalPages,
+  finishedSessionIds,
 }: {
   sessions: ReadingSession[];
   deltas: Map<string, number>;
   totalPages?: number;
+  finishedSessionIds: Set<string>;
 }) {
   const PREVIEW = 5;
   const [expanded, setExpanded] = useState(false);
@@ -743,6 +795,7 @@ function RecentSessionsCard({
           delta={deltas.get(s.id) ?? 0}
           inCard
           totalPages={totalPages}
+          finishedBook={finishedSessionIds.has(s.id)}
         />
       ))}
       {expanded &&
@@ -757,6 +810,7 @@ function RecentSessionsCard({
               delta={deltas.get(s.id) ?? 0}
               inCard
               totalPages={totalPages}
+              finishedBook={finishedSessionIds.has(s.id)}
             />
           </Animated.View>
         ))}
@@ -789,11 +843,13 @@ function SessionRow({
   delta,
   inCard,
   totalPages,
+  finishedBook,
 }: {
   session: ReadingSession;
   delta: number;
   inCard?: boolean;
   totalPages?: number;
+  finishedBook?: boolean;
 }) {
   const date = new Date(session.startedAt);
   const dateStr = date.toLocaleDateString("fr-FR", {
@@ -834,11 +890,21 @@ function SessionRow({
           onPress={() => setNoteOpen(true)}
           accessibilityLabel="Modifier la session (note et page d'arrêt)"
           className={`mt-2 flex-row items-center justify-between rounded-xl px-4 py-3 active:opacity-80 ${
-            inCard ? "bg-paper" : "bg-paper-warm"
+            finishedBook
+              ? "bg-accent-pale"
+              : inCard
+                ? "bg-paper"
+                : "bg-paper-warm"
           }`}
         >
           <View className="flex-row items-center gap-2">
+            {finishedBook ? <Text className="text-base">🏆</Text> : null}
             <Text className="text-sm text-ink-soft">{dateStr}</Text>
+            {finishedBook ? (
+              <Text className="font-sans-med text-xs text-accent-deep">
+                Livre terminé
+              </Text>
+            ) : null}
             {hasNote ? (
               <MaterialIcons name="edit-note" size={16} color="#c27b52" />
             ) : null}

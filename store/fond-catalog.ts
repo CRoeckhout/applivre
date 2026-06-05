@@ -1,7 +1,12 @@
+import { APP_SLUG } from '@/constants/app';
 import { FONDS as STATIC_FONDS, type FondDef, type FondRepeatMode } from '@/lib/fonds/catalog';
+import { ensureSkiaCached } from '@/lib/skia-image-cache';
 import { supabase } from '@/lib/supabase';
 import { usePremium } from '@/store/premium';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Image as ExpoImage } from 'expo-image';
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 
 type Availability = 'everyone' | 'premium' | 'badge' | 'unit';
 
@@ -61,7 +66,9 @@ function rowToDef(r: FondRow): FondDef | null {
   return { ...baseDef, source: { uri } };
 }
 
-export const useFondCatalog = create<FondCatalogState>((set) => ({
+export const useFondCatalog = create<FondCatalogState>()(
+  persist(
+    (set) => ({
   remote: [],
   loaded: false,
   fetch: async (userId: string | null) => {
@@ -108,9 +115,37 @@ export const useFondCatalog = create<FondCatalogState>((set) => ({
         return def ? { def, availability: r.availability } : null;
       })
       .filter((e): e is FondEntry => e !== null);
+
+    // Prefetch des PNG en cache disque pour qu'ils restent rendables hors
+    // ligne (cf. border-catalog). Fire-and-forget.
+    const uris = entries
+      .map((e) => {
+        const src = e.def.source;
+        if (src && typeof src === 'object' && 'uri' in src && typeof src.uri === 'string') {
+          return src.uri;
+        }
+        return null;
+      })
+      .filter((u): u is string => u !== null);
+    if (uris.length > 0) {
+      void ExpoImage.prefetch(uris, { cachePolicy: 'memory-disk' });
+      // Fond rendu en Skia dans la fiche (skia-sheet-fond-layer) → cache disque
+      // pour l'offline (Skia ne lit pas le cache d'expo-image).
+      void Promise.all(uris.map((u) => ensureSkiaCached(u)));
+    }
+
     set({ remote: entries, loaded: true });
   },
-}));
+    }),
+    {
+      // Cf. border-catalog : persisté pour l'offline-first (SWR).
+      name: `${APP_SLUG}-fond-catalog`,
+      version: 1,
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (s) => ({ remote: s.remote, loaded: s.loaded }),
+    },
+  ),
+);
 
 export function useAllFonds(): FondDef[] {
   const remote = useFondCatalog((s) => s.remote);
