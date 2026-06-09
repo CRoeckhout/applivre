@@ -2,6 +2,7 @@ import { BookCover } from '@/components/book-cover';
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { READING_STATUS_META } from '@/lib/reading-status';
 import { useBookshelf } from '@/store/bookshelf';
+import { useTimer } from '@/store/timer';
 import type { UserBook } from '@/types/book';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -108,6 +109,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function BookRow({ ub, onPress }: { ub: UserBook; onPress: () => void }) {
   const theme = useThemeColors();
   const meta = READING_STATUS_META[ub.status];
+  // Page d'arrêt du cycle en cours (0 = pas encore commencé).
+  const currentPage = useTimer((s) => s.lastPageFor(ub.id));
   return (
     <Pressable
       onPress={onPress}
@@ -126,12 +129,21 @@ function BookRow({ ub, onPress }: { ub: UserBook; onPress: () => void }) {
             {ub.book.authors[0]}
           </Text>
         ) : null}
-        <View
-          style={{ backgroundColor: meta.color }}
-          className="mt-1 self-start rounded-full px-2 py-0.5">
-          <Text className="text-[11px] font-sans-med text-paper">
-            {meta.label}
-          </Text>
+        <View className="mt-1 flex-row items-center gap-2">
+          <View
+            style={{ backgroundColor: meta.color }}
+            className="self-start rounded-full px-2 py-0.5">
+            <Text className="text-[11px] font-sans-med text-paper">
+              {meta.label}
+            </Text>
+          </View>
+          {currentPage > 0 ? (
+            <Text
+              className="text-[11px] text-ink-muted"
+              style={{ fontVariant: ['tabular-nums'] }}>
+              Page {currentPage}
+            </Text>
+          ) : null}
         </View>
       </View>
       <MaterialIcons name="play-arrow" size={22} color={theme.accentDeep} />

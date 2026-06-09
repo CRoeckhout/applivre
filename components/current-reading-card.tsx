@@ -25,6 +25,13 @@ export function CurrentReadingCard({
   const router = useRouter();
   const activeSession = useTimer((s) => s.active);
   const updateStatus = useBookshelf((s) => s.updateStatus);
+  // Page d'arrêt du cycle en cours du livre vedette (un seul livre en
+  // lecture), affichée sous le titre dans le bouton « Commencer à lire ».
+  const featuredId =
+    readingBooks.length === 1 ? readingBooks[0].id : undefined;
+  const featuredPage = useTimer((s) =>
+    featuredId ? s.lastPageFor(featuredId) : 0,
+  );
   const activeBook = useBookshelf((s) =>
     activeSession ? s.books.find((b) => b.id === activeSession.userBookId) : undefined,
   );
@@ -90,6 +97,7 @@ export function CurrentReadingCard({
                   coverUrl: featured.book.coverUrl,
                   title: featured.book.title,
                   authors: featured.book.authors,
+                  currentPage: featuredPage,
                 }
               : undefined
           }

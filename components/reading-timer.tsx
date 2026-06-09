@@ -85,6 +85,9 @@ type StartReadingBookContext = {
   coverUrl?: string;
   title: string;
   authors: string[];
+  // Page d'arrêt du cycle en cours (0 = pas encore commencé), affichée
+  // sous le bouton play.
+  currentPage?: number;
 };
 
 export function StartReadingButton({
@@ -158,9 +161,20 @@ export function StartReadingButton({
         )}
       </View>
 
-      {/* Séparateur + gros bouton play à droite : c'est l'action « lire ». */}
+      {/* Séparateur + gros bouton play à droite : c'est l'action « lire ».
+          La progression du cycle en cours est posée juste sous le play. */}
       <View className="h-12 w-px bg-paper/15" />
-      <Text className="text-4xl text-paper">{icon}</Text>
+      <View className="items-center gap-1">
+        <Text className="text-4xl text-paper">{icon}</Text>
+        {book?.currentPage != null && book.currentPage > 0 ? (
+          <Text
+            className="text-xs text-paper-shade/80"
+            style={{ fontVariant: ["tabular-nums"] }}
+          >
+            p. {book.currentPage}
+          </Text>
+        ) : null}
+      </View>
     </Pressable>
   );
 }
