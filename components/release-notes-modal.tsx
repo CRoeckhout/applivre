@@ -100,10 +100,12 @@ export function ReleaseNotesModal({ open, onClose, notes, loading = false }: Pro
                     key={note.id}
                     className={`gap-3 ${idx > 0 ? 'mt-6 pt-6 border-t border-ink/10' : ''}`}>
                     <View className="flex-row items-baseline gap-2">
-                      <Text className="font-sans-bold text-lg text-ink">
+                      <Text className="flex-1 font-sans-bold text-lg text-ink">
                         {note.title}
                       </Text>
-                      <Text className="text-xs text-ink-muted">v{note.version}</Text>
+                      <Text className="text-xs text-ink-muted" style={{ flexShrink: 0 }}>
+                        v{note.version}
+                      </Text>
                     </View>
                     <ReleaseNoteBlocks blocks={note.body} />
                   </View>

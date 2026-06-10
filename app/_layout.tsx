@@ -336,6 +336,7 @@ function AuthGate() {
           name="book/[isbn]"
           options={{ title: "Livre", headerBackTitle: "Retour" }}
         />
+        <Stack.Screen name="book/batch-classify" options={{ headerShown: false }} />
         <Stack.Screen
           name="library"
           options={{ title: "Ma bibliothèque", headerBackTitle: "Retour" }}

@@ -4,9 +4,10 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { derivePalette } from '@/lib/theme/colors';
 import { useOnline } from '@/store/network';
 import { usePreferences } from '@/store/preferences';
+import { useScanBatch } from '@/store/scan-batch';
 import { Tabs } from 'expo-router';
 import React, { useMemo } from 'react';
-import { View } from 'react-native';
+import { Alert, View } from 'react-native';
 
 export default function TabLayout() {
   const primary = usePreferences((s) => s.colorPrimary);
@@ -37,7 +38,35 @@ export default function TabLayout() {
           },
           headerShown: false,
           tabBarButton: HapticTab,
-        }}>
+        }}
+        screenListeners={({ navigation }) => ({
+          // Quitter le scanner avec une pile de scans en cours → on confirme,
+          // sinon la sélection serait perdue silencieusement.
+          tabPress: (e) => {
+            const state = navigation.getState();
+            const current = state.routes[state.index]?.name;
+            if (current !== 'scanner') return;
+            const target = (e.target as string | undefined)?.split('-')[0];
+            if (!target || target === 'scanner') return;
+            if (useScanBatch.getState().items.length === 0) return;
+            e.preventDefault();
+            Alert.alert(
+              'Quitter le scan ?',
+              'Vous allez perdre votre sélection de livres scannés.',
+              [
+                { text: 'Annuler', style: 'cancel' },
+                {
+                  text: 'Quitter',
+                  style: 'destructive',
+                  onPress: () => {
+                    useScanBatch.getState().clear();
+                    navigation.navigate(target);
+                  },
+                },
+              ],
+            );
+          },
+        })}>
         <Tabs.Screen
           name="index"
           options={{
