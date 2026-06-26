@@ -3,6 +3,7 @@ import "@/global.css";
 import { configure as configureSocial } from "@grimolia/social";
 import { supabase } from "@/lib/supabase";
 import "@/lib/social-kinds";
+import { AppFondBackground, useAppFondActive } from "@/components/app-fond-background";
 import { ThemeProvider as AppThemeProvider } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -64,7 +65,7 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, DevSettings, Platform, Text, TextInput, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
@@ -108,6 +109,12 @@ const SYNC_OVERLAY_TIMEOUT_MS = 8000;
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  // Quand le fond remplit l'app, le fond de scène du navigateur React
+  // Navigation (DarkTheme = noir, DefaultTheme = gris clair) se glisse entre
+  // notre couche fond (montée à la racine) et le contenu transparent des
+  // écrans, masquant le motif. On le rend transparent pour laisser voir le
+  // fond.
+  const appFondActive = useAppFondActive();
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -155,12 +162,18 @@ export default function RootLayout() {
     );
   }
 
+  const baseNavTheme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const navTheme = appFondActive
+    ? {
+        ...baseNavTheme,
+        colors: { ...baseNavTheme.colors, background: "transparent" },
+      }
+    : baseNavTheme;
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider
-          value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
-        >
+        <ThemeProvider value={navTheme}>
           <AppThemeProvider>
             <AuthGate />
             <ThemedStatusBar />
@@ -312,14 +325,38 @@ function AuthGate() {
 
   const bg = usePreferences((s) => s.colorBg);
   const ink = usePreferences((s) => s.colorSecondary);
+  // Fond qui remplit l'app : la couche fond est peinte PAR ÉCRAN via
+  // `screenLayout` (et non en une seule couche racine). Chaque écran porte donc
+  // son propre fond opaque → pendant la transition en volet, l'écran entrant
+  // masque le sortant (sinon, écran transparent + fond racine unique = on voit
+  // l'écran du dessous glisser). Le contenu d'écran reste transparent pour
+  // laisser voir ce fond ; les headers natifs gardent `bg` (opaque) pour la
+  // lisibilité du titre.
+  const appFondActive = useAppFondActive();
+
+  // Enveloppe chaque écran : fond (absolute fill, fixe dans l'écran) derrière
+  // son contenu. `AppFondBackground` ne rend rien quand le mode n'est pas
+  // actif → no-op transparent dans ce cas.
+  const renderScreenLayout = useCallback(
+    ({ children }: { children: React.ReactElement }) => (
+      <View style={{ flex: 1 }}>
+        <AppFondBackground />
+        {children}
+      </View>
+    ),
+    [],
+  );
 
   return (
     <View style={{ flex: 1 }}>
       <Stack
+        screenLayout={renderScreenLayout}
         screenOptions={{
           headerStyle: { backgroundColor: bg },
           headerTintColor: ink,
-          contentStyle: { backgroundColor: bg },
+          contentStyle: {
+            backgroundColor: appFondActive ? "transparent" : bg,
+          },
         }}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -357,6 +394,10 @@ function AuthGate() {
         <Stack.Screen name="template/view/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="profile/index" options={{ headerShown: false }} />
         <Stack.Screen name="profile/[userId]" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="profile/[userId]/connections"
+          options={{ headerShown: false }}
+        />
         <Stack.Screen name="feed/[entryId]" options={{ headerShown: false }} />
         <Stack.Screen name="news/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="messages/index" options={{ headerShown: false }} />

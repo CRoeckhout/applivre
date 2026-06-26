@@ -1,3 +1,4 @@
+import { usePaperScreenClass } from "@/components/app-fond-background";
 import { BingoGrid } from "@/components/bingo-grid";
 import { PremiumPaywallModal } from "@/components/premium-paywall-modal";
 import { useFreemiumGate } from "@/hooks/use-freemium-gate";
@@ -28,6 +29,7 @@ function makePresetItems(): BingoItem[] {
 }
 
 export default function BingoListScreen() {
+  const paperScreen = usePaperScreenClass();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useThemeColors();
@@ -58,7 +60,7 @@ export default function BingoListScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={["top", "bottom"]}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={["top", "bottom"]}>
       <ScrollView contentContainerClassName="px-6 pt-4 pb-32">
         <Animated.View entering={FadeInDown.duration(400)}>
           <View className="flex-row items-center gap-3">

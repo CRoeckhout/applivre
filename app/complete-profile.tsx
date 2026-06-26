@@ -1,3 +1,4 @@
+import { usePaperScreenClass } from "@/components/app-fond-background";
 import { signOut, useAuth } from "@/hooks/use-auth";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import {
@@ -20,6 +21,7 @@ import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function CompleteProfileScreen() {
+  const paperScreen = usePaperScreenClass();
   const { session } = useAuth();
   const setUsername = useProfile((s) => s.setUsername);
   const [value, setValue] = useState("");
@@ -63,7 +65,7 @@ export default function CompleteProfileScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-paper">
+    <SafeAreaView className={`flex-1 ${paperScreen}`}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}

@@ -1,3 +1,4 @@
+import { usePaperScreenClass } from "@/components/app-fond-background";
 import { BookCover } from "@/components/book-cover";
 import { ReviewsSection } from "@/components/book-reviews/reviews-section";
 import { BookStatusBar } from "@/components/book-status-bar";
@@ -62,6 +63,7 @@ export default function BookDetailScreen() {
     highlightReview?: string;
   }>();
   const router = useRouter();
+  const paperScreen = usePaperScreenClass();
 
   // Scroll-into-view d'un avis ciblé (deep-link « Avis à la une »). On mesure
   // contre un View intérieur — la ScrollView n'est pas une cible valide pour
@@ -153,7 +155,7 @@ export default function BookDetailScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-paper">
+      <SafeAreaView className={`flex-1 items-center justify-center ${paperScreen}`}>
         <ActivityIndicator color="#c27b52" />
       </SafeAreaView>
     );
@@ -161,7 +163,7 @@ export default function BookDetailScreen() {
 
   if (error || !data) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-paper px-8">
+      <SafeAreaView className={`flex-1 items-center justify-center ${paperScreen} px-8`}>
         <Text className="font-display text-2xl text-ink">
           Livre introuvable
         </Text>
@@ -279,10 +281,10 @@ export default function BookDetailScreen() {
   };
 
   return (
-    <View className="flex-1 bg-paper">
+    <View className={`flex-1 ${paperScreen}`}>
       <ScrollView
         ref={scrollViewRef}
-        className="flex-1 bg-paper"
+        className={`flex-1 ${paperScreen}`}
         contentContainerClassName="px-6 pt-6 pb-32"
       >
         <View ref={contentRef}>

@@ -1,3 +1,4 @@
+import { usePaperScreenClass } from '@/components/app-fond-background';
 import { BookCover } from '@/components/book-cover';
 import { BookPicker } from '@/components/book-picker';
 import { READING_STATUS_META } from '@/lib/reading-status';
@@ -12,6 +13,7 @@ import { Pressable, Text, View } from 'react-native';
 const EMPTY_COMPLETIONS: BingoCompletion[] = [];
 
 export default function BingoCellPicker() {
+  const paperScreen = usePaperScreenClass();
   const router = useRouter();
   const { id, cellIndex: cellIndexStr } = useLocalSearchParams<{
     id: string;
@@ -66,7 +68,7 @@ export default function BingoCellPicker() {
 
   if (!bingo || Number.isNaN(cellIndex) || !item) {
     return (
-      <View className="flex-1 items-center justify-center bg-paper">
+      <View className={`flex-1 items-center justify-center ${paperScreen}`}>
         <Text className="text-ink-muted">Case introuvable.</Text>
       </View>
     );

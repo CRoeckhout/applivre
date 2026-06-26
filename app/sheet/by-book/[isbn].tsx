@@ -4,6 +4,7 @@
 // d'un item (SheetCard + bandeau rattaché en bas) vit dans
 // components/public-sheet-list-item, partagé avec /profile/[userId].
 
+import { usePaperScreenClass } from '@/components/app-fond-background';
 import {
   PublicSheetListItem,
   type PublicSheetListItemRow,
@@ -35,6 +36,7 @@ async function fetchPublicSheets(
 }
 
 export default function PublicSheetsByBookScreen() {
+  const paperScreen = usePaperScreenClass();
   const { isbn } = useLocalSearchParams<{ isbn: string }>();
   const router = useRouter();
   const themeInk = usePreferences((s) => s.colorSecondary);
@@ -55,7 +57,7 @@ export default function PublicSheetsByBookScreen() {
   }, [sheetsQuery.data, currentUserId]);
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={["top", "bottom"]}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={["top", "bottom"]}>
       <View className="flex-row items-center gap-2 px-4 pt-2 pb-2">
         <Pressable
           onPress={() => router.back()}

@@ -5,6 +5,7 @@
 // mark_thread_read appelé au mount + à chaque nouveau message reçu (changement
 // de count avec sender autre que moi).
 
+import { usePaperScreenClass } from "@/components/app-fond-background";
 import { AvatarFrame } from "@/components/avatar-frame";
 import { KeyboardDismissBar } from "@/components/keyboard-dismiss-bar";
 import { renderFeedItemBody } from "@/components/feed/render-feed-body";
@@ -51,6 +52,7 @@ function timeOf(iso: string): string {
 }
 
 export default function MessageThreadScreen() {
+  const paperScreen = usePaperScreenClass();
   const { threadId, other: otherParam } = useLocalSearchParams<{
     threadId: string;
     other?: string;
@@ -107,7 +109,7 @@ export default function MessageThreadScreen() {
     otherProfile?.display_name || otherProfile?.username || "Conversation";
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={["top", "bottom"]}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={["top", "bottom"]}>
       <KeyboardDismissBar />
       <View
         style={{

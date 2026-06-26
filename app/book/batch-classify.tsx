@@ -1,3 +1,4 @@
+import { usePaperScreenClass } from '@/components/app-fond-background';
 import { BookCover } from '@/components/book-cover';
 import { newId } from '@/lib/id';
 import { useBookshelf } from '@/store/bookshelf';
@@ -29,6 +30,7 @@ const DEFAULT_STATUS: ReadingStatus = 'to_read';
 
 export default function BatchClassifyScreen() {
   const router = useRouter();
+  const paperScreen = usePaperScreenClass();
   const items = useScanBatch((s) => s.items);
   const clear = useScanBatch((s) => s.clear);
   const books = useBookshelf((s) => s.books);
@@ -98,7 +100,7 @@ export default function BatchClassifyScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={['top', 'bottom']}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={['top', 'bottom']}>
       <View className="flex-row items-center justify-between px-4 py-3">
         <Pressable onPress={() => router.back()} hitSlop={8} className="p-1 active:opacity-60">
           <MaterialIcons name="close" size={24} color="#1f1a16" />

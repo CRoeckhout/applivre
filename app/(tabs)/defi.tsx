@@ -1,3 +1,4 @@
+import { usePaperScreenClass } from "@/components/app-fond-background";
 import { BingoCard } from "@/components/bingo-card";
 import { ChallengeCard } from "@/components/challenge-card";
 import { StreakCard } from "@/components/streak-card";
@@ -6,8 +7,9 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function DefiScreen() {
+  const paperScreen = usePaperScreenClass();
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={["top"]}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={["top"]}>
       <ScrollView contentContainerClassName="px-6 pt-4 pb-24">
         <Animated.View entering={FadeInDown.duration(500)}>
           <Text className="font-display text-4xl text-ink">Défi</Text>

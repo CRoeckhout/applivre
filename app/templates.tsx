@@ -1,3 +1,4 @@
+import { usePaperScreenClass } from "@/components/app-fond-background";
 import { BookPlaceholder } from "@/components/book-placeholder";
 import { PremiumPaywallModal } from "@/components/premium-paywall-modal";
 import { SheetCustomizer } from "@/components/sheet-customizer";
@@ -41,6 +42,7 @@ export default function TemplatesScreen() {
   const theme = useThemeColors();
   const { session } = useAuth();
   const userId = session?.user.id ?? null;
+  const paperScreen = usePaperScreenClass();
 
   const mine = useReadingSheetTemplates((s) => s.mine);
   const mineLoaded = useReadingSheetTemplates((s) => s.mineLoaded);
@@ -195,7 +197,7 @@ export default function TemplatesScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={["top"]}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={["top"]}>
       <View className="flex-row items-center gap-3 px-5 pt-2">
         <Pressable
           onPress={() => router.back()}

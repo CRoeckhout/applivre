@@ -1,8 +1,10 @@
 import {
   Canvas,
+  Fill,
   Group,
   Image as SkiaImage,
   ImageSVG,
+  Paint,
   Skia,
   rect as skRect,
   useImage,
@@ -46,6 +48,18 @@ type Props = {
   sliceExtras?: BorderSliceExtras;
   style?: StyleProp<ViewStyle>;
   children?: ReactNode;
+  // ─── Mode "punch" (fond qui remplit l'app derrière un cadre SVG) ──────────
+  // Quand `eraserSvgXml` + `renderFond` sont fournis, le cadre passe en mode
+  // punch : le fond est peint DANS le canvas (base), l'extérieur du cadre est
+  // ensuite PERCÉ en `dstOut` via `eraserSvgXml` (path de masque rendu opaque),
+  // puis la bordure (`svgXml`, masque → none) est dessinée par-dessus. Le tout
+  // passe par la même mécanique de cells → round/fixed/stretch respectés. Cf.
+  // CadreFondPunch. `svgXml` doit alors être la variante BORDURE.
+  eraserSvgXml?: string;
+  // Rend les nodes Skia du fond (cover/tile) pour la taille du canvas donnée.
+  renderFond?: (w: number, h: number) => ReactNode;
+  // Couleur de fiche peinte sous le fond (interieur), avant l'effacement.
+  punchBgColor?: string;
 };
 
 // ─── Layout helpers ────────────────────────────────────────────────
@@ -214,6 +228,9 @@ export function NineSliceFrame({
   sliceExtras,
   style,
   children,
+  eraserSvgXml,
+  renderFond,
+  punchBgColor,
 }: Props) {
   const { width: iw, height: ih } = imageSize;
   const { top: T, right: R, bottom: B, left: L } = slice;
@@ -243,6 +260,10 @@ export function NineSliceFrame({
     if (!svgXml) return null;
     return Skia.SVG.MakeFromString(svgXml);
   }, [svgXml]);
+  const eraserSkSvg = useMemo<SkSVG | null>(() => {
+    if (!eraserSvgXml) return null;
+    return Skia.SVG.MakeFromString(eraserSvgXml);
+  }, [eraserSvgXml]);
   // Dimensions intrinsèques du SVG (viewBox), lues sur le XML — déterministe
   // et indépendant de la plateforme. Sert à scaler le SVG pour qu'il remplisse
   // l'imageSize déclarée même si son viewBox diffère (cf. drawNodes).
@@ -363,106 +384,115 @@ export function NineSliceFrame({
     return out;
   }, [layout, xs, ys, grid.modes, repeat, fillCenter]);
 
-  // Render Skia draws for all cells. PNG via <Image>, SVG via <ImageSVG>.
-  // Architecture : Group avec clip rect (la cell) + Group inner avec
-  // transform (translate + scale) qui mappe la source native (0,0,iw,ih)
-  // sur la cell. L'<Image>/<ImageSVG> est dessiné à coords (0,0,iw,ih)
-  // dans cette transform — Skia rend de manière fiable. Pour round mode,
-  // on draw multiple tiles avec leurs propres transforms dans le clip.
-  const drawNodes = useMemo<ReactNode>(() => {
-    if (!cellSpecs) return null;
-    if (!skImage && !skSvg) return null;
-    const isPng = !!skImage;
-    // Le SVG est dessiné à sa taille intrinsèque (viewBox) puis scalé pour
-    // remplir exactement (0,0,iw,ih) — l'espace de coords dans lequel les
-    // slices/cuts sont définis. Nécessaire car `canvas.drawSvg(svg, w, h)` ne
-    // scale PAS le SVG vers w×h sur toutes les plateformes (no-op sur web) :
-    // sans ce scale, un viewBox fractionnaire (export Illustrator, ex.
-    // 197.22×98.12) plus petit que l'imageSize déclarée (ex. 200×100) laisse
-    // les bords bas/droit non peints → liseré du fond visible + cadre tronqué.
-    const svgW = svgIntrinsic?.w ?? ((skSvg && skSvg.width()) || iw);
-    const svgH = svgIntrinsic?.h ?? ((skSvg && skSvg.height()) || ih);
-    const renderSourceAtNative = (key: string) =>
-      isPng ? (
-        <SkiaImage
-          key={key}
-          image={skImage}
-          fit="fill"
-          x={0}
-          y={0}
-          width={iw}
-          height={ih}
-        />
-      ) : (
-        <Group key={key} transform={[{ scaleX: iw / svgW }, { scaleY: ih / svgH }]}>
-          <ImageSVG svg={skSvg} x={0} y={0} width={svgW} height={svgH} />
-        </Group>
-      );
+  // Le SVG est dessiné à sa taille intrinsèque (viewBox) puis scalé pour
+  // remplir exactement (0,0,iw,ih) — l'espace de coords dans lequel les
+  // slices/cuts sont définis. Nécessaire car `canvas.drawSvg(svg, w, h)` ne
+  // scale PAS le SVG vers w×h sur toutes les plateformes (no-op sur web).
+  const svgW = svgIntrinsic?.w ?? ((skSvg && skSvg.width()) || iw);
+  const svgH = svgIntrinsic?.h ?? ((skSvg && skSvg.height()) || ih);
 
-    return cellSpecs.map((cell) => {
-      const tileX = cell.xMode === 'round';
-      const tileY = cell.yMode === 'round';
-      const clip = skRect(cell.left, cell.top, cell.width, cell.height);
+  // Mappe les cellSpecs (grille slice + modes round/fixed/stretch) sur des
+  // nodes Skia, pour une SOURCE donnée. Factorisé pour servir le mode normal
+  // ET le mode punch (2 passes SVG : effaceur puis bordure), tous deux devant
+  // respecter exactement le même découpage/tiling.
+  const mapCells = useCallback(
+    (renderSource: (key: string) => ReactNode): ReactNode => {
+      if (!cellSpecs) return null;
+      return cellSpecs.map((cell) => {
+        const tileX = cell.xMode === 'round';
+        const tileY = cell.yMode === 'round';
+        const clip = skRect(cell.left, cell.top, cell.width, cell.height);
 
-      if (tileX || tileY) {
-        // Mode round : on draw N×M tiles. Chaque tile rend la source ENTIÈRE
-        // avec un transform qui mappe (sx,sy,sw,sh) sur le rect du tile —
-        // mais le reste de l'image (en dehors de la bande source) s'étend
-        // au-delà du tile rect. Sans clip par-tile, ces overshoots viennent
-        // s'imprimer dans les tiles voisins (chaque tile montre alors la
-        // source entière au lieu de la bande). Solution : un clip rect par
-        // tile, à sa zone (tileLeft, tileTop, tileW, tileH).
-        const nx = tileX ? Math.max(1, Math.round(cell.width / cell.sw)) : 1;
-        const ny = tileY ? Math.max(1, Math.round(cell.height / cell.sh)) : 1;
-        const tileW = cell.width / nx;
-        const tileH = cell.height / ny;
-        const tiles: ReactNode[] = [];
-        for (let ty = 0; ty < ny; ty += 1) {
-          for (let tx = 0; tx < nx; tx += 1) {
-            const tileLeft = cell.left + tx * tileW;
-            const tileTop = cell.top + ty * tileH;
-            const t = computeTransform({
-              ...cell,
-              left: tileLeft,
-              top: tileTop,
-              width: tileW,
-              height: tileH,
-            });
-            const tileClip = skRect(tileLeft, tileTop, tileW, tileH);
-            tiles.push(
-              <Group key={`${ty}-${tx}`} clip={tileClip}>
-                <Group
-                  transform={[
-                    { translateX: t.translateX },
-                    { translateY: t.translateY },
-                    { scaleX: t.scaleX },
-                    { scaleY: t.scaleY },
-                  ]}>
-                  {renderSourceAtNative(`tile-${ty}-${tx}`)}
-                </Group>
-              </Group>,
-            );
+        if (tileX || tileY) {
+          // Mode round : N×M tiles, chacun clippé à sa zone (sinon l'overshoot
+          // de la source entière s'imprime dans les tiles voisins).
+          const nx = tileX ? Math.max(1, Math.round(cell.width / cell.sw)) : 1;
+          const ny = tileY ? Math.max(1, Math.round(cell.height / cell.sh)) : 1;
+          const tileW = cell.width / nx;
+          const tileH = cell.height / ny;
+          const tiles: ReactNode[] = [];
+          for (let ty = 0; ty < ny; ty += 1) {
+            for (let tx = 0; tx < nx; tx += 1) {
+              const tileLeft = cell.left + tx * tileW;
+              const tileTop = cell.top + ty * tileH;
+              const t = computeTransform({
+                ...cell,
+                left: tileLeft,
+                top: tileTop,
+                width: tileW,
+                height: tileH,
+              });
+              const tileClip = skRect(tileLeft, tileTop, tileW, tileH);
+              tiles.push(
+                <Group key={`${ty}-${tx}`} clip={tileClip}>
+                  <Group
+                    transform={[
+                      { translateX: t.translateX },
+                      { translateY: t.translateY },
+                      { scaleX: t.scaleX },
+                      { scaleY: t.scaleY },
+                    ]}>
+                    {renderSource(`tile-${ty}-${tx}`)}
+                  </Group>
+                </Group>,
+              );
+            }
           }
+          return <Group key={cell.key}>{tiles}</Group>;
         }
-        return <Group key={cell.key}>{tiles}</Group>;
-      }
 
-      const t = computeTransform(cell);
-      return (
-        <Group key={cell.key} clip={clip}>
-          <Group
-            transform={[
-              { translateX: t.translateX },
-              { translateY: t.translateY },
-              { scaleX: t.scaleX },
-              { scaleY: t.scaleY },
-            ]}>
-            {renderSourceAtNative('cell')}
+        const t = computeTransform(cell);
+        return (
+          <Group key={cell.key} clip={clip}>
+            <Group
+              transform={[
+                { translateX: t.translateX },
+                { translateY: t.translateY },
+                { scaleX: t.scaleX },
+                { scaleY: t.scaleY },
+              ]}>
+              {renderSource('cell')}
+            </Group>
           </Group>
-        </Group>
-      );
-    });
-  }, [cellSpecs, skImage, skSvg, svgIntrinsic, iw, ih]);
+        );
+      });
+    },
+    [cellSpecs],
+  );
+
+  const renderSvgAt = useCallback(
+    (svg: SkSVG, key: string) => (
+      <Group key={key} transform={[{ scaleX: iw / svgW }, { scaleY: ih / svgH }]}>
+        <ImageSVG svg={svg} x={0} y={0} width={svgW} height={svgH} />
+      </Group>
+    ),
+    [iw, ih, svgW, svgH],
+  );
+
+  const punch = !!(renderFond && eraserSkSvg && skSvg);
+
+  // Mode normal : une passe (PNG ou SVG). Skippé en mode punch.
+  const drawNodes = useMemo<ReactNode>(() => {
+    if (punch || !cellSpecs || (!skImage && !skSvg)) return null;
+    const isPng = !!skImage;
+    return mapCells((key) =>
+      isPng ? (
+        <SkiaImage key={key} image={skImage} fit="fill" x={0} y={0} width={iw} height={ih} />
+      ) : (
+        renderSvgAt(skSvg!, key)
+      ),
+    );
+  }, [punch, cellSpecs, skImage, skSvg, mapCells, renderSvgAt, iw, ih]);
+
+  // Mode punch : passe effaceur (masque opaque) + passe bordure.
+  const eraserCells = useMemo<ReactNode>(
+    () => (punch && eraserSkSvg ? mapCells((key) => renderSvgAt(eraserSkSvg, key)) : null),
+    [punch, eraserSkSvg, mapCells, renderSvgAt],
+  );
+  const borderCells = useMemo<ReactNode>(
+    () => (punch && skSvg ? mapCells((key) => renderSvgAt(skSvg, key)) : null),
+    [punch, skSvg, mapCells, renderSvgAt],
+  );
 
   // Source absente OU loading pas terminé → on render juste le bg + children
   // (le grid s'affichera dès que skImage/skSvg est dispo). Pour le PNG,
@@ -479,7 +509,10 @@ export function NineSliceFrame({
              CardFrame = couleur du bord du cadre), au lieu de laisser
              transparaître la couche encore en dessous (bgColor du pinch-zoom,
              page…). Invisible car ça matche le bord du cadre. */}
-      {innerBackgroundColor ? (
+      {/* En mode punch, le fond + le bg sont peints DANS le canvas (et
+          l'extérieur percé) : on saute les couches opaques natives qui
+          boucheraient le trou. */}
+      {!punch && innerBackgroundColor ? (
         <View
           pointerEvents="none"
           style={
@@ -496,7 +529,7 @@ export function NineSliceFrame({
           }
         />
       ) : null}
-      {innerBackground ? (
+      {!punch && innerBackground ? (
         <View
           pointerEvents="none"
           style={
@@ -540,7 +573,22 @@ export function NineSliceFrame({
         pointerEvents="none">
         {sourceReady && frameSize && frameSize.w > 0 && frameSize.h > 0 && (
           <Canvas style={{ width: frameSize.w, height: frameSize.h }}>
-            {drawNodes}
+            {punch ? (
+              <>
+                {/* Layer isolée : bg + fond, puis on perce l'extérieur via
+                    l'effaceur (cells du masque) en dstOut → trou transparent
+                    qui révèle le fond de l'app fixe derrière le canvas. */}
+                <Group layer>
+                  {punchBgColor ? <Fill color={punchBgColor} /> : null}
+                  {renderFond?.(frameSize.w, frameSize.h)}
+                  <Group layer={<Paint blendMode="dstOut" />}>{eraserCells}</Group>
+                </Group>
+                {/* Bordure par-dessus (masque → none → extérieur transparent). */}
+                {borderCells}
+              </>
+            ) : (
+              drawNodes
+            )}
           </Canvas>
         )}
       </View>

@@ -10,6 +10,7 @@ import { AvatarFrame } from "@/components/avatar-frame";
 import { PremiumChip } from "@/components/premium-chip";
 import { useAuth } from "@/hooks/use-auth";
 import { hexWithAlpha } from "@/lib/sheet-appearance";
+import { readableTextColor } from "@/lib/theme/colors";
 import { getFont } from "@/lib/theme/fonts";
 import { usePreferences } from "@/store/preferences";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -39,6 +40,8 @@ export function DiscoverUserRow({ user }: { user: Discover.DiscoveredUser }) {
   const isFollowingQuery = Follows.useIsFollowing(currentUserId, user.id);
   const toggleFollow = Follows.useToggleFollow(currentUserId);
   const isFollowing = isFollowingQuery.data ?? false;
+  // Texte/icône lisible sur le fond accent du bouton plein « Suivre ».
+  const onAccent = readableTextColor(themeAccent);
 
   const handle = user.username
     ? `@${user.username}`
@@ -167,13 +170,13 @@ export function DiscoverUserRow({ user }: { user: Discover.DiscoveredUser }) {
             <MaterialIcons
               name={isFollowing ? "check" : "person-add"}
               size={16}
-              color={isFollowing ? themeAccent : "#fff"}
+              color={isFollowing ? themeAccent : onAccent}
             />
             <Text
               className="font-sans-med"
               style={{
                 fontSize: 14,
-                color: isFollowing ? themeAccent : "#fff",
+                color: isFollowing ? themeAccent : onAccent,
               }}
             >
               {isFollowing ? "Suivi" : "Suivre"}

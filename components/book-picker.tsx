@@ -1,3 +1,4 @@
+import { usePaperScreenClass } from '@/components/app-fond-background';
 import { BookCover } from '@/components/book-cover';
 import { useBookshelf } from '@/store/bookshelf';
 import type { UserBook } from '@/types/book';
@@ -47,6 +48,7 @@ export function BookPicker({
   header,
   restrictToRead = false,
 }: BookPickerProps) {
+  const paperScreen = usePaperScreenClass();
   const router = useRouter();
   const books = useBookshelf((s) => s.books);
   const [query, setQuery] = useState('');
@@ -75,7 +77,7 @@ export function BookPicker({
 
   if (books.length === 0) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-paper px-8" edges={['bottom']}>
+      <SafeAreaView className={`flex-1 items-center justify-center ${paperScreen} px-8`} edges={['bottom']}>
         <Text className="font-display text-2xl text-ink">{emptyTitle}</Text>
         <Text className="mt-2 text-center text-ink-muted">{emptyBody}</Text>
         <Pressable
@@ -88,7 +90,7 @@ export function BookPicker({
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={['bottom']}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={['bottom']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}>

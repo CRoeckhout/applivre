@@ -10,6 +10,7 @@
 // pour que le rendu read-only n'ait pas de saut de mise en page comparé à
 // l'écran d'édition de l'auteur.
 
+import { usePaperScreenClass } from "@/components/app-fond-background";
 import { BookCover } from "@/components/book-cover";
 import { ReportMenuButton } from "@/components/report/report-menu-button";
 import { SheetSectionEditor } from "@/components/sheet/sheet-section-editor";
@@ -72,6 +73,7 @@ async function fetchPublicSheet(
 }
 
 export default function PublicSheetScreen() {
+  const paperScreen = usePaperScreenClass();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { width: windowWidth } = useWindowDimensions();
@@ -117,7 +119,7 @@ export default function PublicSheetScreen() {
   // Spinner seulement si on n'a RIEN à afficher (ni fetch ni cache).
   if (sheetQuery.isLoading && !bundle) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-paper">
+      <SafeAreaView className={`flex-1 items-center justify-center ${paperScreen}`}>
         <ActivityIndicator color={themeInk} />
       </SafeAreaView>
     );
@@ -128,7 +130,7 @@ export default function PublicSheetScreen() {
   if (!bundle) {
     return (
       <SafeAreaView
-        className="flex-1 items-center justify-center bg-paper px-8"
+        className={`flex-1 items-center justify-center ${paperScreen} px-8`}
         edges={["top", "bottom"]}
       >
         <MaterialIcons name="lock-outline" size={36} color={themeInk} />
@@ -180,7 +182,7 @@ export default function PublicSheetScreen() {
   const useSkiaFond = isPersoFrame;
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={["top", "bottom"]}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={["top", "bottom"]}>
       <View className="flex-row items-center justify-between px-4 pt-2 pb-2">
         <Pressable
           onPress={() => router.back()}

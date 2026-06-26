@@ -1,3 +1,4 @@
+import { usePaperScreenClass } from "@/components/app-fond-background";
 import { BookCover } from "@/components/book-cover";
 import { ReleaseNotesModal } from "@/components/release-notes-modal";
 import { UsernameEditorModal } from "@/components/username-editor-modal";
@@ -18,6 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 type EnrichedLoan = { loan: BookLoan; book: UserBook };
 
 export default function ProfileScreen() {
+  const paperScreen = usePaperScreenClass();
   const router = useRouter();
   const theme = useThemeColors();
   const { session } = useAuth();
@@ -43,7 +45,7 @@ export default function ProfileScreen() {
   }, [loans, books]);
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={["top"]}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={["top"]}>
       <ScrollView contentContainerClassName="px-6 pt-4 pb-24">
         <Animated.View
           entering={FadeInDown.duration(500)}

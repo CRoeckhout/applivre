@@ -1,3 +1,4 @@
+import { usePaperScreenClass } from '@/components/app-fond-background';
 import { newId } from '@/lib/id';
 import { useBookshelf } from '@/store/bookshelf';
 import type { Book, UserBook } from '@/types/book';
@@ -23,6 +24,7 @@ export default function ManualEntryScreen() {
     title?: string;
   }>();
   const router = useRouter();
+  const paperScreen = usePaperScreenClass();
   const addBook = useBookshelf((s) => s.addBook);
   const books = useBookshelf((s) => s.books);
 
@@ -76,7 +78,7 @@ export default function ManualEntryScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={['bottom']}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={['bottom']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}>

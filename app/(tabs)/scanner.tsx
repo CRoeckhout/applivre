@@ -1,3 +1,4 @@
+import { usePaperScreenClass } from '@/components/app-fond-background';
 import { BookCover } from '@/components/book-cover';
 import { SearchMode } from '@/components/search-mode';
 import { APP_NAME } from '@/constants/app';
@@ -14,11 +15,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 type Mode = 'scan' | 'search';
 
 export default function ScannerScreen() {
+  const paperScreen = usePaperScreenClass();
   const nativeCapable = Platform.OS !== 'web';
   const [mode, setMode] = useState<Mode>(nativeCapable ? 'scan' : 'search');
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={['top']}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={['top']}>
       {nativeCapable && <ModeToggle mode={mode} onChange={setMode} />}
       {mode === 'search' ? <SearchMode /> : <NativeScanner />}
     </SafeAreaView>

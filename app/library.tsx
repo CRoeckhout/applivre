@@ -1,3 +1,4 @@
+import { usePaperScreenClass } from '@/components/app-fond-background';
 import { BookCover } from '@/components/book-cover';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { displayGenres, primaryGenre } from '@/lib/genre';
@@ -71,6 +72,7 @@ const STATUS_OPTIONS: { value: ReadingStatus; label: string }[] = [
 
 export default function LibraryScreen() {
   const router = useRouter();
+  const paperScreen = usePaperScreenClass();
   const params = useLocalSearchParams<{ status?: string; favorite?: string }>();
   const books = useBookshelf((s) => s.books);
   const removeBook = useBookshelf((s) => s.removeBook);
@@ -240,7 +242,7 @@ export default function LibraryScreen() {
   const filteredCount = filtered.length;
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={['bottom']}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={['bottom']}>
       {selectionMode && (
         <SelectionBar count={selectedIds.size} onCancel={exitSelection} />
       )}

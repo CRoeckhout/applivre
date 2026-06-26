@@ -139,6 +139,16 @@ export function derivePalette(
   };
 }
 
+// Couleur de texte/icône lisible sur un fond donné : clair sur fond sombre,
+// sombre sur fond clair. Sert pour les boutons pleins (ex. « Suivre » posé
+// sur l'accent custom de l'utilisateur) — évite le blanc invisible quand
+// l'accent choisi est une teinte pâle.
+export function readableTextColor(bgHex: string): string {
+  const rgb = hexToRgb(bgHex);
+  const lum = rgb ? relativeLuminance(rgb) : 0;
+  return lum > 0.6 ? '#1a1410' : '#ffffff';
+}
+
 export function isValidHex(input: string): boolean {
   const h = input.replace('#', '').trim();
   return /^[0-9a-fA-F]{6}$/.test(h) || /^[0-9a-fA-F]{3}$/.test(h);

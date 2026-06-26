@@ -45,6 +45,12 @@ export type Preferences = {
   fondOpacity: number;
   // Cadre rond appliqué autour de la photo de profil. 'none' = pas de cadre.
   avatarFrameId: string;
+  // Fond de l'APP : rempli derrière TOUS les écrans (couche par écran, fixe).
+  // Indépendant de `fondId` (qui reste le fond des CARDS). Les deux coexistent :
+  // intérieur de card = `fondId`, extérieur d'un cadre SVG percé = `appFondId`.
+  // 'none' = pas de fond d'app (écrans opaques, comportement historique).
+  appFondId: string;
+  appFondOpacity: number;
 };
 
 const papier = getTheme(DEFAULT_THEME_ID);
@@ -62,6 +68,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   fondId: DEFAULT_FOND_ID,
   fondOpacity: 1,
   avatarFrameId: DEFAULT_AVATAR_FRAME_ID,
+  appFondId: 'none',
+  appFondOpacity: 1,
 };
 
 type PreferencesState = Preferences & {
@@ -78,6 +86,8 @@ type PreferencesState = Preferences & {
   setFondId: (id: string) => void;
   setFondOpacity: (opacity: number) => void;
   setAvatarFrameId: (id: string) => void;
+  setAppFondId: (id: string) => void;
+  setAppFondOpacity: (opacity: number) => void;
   resetToDefaults: () => void;
 };
 
@@ -107,6 +117,8 @@ function pushFullPrefs(state: Preferences): void {
     fondId: state.fondId,
     fondOpacity: state.fondOpacity,
     avatarFrameId: state.avatarFrameId,
+    appFondId: state.appFondId,
+    appFondOpacity: state.appFondOpacity,
   });
 }
 
@@ -203,6 +215,15 @@ export const usePreferences = create<PreferencesState>()(
         set({ avatarFrameId: id });
         pushFullPrefs(get());
       },
+      setAppFondId: (id) => {
+        set({ appFondId: id });
+        pushFullPrefs(get());
+      },
+      setAppFondOpacity: (opacity) => {
+        const v = Math.max(0, Math.min(1, opacity));
+        set({ appFondOpacity: v });
+        pushFullPrefs(get());
+      },
       deleteCustomTheme: (id) => {
         const state = get();
         const next = state.customThemes.filter((t) => t.id !== id);
@@ -221,7 +242,7 @@ export const usePreferences = create<PreferencesState>()(
     }),
     {
       name: `${APP_SLUG}-preferences`,
-      version: 10,
+      version: 12,
       storage: createJSONStorage(() => AsyncStorage),
       migrate: (persisted: unknown, version: number) => {
         // Toute version antérieure → merge avec defaults : ajoute les champs
@@ -249,6 +270,20 @@ export const usePreferences = create<PreferencesState>()(
         // à forcer non plus.
         // v10 : ajout de avatarFrameId (default 'none'). Le merge le remplit
         // automatiquement, rien à forcer.
+        // v11 : ajout de fondFillsAppBg (default false). Le merge le remplit
+        // automatiquement, rien à forcer.
+        // v12 : remplace le toggle `fondFillsAppBg` par deux fonds distincts —
+        // `fondId` (cards) et `appFondId` (app). Si le toggle était actif, le
+        // fond unique vivait dans `fondId` et remplissait l'app → on le déplace
+        // vers `appFondId` et on remet `fondId` à 'none'. Puis on strip le flag.
+        const legacy = merged as Partial<Preferences> & { fondFillsAppBg?: boolean };
+        if (version < 12 && legacy.fondFillsAppBg) {
+          merged.appFondId = merged.fondId;
+          merged.appFondOpacity = merged.fondOpacity;
+          merged.fondId = DEFAULT_FOND_ID;
+          merged.fondOpacity = 1;
+        }
+        delete (merged as Record<string, unknown>).fondFillsAppBg;
         return merged;
       },
     },

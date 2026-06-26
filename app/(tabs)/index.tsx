@@ -3,6 +3,7 @@
 // bascule en mode Discover (recommandations si vide, résultats si query).
 // Tap "Annuler" ou clear + blur → retour au feed.
 
+import { usePaperScreenClass } from "@/components/app-fond-background";
 import { EditorialCard } from "@/components/editorial/editorial-card";
 import { FeaturedCarousel } from "@/components/editorial/featured-carousel";
 import { DiscoverList } from "@/components/feed/discover-list";
@@ -30,6 +31,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function FeedScreen() {
+  const paperScreen = usePaperScreenClass();
   const themeInk = usePreferences((s) => s.colorSecondary);
   const isOnline = useOnline();
 
@@ -62,7 +64,7 @@ export default function FeedScreen() {
   if (!isOnline) return <Redirect href="/home" />;
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={["top"]}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={["top"]}>
       <FeedSearchHeader
         query={searchQuery}
         onQueryChange={setSearchQuery}

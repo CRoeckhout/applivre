@@ -4,6 +4,7 @@
 //
 // Si on consulte son propre profil : pas de bouton Suivre (UserCard le gère).
 
+import { usePaperScreenClass } from "@/components/app-fond-background";
 import {
   PublicSheetListItem,
   type PublicSheetListItemRow,
@@ -37,6 +38,7 @@ async function fetchUserSheets(
 }
 
 export default function ProfileScreen() {
+  const paperScreen = usePaperScreenClass();
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const router = useRouter();
   const themeInk = usePreferences((s) => s.colorSecondary);
@@ -59,7 +61,7 @@ export default function ProfileScreen() {
 
   if (profileQuery.isLoading) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-paper">
+      <SafeAreaView className={`flex-1 items-center justify-center ${paperScreen}`}>
         <ActivityIndicator color={themeInk} />
       </SafeAreaView>
     );
@@ -69,7 +71,7 @@ export default function ProfileScreen() {
   if (!profile) {
     return (
       <SafeAreaView
-        className="flex-1 items-center justify-center bg-paper px-8"
+        className={`flex-1 items-center justify-center ${paperScreen} px-8`}
         edges={["top", "bottom"]}
       >
         <MaterialIcons name="person-off" size={36} color={themeInk} />
@@ -91,7 +93,7 @@ export default function ProfileScreen() {
   const sheets = sheetsQuery.data ?? [];
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={["top", "bottom"]}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={["top", "bottom"]}>
       <View className="flex-row items-center justify-between px-4 pt-2 pb-2">
         <Pressable
           onPress={() => router.back()}
@@ -122,10 +124,20 @@ export default function ProfileScreen() {
             {
               label: followers > 1 ? "abonnés" : "abonné",
               value: followers,
+              onPress: () =>
+                router.push({
+                  pathname: "/profile/[userId]/connections",
+                  params: { userId: userId!, tab: "followers" },
+                }),
             },
             {
               label: "abonnements",
               value: following,
+              onPress: () =>
+                router.push({
+                  pathname: "/profile/[userId]/connections",
+                  params: { userId: userId!, tab: "following" },
+                }),
             },
           ]}
         />

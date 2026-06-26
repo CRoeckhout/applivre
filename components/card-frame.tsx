@@ -1,3 +1,5 @@
+import { useAppFondActive } from '@/components/app-fond-background';
+import { CadreFondPunch, cadreHasMaskToken } from '@/components/cadre-fond-punch';
 import { CardFrameProvider } from '@/components/card-frame-context';
 import { FondLayer } from '@/components/fond-layer';
 import { NineSliceFrame } from '@/components/nine-slice-frame';
@@ -57,6 +59,7 @@ export function CardFrame({
   const colorBg = usePreferences((s) => s.colorBg);
   const allBorders = useAllBorders();
   const theme = useThemeColors();
+  const appFondActive = useAppFondActive();
 
   const id = borderId ?? fromPrefs;
   const def: BorderDef | undefined = allBorders.find((b) => b.id === id);
@@ -65,6 +68,9 @@ export function CardFrame({
   // caller n'en passe pas, on hérite de la préférence globale du thème.
   const effectiveFondOpacity = fondOpacity ?? fondOpacityFromPrefs;
   const bgColor = innerBackgroundColor ?? theme.paperWarm;
+  // Le fond des cards (`fondId`) et le fond de l'app (`appFondId`) coexistent :
+  // la card garde TOUJOURS son fond ; quand un fond d'app est actif, un cadre
+  // SVG à masque perce son extérieur pour révéler le fond d'app derrière.
   const hasFond = !!effectiveFondId && effectiveFondId !== 'none';
   const isSvgCadre = !!def?.svgXml;
 
@@ -117,6 +123,25 @@ export function CardFrame({
         />
         <CardFrameProvider value={fondCtx}>{children}</CardFrameProvider>
       </View>
+    );
+  }
+
+  // Cadre SVG + fond d'app actif + cadre à token de masque : on perce
+  // l'extérieur du cadre (« trou par forme ») pour révéler le fond de l'app
+  // fixe au lieu de le masquer avec une couleur de page unie. L'intérieur
+  // garde le fond des cards (`effectiveFondId`). Cf. CadreFondPunch.
+  if (appFondActive && isSvgCadre && cadreHasMaskToken(def)) {
+    return (
+      <CadreFondPunch
+        cadre={def}
+        cadreColorOverrides={colorOverrides}
+        bgColor={bgColor}
+        fondId={effectiveFondId}
+        fondColorOverrides={fondColorOverrides}
+        fondOpacity={effectiveFondOpacity}
+        style={style}>
+        {children}
+      </CadreFondPunch>
     );
   }
 

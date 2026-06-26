@@ -10,6 +10,7 @@
 // au-dessus de la ScrollView, pour que le clavier la pousse correctement.
 // FeedItemFrame reçoit replyTo + onReplyToChange + inputRef en props.
 
+import { usePaperScreenClass } from "@/components/app-fond-background";
 import { CommentInputRow } from "@/components/feed/comment-input-row";
 import type { ReplyTarget } from "@/components/feed/comment-input-row";
 import { FeedItemFrame } from "@/components/feed/feed-item-frame";
@@ -56,6 +57,7 @@ export default function FeedEntryScreen() {
 
   const router = useRouter();
   const themeInk = usePreferences((s) => s.colorSecondary);
+  const paperScreen = usePaperScreenClass();
 
   // Pour une row repost, l'engagement (likes/commentaires) reste attaché
   // à l'entry SOURCE — pas au repost (cf. RepostWrapper). Le target de
@@ -138,7 +140,7 @@ export default function FeedEntryScreen() {
   }, [entryQuery.data]);
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={["top", "bottom"]}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={["top", "bottom"]}>
       <KeyboardDismissBar />
       <View className="flex-row items-center justify-between px-4 pt-2 pb-2">
         <Pressable

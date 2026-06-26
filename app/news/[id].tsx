@@ -6,6 +6,7 @@
 // (chip + titre superposés sur l'image avec dégradé), puis le body (blocs)
 // en dessous. Bouton retour flottant au-dessus du hero.
 
+import { usePaperScreenClass } from '@/components/app-fond-background';
 import { GradientScrim, KIND_LABELS } from '@/components/editorial/editorial-card';
 import { BANNER_HEIGHT } from '@/components/editorial/featured-carousel';
 import { ReleaseNoteBlocks } from '@/components/release-notes/block-renderer';
@@ -31,6 +32,7 @@ export default function NewsDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const themeInk = usePreferences((s) => s.colorSecondary);
+  const paperScreen = usePaperScreenClass();
 
   const postQuery = useEditorialPost(id);
   const post = postQuery.data ?? null;
@@ -41,7 +43,7 @@ export default function NewsDetailScreen() {
   }
 
   return (
-    <View className="flex-1 bg-paper">
+    <View className={`flex-1 ${paperScreen}`}>
       {postQuery.isLoading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color={themeInk} />

@@ -1,3 +1,4 @@
+import { usePaperScreenClass } from '@/components/app-fond-background';
 import { BookPlaceholder } from '@/components/book-placeholder';
 import { CategoryDrawer } from '@/components/sheet/category-drawer';
 import { SheetActionBar } from '@/components/sheet/sheet-action-bar';
@@ -78,6 +79,7 @@ import {
 const SHEET_MAX_WIDTH = 380;
 
 export default function TemplateEditorScreen() {
+  const paperScreen = usePaperScreenClass();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const theme = useThemeColors();
@@ -411,7 +413,7 @@ export default function TemplateEditorScreen() {
 
   if (!isNew && !existing && mine.length === 0) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-paper">
+      <SafeAreaView className={`flex-1 items-center justify-center ${paperScreen}`}>
         <ActivityIndicator color="#c27b52" />
       </SafeAreaView>
     );
@@ -434,7 +436,7 @@ export default function TemplateEditorScreen() {
         !stickersEqual(stickers, existing.stickers ?? EMPTY_STICKERS));
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={['top']}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={['top']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}>

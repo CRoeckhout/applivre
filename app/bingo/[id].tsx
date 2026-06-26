@@ -1,3 +1,4 @@
+import { usePaperScreenClass } from "@/components/app-fond-background";
 import { BingoCustomizer } from "@/components/bingo-customizer";
 import { BingoGrid } from "@/components/bingo-grid";
 import { BookCover } from "@/components/book-cover";
@@ -47,6 +48,7 @@ import {
 const EMPTY_COMPLETIONS: BingoCompletion[] = [];
 
 export default function BingoScreen() {
+  const paperScreen = usePaperScreenClass();
   const { id, edit } = useLocalSearchParams<{ id: string; edit?: string }>();
   const router = useRouter();
   const forceEdit = edit === "1";
@@ -107,7 +109,7 @@ export default function BingoScreen() {
 
   if (!bingo) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-paper">
+      <SafeAreaView className={`flex-1 items-center justify-center ${paperScreen}`}>
         <Text className="font-display text-xl text-ink">
           Bingo introuvable.
         </Text>
@@ -275,6 +277,7 @@ function EditMode({
   onDelete: () => void;
   onSave: () => void;
 }) {
+  const paperScreen = usePaperScreenClass();
   const router = useRouter();
   const theme = useThemeColors();
   // La grille est posée sur la page (bg = `theme.paper`). On remappe les
@@ -765,7 +768,7 @@ function EditMode({
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={["top", "bottom"]}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={["top", "bottom"]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
@@ -1622,6 +1625,7 @@ function PlayMode({
   onArchive: () => void;
   onWinNewBingo: () => void;
 }) {
+  const paperScreen = usePaperScreenClass();
   const router = useRouter();
   const theme = useThemeColors();
   // Cf. EditMode : grille posée sur la page (bg = `theme.paper`).
@@ -1774,7 +1778,7 @@ function PlayMode({
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={["top", "bottom"]}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={["top", "bottom"]}>
       <ScrollView contentContainerClassName="px-4 pt-4 pb-16">
         <View className="flex-row items-center justify-between">
           <Pressable

@@ -4,10 +4,10 @@ Ce document couvre l'environnement de dev local, les variants d'app, et le dépl
 
 ## Architecture des environnements
 
-| Environnement | Backend | Bundle ID iOS | Nom affiché | Build |
-|---|---|---|---|---|
-| **dev local** | Supabase local (Docker) | `com.corentin.grimolia.dev` | Grimolia Dev | Debug |
-| **prod** | Supabase hosted | `com.corentin.grimolia` | Grimolia | Release |
+| Environnement | Backend                 | Bundle ID iOS               | Nom affiché  | Build   |
+| ------------- | ----------------------- | --------------------------- | ------------ | ------- |
+| **dev local** | Supabase local (Docker) | `com.corentin.grimolia.dev` | Grimolia Dev | Debug   |
+| **prod**      | Supabase hosted         | `com.corentin.grimolia`     | Grimolia     | Release |
 
 Les deux apps coexistent sur le même device.
 
@@ -148,3 +148,9 @@ npx eas build --profile production --platform ios
 - On veut distribuer via TestFlight sans compiler sur le Mac
 - On met en place un CI
 - On ajoute des contributeurs
+
+## Android 
+
+```bash
+npx eas-cli build --platform android --profile preview --non-interactive --no-wait
+```

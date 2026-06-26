@@ -1,3 +1,4 @@
+import { usePaperScreenClass } from '@/components/app-fond-background';
 import { PremiumPaywallModal } from '@/components/premium-paywall-modal';
 import { ReportMenuButton } from '@/components/report/report-menu-button';
 import { TemplateCard } from '@/components/template-card';
@@ -28,6 +29,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 //   - "Utiliser sur un livre" → flow de sélection (route futur ; pour V1, on
 //     redirige vers /sheet/new avec un paramètre query template_id)
 export default function TemplateViewScreen() {
+  const paperScreen = usePaperScreenClass();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const theme = useThemeColors();
@@ -86,14 +88,14 @@ export default function TemplateViewScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-paper">
+      <SafeAreaView className={`flex-1 items-center justify-center ${paperScreen}`}>
         <ActivityIndicator color="#c27b52" />
       </SafeAreaView>
     );
   }
   if (!template) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-paper px-8">
+      <SafeAreaView className={`flex-1 items-center justify-center ${paperScreen} px-8`}>
         <Text className="font-display text-2xl text-ink">Template introuvable</Text>
         <Pressable
           onPress={() => router.back()}
@@ -108,7 +110,7 @@ export default function TemplateViewScreen() {
   const isOwner = userId === template.userId;
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={['top']}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={['top']}>
       <View className="flex-row items-center justify-between px-4 pt-2 pb-2">
         <Pressable
           onPress={() => router.back()}

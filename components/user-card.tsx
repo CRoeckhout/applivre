@@ -23,6 +23,7 @@ import { PremiumChip } from "@/components/premium-chip";
 import { useAuth } from "@/hooks/use-auth";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { hexWithAlpha } from "@/lib/sheet-appearance";
+import { readableTextColor } from "@/lib/theme/colors";
 import { getFont } from "@/lib/theme/fonts";
 import { usePreferences } from "@/store/preferences";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -44,7 +45,13 @@ const COMPACT_AVATAR_DIMENSIONS: Record<Size, number> = {
 const RICH_AVATAR_SIZE = 56;
 const RICH_BADGE_COUNT = 5;
 
-export type UserCardStat = { label: string; value: number };
+export type UserCardStat = {
+  label: string;
+  value: number;
+  // Si fourni, l'encart devient tappable (chevron affiché) — ex. ouvrir la
+  // liste des abonnés / abonnements.
+  onPress?: () => void;
+};
 
 export type UserCardProps = {
   userId: string;
@@ -313,6 +320,9 @@ function UserCardRich({
   const badgeKeys = profile?.badge_keys ?? [];
   const visibleBadges = badgeKeys.slice(0, RICH_BADGE_COUNT);
 
+  // Texte/icône lisible sur le fond accent du bouton plein « Suivre ».
+  const onAccent = readableTextColor(themeAccent);
+
   const followBtn =
     !isSelf && currentUserId ? (
       <Pressable
@@ -348,13 +358,13 @@ function UserCardRich({
           <MaterialIcons
             name={isFollowing ? "check" : "person-add"}
             size={16}
-            color={isFollowing ? themeAccent : "#fff"}
+            color={isFollowing ? themeAccent : onAccent}
           />
           <Text
             className="font-sans-med"
             style={{
               fontSize: 14,
-              color: isFollowing ? themeAccent : "#fff",
+              color: isFollowing ? themeAccent : onAccent,
             }}
           >
             {isFollowing ? "Suivi" : "Suivre"}
@@ -490,12 +500,16 @@ function UserCardRich({
         {stats && stats.length > 0 ? (
           <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
             {stats.map((s) => (
-              <StatBox
-                key={s.label}
-                label={s.label}
-                value={s.value}
-                themeInk={themeInk}
-              />
+              // Wrapper flex:1 (View RN nu) qui garantit la demi-largeur —
+              // ne dépend pas du flex interne de la StatBox.
+              <View key={s.label} style={{ flex: 1 }}>
+                <StatBox
+                  label={s.label}
+                  value={s.value}
+                  themeInk={themeInk}
+                  onPress={s.onPress}
+                />
+              </View>
             ))}
           </View>
         ) : null}
@@ -510,27 +524,63 @@ function StatBox({
   label,
   value,
   themeInk,
+  onPress,
 }: {
   label: string;
   value: number;
   themeInk: string;
+  onPress?: () => void;
 }) {
-  return (
-    <View
-      style={{
-        flex: 1,
-        borderWidth: 1,
-        borderColor: hexWithAlpha(themeInk, 0.12),
-        borderRadius: 8,
-        paddingVertical: 8,
-        paddingHorizontal: 10,
-      }}
-      className="items-center"
-    >
+  // Box bordée d'origine : value au-dessus du label, centré. La largeur est
+  // fournie par le wrapper flex:1 du parent — ici on remplit à 100%.
+  // IMPORTANT : style OBJET (jamais une fonction) car l'interop nativewind
+  // mange un `style={(state) => ...}` sur les composants RN core (bordure /
+  // padding / flex disparaissent). Feedback de press via className.
+  const boxStyle = {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: hexWithAlpha(themeInk, 0.12),
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  } as const;
+
+  const inner = (
+    <>
       <Text className="font-display text-lg text-ink">{value}</Text>
-      <Text className="text-[11px] text-ink-muted">{label}</Text>
-    </View>
+      <View
+        style={{ flexDirection: "row", alignItems: "center", gap: 1 }}
+      >
+        <Text className="text-[11px] text-ink-muted">{label}</Text>
+        {onPress ? (
+          <MaterialIcons
+            name="chevron-right"
+            size={13}
+            color={hexWithAlpha(themeInk, 0.45)}
+            style={{ marginRight: -3 }}
+          />
+        ) : null}
+      </View>
+    </>
   );
+
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`${value} ${label}`}
+        style={boxStyle}
+        className="active:opacity-60"
+      >
+        {inner}
+      </Pressable>
+    );
+  }
+
+  return <View style={boxStyle}>{inner}</View>;
 }
 
 function SimpleAvatar({

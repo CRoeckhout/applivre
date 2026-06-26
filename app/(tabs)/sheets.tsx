@@ -1,3 +1,5 @@
+import { usePaperScreenClass } from "@/components/app-fond-background";
+import { useCadrePunch } from "@/components/cadre-fond-punch";
 import { HomeFab } from "@/components/home-fab";
 import { SheetCard } from "@/components/sheet-card";
 import {
@@ -30,6 +32,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 type Entry = { sheet: ReadingSheet; userBook: UserBook };
 
 export default function SheetsScreen() {
+  const paperScreen = usePaperScreenClass();
+  const isCadrePunch = useCadrePunch();
   const router = useRouter();
   const theme = useThemeColors();
   const sheets = useReadingSheets((s) => s.sheets);
@@ -151,7 +155,7 @@ export default function SheetsScreen() {
   const hasAnySheet = Object.keys(sheets).length > 0;
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={["top"]}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={["top"]}>
       <ScrollView contentContainerClassName="px-6 pt-4 pb-28">
         <Animated.View entering={FadeInDown.duration(500)}>
           <Text className="font-display text-3xl text-ink">Mes fiches</Text>
@@ -240,6 +244,11 @@ export default function SheetsScreen() {
                 e.sheet.appearance,
                 globalTemplate,
               );
+              // Cadre SVG à masque + fond-app actif : son extérieur est percé.
+              // Le backing `theme.paper + radius` reboucherait le trou (rounded-
+              // rect visible autour du cadre) → on le rend transparent.
+              const punch = isCadrePunch(effective.frame.borderId);
+              const backingBg = punch ? "transparent" : theme.paper;
               return (
                 <Animated.View
                   key={e.sheet.userBookId}
@@ -251,7 +260,7 @@ export default function SheetsScreen() {
                   <View
                     style={{
                       borderRadius: effective.frame.radius,
-                      backgroundColor: theme.paper,
+                      backgroundColor: backingBg,
                     }}
                   >
                     <Swipeable
@@ -263,7 +272,7 @@ export default function SheetsScreen() {
                     >
                       <View
                         style={{
-                          backgroundColor: theme.paper,
+                          backgroundColor: backingBg,
                           borderRadius: effective.frame.radius,
                         }}
                       >

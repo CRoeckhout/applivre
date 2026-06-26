@@ -2,6 +2,7 @@
 // décroissant. Tap → /messages/[threadId]. Realtime géré dans Messaging.useThreads
 // (subscribe sur social_message_threads + social_messages).
 
+import { usePaperScreenClass } from "@/components/app-fond-background";
 import { AvatarFrame } from "@/components/avatar-frame";
 import { parseFeedShareBody } from "@/components/feed/send-to-contact-modal";
 import { useAuth } from "@/hooks/use-auth";
@@ -38,6 +39,7 @@ function timeAgo(iso: string | null): string {
 }
 
 export default function MessagesInboxScreen() {
+  const paperScreen = usePaperScreenClass();
   const router = useRouter();
   const themeInk = usePreferences((s) => s.colorSecondary);
   const { session } = useAuth();
@@ -47,7 +49,7 @@ export default function MessagesInboxScreen() {
   const threads = threadsQuery.data ?? [];
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={["top", "bottom"]}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={["top", "bottom"]}>
       <View className="flex-row items-center justify-between px-4 pt-2 pb-2">
         <Pressable
           onPress={() => router.back()}

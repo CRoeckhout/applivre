@@ -1,3 +1,4 @@
+import { usePaperScreenClass } from '@/components/app-fond-background';
 import { APP_NAME } from '@/constants/app';
 import { requestEmailOtp, verifyEmailOtp } from '@/hooks/use-auth';
 import { useRouter } from 'expo-router';
@@ -17,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 type Step = 'email' | 'code';
 
 export default function SignInScreen() {
+  const paperScreen = usePaperScreenClass();
   const router = useRouter();
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
@@ -54,7 +56,7 @@ export default function SignInScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-paper">
+    <SafeAreaView className={`flex-1 ${paperScreen}`}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}>

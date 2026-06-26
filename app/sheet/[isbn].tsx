@@ -1,3 +1,4 @@
+import { usePaperScreenClass } from "@/components/app-fond-background";
 import { BookCover } from "@/components/book-cover";
 import { KeyboardDismissBar } from "@/components/keyboard-dismiss-bar";
 import { PremiumPaywallModal } from "@/components/premium-paywall-modal";
@@ -70,6 +71,7 @@ import {
 } from "react-native-safe-area-context";
 
 export default function SheetScreen() {
+  const paperScreen = usePaperScreenClass();
   const { isbn, template_id: templateIdParam } = useLocalSearchParams<{
     isbn: string;
     template_id?: string;
@@ -486,7 +488,7 @@ export default function SheetScreen() {
 
   if (!userBook) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-paper px-8">
+      <SafeAreaView className={`flex-1 items-center justify-center ${paperScreen} px-8`}>
         <Text className="font-display text-2xl text-ink">
           Livre introuvable
         </Text>
@@ -668,7 +670,7 @@ export default function SheetScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={["top", "bottom"]}>
+    <SafeAreaView className={`flex-1 ${paperScreen}`} edges={["top", "bottom"]}>
       <KeyboardDismissBar />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}

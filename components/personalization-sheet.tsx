@@ -46,6 +46,10 @@ export function PersonalizationSheet() {
   const setFondId = usePreferences((s) => s.setFondId);
   const fondOpacity = usePreferences((s) => s.fondOpacity);
   const setFondOpacity = usePreferences((s) => s.setFondOpacity);
+  const appFondId = usePreferences((s) => s.appFondId);
+  const setAppFondId = usePreferences((s) => s.setAppFondId);
+  const appFondOpacity = usePreferences((s) => s.appFondOpacity);
+  const setAppFondOpacity = usePreferences((s) => s.setAppFondOpacity);
   const applyTheme = usePreferences((s) => s.applyTheme);
   const setFontId = usePreferences((s) => s.setFontId);
   const setPrimary = usePreferences((s) => s.setColorPrimary);
@@ -62,6 +66,11 @@ export function PersonalizationSheet() {
     const def = allFonds.find((f) => f.id === fondId);
     return !!(def && (def.source || def.svgXml));
   }, [fondId, allFonds]);
+  const appFondImageActive = useMemo(() => {
+    if (!appFondId || appFondId === 'none') return false;
+    const def = allFonds.find((f) => f.id === appFondId);
+    return !!(def && (def.source || def.svgXml));
+  }, [appFondId, allFonds]);
 
   if (!isOpen) return null;
 
@@ -167,13 +176,24 @@ export function PersonalizationSheet() {
                 <SectionLabel>Cadres</SectionLabel>
                 <BordersRow borderId={borderId} setBorderId={setBorderId} onPaywall={() => setPaywall(true)} />
 
-                <SectionLabel>Fonds</SectionLabel>
+                <SectionLabel>Fond des cartes</SectionLabel>
                 <FondsRow fondId={fondId} setFondId={setFondId} onPaywall={() => setPaywall(true)} />
                 {fondImageActive && (
                   <View style={{ paddingHorizontal: 20 }}>
                     <FondOpacityRow
                       value={fondOpacity}
                       onChange={setFondOpacity}
+                    />
+                  </View>
+                )}
+
+                <SectionLabel>Fond de l’app</SectionLabel>
+                <FondsRow fondId={appFondId} setFondId={setAppFondId} onPaywall={() => setPaywall(true)} />
+                {appFondImageActive && (
+                  <View style={{ paddingHorizontal: 20 }}>
+                    <FondOpacityRow
+                      value={appFondOpacity}
+                      onChange={setAppFondOpacity}
                     />
                   </View>
                 )}
