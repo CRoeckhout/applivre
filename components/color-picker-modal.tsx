@@ -1,7 +1,6 @@
 import { isValidHex, normalizeHex } from '@/lib/theme/colors';
 import { useEffect, useState } from 'react';
 import {
-  type GestureResponderEvent,
   KeyboardAvoidingView,
   type LayoutChangeEvent,
   Modal,
@@ -11,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import WheelColorPicker from 'react-native-wheel-color-picker';
 
 type Props = {
@@ -213,9 +213,8 @@ export function OpacitySlider({
 }) {
   const [width, setWidth] = useState(0);
 
-  const setFromTouch = (e: GestureResponderEvent) => {
+  const setFromX = (x: number) => {
     if (width <= 0) return;
-    const x = e.nativeEvent.locationX;
     onChange(Math.max(0, Math.min(1, x / width)));
   };
 
@@ -224,13 +223,25 @@ export function OpacitySlider({
     if (w !== width) setWidth(w);
   };
 
+  // Tap = set instantané. Pan = scrub : ne s'active qu'au mouvement horizontal
+  // (activeOffsetX) et abandonne si le geste part en vertical (failOffsetY), ce
+  // qui laisse le scroll vertical parent intact. Une fois activé, gesture-handler
+  // conserve le geste même si le doigt dérive verticalement → on ne perd plus le
+  // handle. runOnJS : les callbacks tournent sur le thread JS, pas de worklet.
+  const tap = Gesture.Tap()
+    .runOnJS(true)
+    .onEnd((e) => setFromX(e.x));
+  const pan = Gesture.Pan()
+    .runOnJS(true)
+    .activeOffsetX([-10, 10])
+    .failOffsetY([-12, 12])
+    .onUpdate((e) => setFromX(e.x));
+  const gesture = Gesture.Race(pan, tap);
+
   return (
+    <GestureDetector gesture={gesture}>
     <View
       onLayout={onLayout}
-      onStartShouldSetResponder={() => true}
-      onMoveShouldSetResponder={() => true}
-      onResponderGrant={setFromTouch}
-      onResponderMove={setFromTouch}
       style={{ height: 32, justifyContent: 'center' }}>
       <View
         style={{
@@ -267,5 +278,6 @@ export function OpacitySlider({
         />
       ) : null}
     </View>
+    </GestureDetector>
   );
 }
