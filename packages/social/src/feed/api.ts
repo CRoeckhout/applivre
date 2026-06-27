@@ -94,6 +94,16 @@ export async function fetchUserFeed(params: {
   return ((data ?? []) as RpcRow[]).map(mapRow);
 }
 
+// Compte total des publications d'un user (pour l'en-tête de la section
+// profil) — indépendant de la pagination du carousel.
+export async function fetchUserFeedCount(actorId: UserId): Promise<number> {
+  const { data, error } = await getClient().rpc('get_user_feed_count', {
+    p_actor_id: actorId,
+  });
+  if (error) throw error;
+  return (data as number | null) ?? 0;
+}
+
 // Lookup d'une seule entry. Pour l'écran dédié /feed/[entryId]. La fonction
 // SQL `get_feed_entry` ne renvoie PAS source/score (sans rang dans ce
 // contexte) — on synthétise des valeurs neutres pour rester compatible avec

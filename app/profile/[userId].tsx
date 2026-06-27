@@ -62,6 +62,10 @@ export default function ProfileScreen() {
 
   const feedQuery = Feed.useUserFeed(userId);
   const publications = feedQuery.data?.pages.flat() ?? [];
+  // Total réel (toutes pages confondues) — découplé du nombre chargé dans le
+  // carousel, qui ne grandit qu'au fil du swipe.
+  const publicationsCountQuery = Feed.useUserFeedCount(userId);
+  const publicationsTotal = publicationsCountQuery.data ?? publications.length;
 
   if (profileQuery.isLoading) {
     return (
@@ -149,10 +153,10 @@ export default function ProfileScreen() {
         <View className="mt-10">
           <Text className="mb-3 font-display text-xl text-ink">
             Publications
-            {publications.length > 0 ? (
+            {publicationsTotal > 0 ? (
               <Text className="text-base text-ink-muted">
                 {" · "}
-                {publications.length}
+                {publicationsTotal}
               </Text>
             ) : null}
           </Text>

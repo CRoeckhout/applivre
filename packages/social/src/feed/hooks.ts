@@ -9,6 +9,7 @@ import {
 import {
   fetchFeed,
   fetchUserFeed,
+  fetchUserFeedCount,
   getRepostSummary,
   repostEntry,
   unrepostEntry,
@@ -126,6 +127,17 @@ export function useUserFeed(actorId: UserId | null | undefined) {
       const oldest = lastPage[lastPage.length - 1];
       return oldest?.created_at ?? undefined;
     },
+    staleTime: STALE_MS,
+  });
+}
+
+// Compte total des publications d'un user (en-tête de section), découplé de
+// la pagination du carousel.
+export function useUserFeedCount(actorId: UserId | null | undefined) {
+  return useQuery<number>({
+    queryKey: ['social', 'feed', 'user', actorId ?? '', 'count'] as const,
+    queryFn: () => fetchUserFeedCount(actorId!),
+    enabled: Boolean(actorId),
     staleTime: STALE_MS,
   });
 }
