@@ -4,6 +4,7 @@
 // avant…). Le `body` réutilise le schéma de blocs des release notes, rendu
 // par components/release-notes/block-renderer.tsx.
 
+import { resolveStorageUrl } from '@/lib/storage-url';
 import {
   parseReleaseNoteBlocks,
   type ReleaseNoteBlock,
@@ -95,7 +96,7 @@ export function mapEditorialPostRow(row: EditorialPostRowDb): EditorialPost {
     refKind: (row.ref_kind as EditorialRefKind | null) ?? null,
     refId: row.ref_id,
     reviewId: row.review_id ?? null,
-    coverUrl: row.cover_url,
+    coverUrl: resolveStorageUrl(row.cover_url),
     cta: parseCta(row.cta),
     pinned: row.pinned,
     priority: row.priority,

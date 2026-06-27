@@ -423,6 +423,20 @@ function CoverUploader({
         onChange={(e) => onChange(e.target.value)}
         placeholder="https://… ou upload ci-dessous"
       />
+      {/localhost|127\.0\.0\.1/i.test(value) && (
+        <div
+          style={{
+            marginTop: 6,
+            fontSize: 12,
+            color: '#b45309',
+            fontWeight: 600,
+          }}
+        >
+          ⚠️ Host en localhost / 127.0.0.1 — l'image ne sera pas joignable depuis
+          l'app sur un device. Remplace le host par une IP LAN (ex. 192.168.x) ou
+          une URL publique.
+        </div>
+      )}
       <input
         type="file"
         accept="image/png,image/jpeg,image/gif,image/webp"

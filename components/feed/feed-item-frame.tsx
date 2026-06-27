@@ -24,6 +24,7 @@
 // boutons "Commenter" (action bar) et "Répondre" (comment item) le mutent
 // pour basculer l'input en mode réponse, avec chip annulable.
 
+import { useAppFondActive } from "@/components/app-fond-background";
 import { AvatarFrame } from "@/components/avatar-frame";
 import { Badge } from "@/components/badges/badge";
 import type { ReplyTarget } from "@/components/feed/comment-input-row";
@@ -35,6 +36,8 @@ import { ReportMenuButton } from "@/components/report/report-menu-button";
 import { useAuth } from "@/hooks/use-auth";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { hexWithAlpha } from "@/lib/sheet-appearance";
+import { hexToRgb, relativeLuminance } from "@/lib/theme/colors";
+import { BlurView } from "expo-blur";
 import { getFont } from "@/lib/theme/fonts";
 import { usePreferences } from "@/store/preferences";
 import type { BadgeKey } from "@/types/badge";
@@ -107,6 +110,9 @@ export function FeedItemFrame(props: FeedItemFrameProps) {
   const themeInk = usePreferences((s) => s.colorSecondary);
   const themePaper = useThemeColors().paperWarm;
   const divider = hexWithAlpha(themeInk, 0.1);
+  // Sur un fond d'app, la card devient un verre dépoli (BlurView + teinte
+  // `paperWarm` semi-transparente) pour laisser transparaître le fond flouté.
+  const appFond = useAppFondActive();
 
   const target = useMemo<TargetRef>(
     () => ({ kind: "feed_entry", id: entry.id }),
@@ -155,6 +161,77 @@ export function FeedItemFrame(props: FeedItemFrameProps) {
     focusInput();
   };
 
+  const inner = (
+    <>
+      {props.topAttachment ? (
+        <>
+          {props.topAttachment}
+          <View style={{ height: 1, backgroundColor: divider }} />
+        </>
+      ) : null}
+      <FeedItemHeader entry={entry} />
+      <View style={{ height: 1, backgroundColor: divider }} />
+      {/* Le slot body n'a pas de padding intrinsèque : chaque verb décide
+        (texte court → padding 14 ; SheetCard plein → 0, sa propre frame
+        assure le confort visuel). */}
+      <View>{body}</View>
+      <View style={{ height: 1, backgroundColor: divider }} />
+      <EngagementStatsRow entry={entry} target={target} />
+      <View style={{ height: 1, backgroundColor: divider }} />
+      <ActionsBar
+        entry={entry}
+        onCommentPress={onCommentBtn}
+        authorHandle={authorHandle(entry)}
+        hideRepostButton={props.hideRepostButton}
+        isFullMode={isFull}
+      />
+      <View style={{ height: 1, backgroundColor: divider }} />
+      <CommentsSection
+        target={target}
+        entryId={entry.id}
+        mode={isFull ? "full" : "preview"}
+        onReply={onReplyToComment}
+        activeCommentId={replyTo?.commentId ?? null}
+        scrollIntoView={scrollIntoView}
+      />
+    </>
+  );
+
+  // Verre dépoli sur fond d'app : BlurView (teinte dérivée de la luminance du
+  // paper) + voile `paperWarm` semi-transparent. Sinon, card paper opaque.
+  if (appFond) {
+    const paperRgb = hexToRgb(themePaper);
+    const tint = paperRgb && relativeLuminance(paperRgb) < 0.4 ? "dark" : "light";
+    return (
+      <View
+        style={{
+          borderRadius: 16,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.12,
+          shadowRadius: 10,
+          elevation: 4,
+        }}
+      >
+        <BlurView
+          intensity={32}
+          tint={tint}
+          experimentalBlurMethod="dimezisBlurView"
+          style={{
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: hexWithAlpha(themeInk, 0.12),
+            overflow: "hidden",
+          }}
+        >
+          <View style={{ backgroundColor: hexWithAlpha(themePaper, 0.55) }}>
+            {inner}
+          </View>
+        </BlurView>
+      </View>
+    );
+  }
+
   return (
     <View
       style={{
@@ -176,37 +253,7 @@ export function FeedItemFrame(props: FeedItemFrameProps) {
           overflow: "hidden",
         }}
       >
-        {props.topAttachment ? (
-          <>
-            {props.topAttachment}
-            <View style={{ height: 1, backgroundColor: divider }} />
-          </>
-        ) : null}
-        <FeedItemHeader entry={entry} />
-        <View style={{ height: 1, backgroundColor: divider }} />
-        {/* Le slot body n'a pas de padding intrinsèque : chaque verb décide
-          (texte court → padding 14 ; SheetCard plein → 0, sa propre frame
-          assure le confort visuel). */}
-        <View>{body}</View>
-        <View style={{ height: 1, backgroundColor: divider }} />
-        <EngagementStatsRow entry={entry} target={target} />
-        <View style={{ height: 1, backgroundColor: divider }} />
-        <ActionsBar
-          entry={entry}
-          onCommentPress={onCommentBtn}
-          authorHandle={authorHandle(entry)}
-          hideRepostButton={props.hideRepostButton}
-          isFullMode={isFull}
-        />
-        <View style={{ height: 1, backgroundColor: divider }} />
-        <CommentsSection
-          target={target}
-          entryId={entry.id}
-          mode={isFull ? "full" : "preview"}
-          onReply={onReplyToComment}
-          activeCommentId={replyTo?.commentId ?? null}
-          scrollIntoView={scrollIntoView}
-        />
+        {inner}
       </View>
     </View>
   );
