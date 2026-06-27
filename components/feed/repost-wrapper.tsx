@@ -37,8 +37,10 @@ import { Text, TextInput, View } from 'react-native';
 
 type Props = {
   repostEntry: Feed.FeedEntry;
+  // Relayé tel quel à FeedItemFrame (carousel profil — cf. fillHeight là-bas).
+  fillHeight?: boolean;
 } & (
-  | { commentsMode?: 'preview' }
+  | { commentsMode?: 'preview' | 'none' }
   | {
       commentsMode: 'full';
       replyTo: ReplyTarget | null;
@@ -153,6 +155,8 @@ export function RepostWrapper(props: Props) {
       body={renderFeedItemBody(source)}
       topAttachment={topAttachment}
       hideRepostButton={isMyRepost}
+      commentsMode={props.commentsMode === 'none' ? 'none' : 'preview'}
+      fillHeight={props.fillHeight}
     />
   );
 }

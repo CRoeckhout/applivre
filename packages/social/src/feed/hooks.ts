@@ -8,14 +8,17 @@ import {
 
 import {
   fetchFeed,
+  fetchUserFeed,
   getRepostSummary,
   repostEntry,
   unrepostEntry,
   type FeedEntry,
   type RepostSummary,
 } from './api';
+import type { UserId } from '../types';
 
 const PAGE_SIZE = 30;
+const USER_PAGE_SIZE = 4;
 const STALE_MS = 1000 * 30;
 
 const repostSummaryKey = (entryId: string) =>
@@ -95,6 +98,31 @@ export function useFeed() {
     initialPageParam: null,
     getNextPageParam: (lastPage) => {
       if (lastPage.length < PAGE_SIZE) return undefined;
+      const oldest = lastPage[lastPage.length - 1];
+      return oldest?.created_at ?? undefined;
+    },
+    staleTime: STALE_MS,
+  });
+}
+
+// Mur de publications d'un user (page profil). Même mécanique de curseur que
+// useFeed, mais filtré sur un actor_id. La clé inclut l'actor pour ne pas
+// partager le cache entre profils.
+export function useUserFeed(actorId: UserId | null | undefined) {
+  return useInfiniteQuery<
+    FeedEntry[],
+    Error,
+    InfiniteData<FeedEntry[], string | null>,
+    readonly ['social', 'feed', 'user', string],
+    string | null
+  >({
+    queryKey: ['social', 'feed', 'user', actorId ?? ''] as const,
+    queryFn: ({ pageParam }) =>
+      fetchUserFeed({ actorId: actorId!, limit: USER_PAGE_SIZE, before: pageParam }),
+    enabled: Boolean(actorId),
+    initialPageParam: null,
+    getNextPageParam: (lastPage) => {
+      if (lastPage.length < USER_PAGE_SIZE) return undefined;
       const oldest = lastPage[lastPage.length - 1];
       return oldest?.created_at ?? undefined;
     },

@@ -76,6 +76,24 @@ export async function fetchFeed(params: {
   return ((data ?? []) as RpcRow[]).map(mapRow);
 }
 
+// Mur de publications d'un user (page profil). Filtré sur un seul actor_id,
+// chronologique, paginé par created_at exclusif. Même forme de row que
+// get_feed → on réutilise mapRow.
+export async function fetchUserFeed(params: {
+  actorId: UserId;
+  limit?: number;
+  before?: string | null;
+}): Promise<FeedEntry[]> {
+  const { actorId, limit = 20, before = null } = params;
+  const { data, error } = await getClient().rpc('get_user_feed', {
+    p_actor_id: actorId,
+    p_limit: limit,
+    p_before: before,
+  });
+  if (error) throw error;
+  return ((data ?? []) as RpcRow[]).map(mapRow);
+}
+
 // Lookup d'une seule entry. Pour l'écran dédié /feed/[entryId]. La fonction
 // SQL `get_feed_entry` ne renvoie PAS source/score (sans rang dans ce
 // contexte) — on synthétise des valeurs neutres pour rester compatible avec

@@ -10,12 +10,13 @@ import {
   type PublicSheetListItemRow,
 } from "@/components/public-sheet-list-item";
 import { ReportMenuButton } from "@/components/report/report-menu-button";
+import { UserPublicationsCarousel } from "@/components/feed/user-publications-carousel";
 import { UserCard } from "@/components/user-card";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/lib/supabase";
 import { usePreferences } from "@/store/preferences";
 import { MaterialIcons } from "@expo/vector-icons";
-import { Follows, useProfile } from "@grimolia/social";
+import { Feed, Follows, useProfile } from "@grimolia/social";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -58,6 +59,9 @@ export default function ProfileScreen() {
     enabled: Boolean(userId),
     staleTime: 1000 * 60,
   });
+
+  const feedQuery = Feed.useUserFeed(userId);
+  const publications = feedQuery.data?.pages.flat() ?? [];
 
   if (profileQuery.isLoading) {
     return (
@@ -141,6 +145,33 @@ export default function ProfileScreen() {
             },
           ]}
         />
+
+        <View className="mt-10">
+          <Text className="mb-3 font-display text-xl text-ink">
+            Publications
+            {publications.length > 0 ? (
+              <Text className="text-base text-ink-muted">
+                {" · "}
+                {publications.length}
+              </Text>
+            ) : null}
+          </Text>
+
+          {feedQuery.isLoading ? (
+            <ActivityIndicator color={themeInk} />
+          ) : publications.length === 0 ? (
+            <Text className="text-sm text-ink-muted">
+              Aucune publication pour l'instant.
+            </Text>
+          ) : (
+            <UserPublicationsCarousel
+              entries={publications}
+              hasNextPage={Boolean(feedQuery.hasNextPage)}
+              isFetchingNextPage={feedQuery.isFetchingNextPage}
+              onEndReached={() => void feedQuery.fetchNextPage()}
+            />
+          )}
+        </View>
 
         <View className="mt-10">
           <Text className="mb-3 font-display text-xl text-ink">

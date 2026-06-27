@@ -93,8 +93,17 @@ type FeedItemFrameProps = {
   // proposer "Republier" sur sa propre republication — toggle redondant
   // avec l'edge case "supprimer mon repost" géré ailleurs).
   hideRepostButton?: boolean;
+  // Étire la card pour remplir la hauteur disponible (body en flex:1, barre
+  // d'actions collée en bas). Utilisé dans le carousel profil où le parent
+  // (FlatList horizontale, cells stretchées) donne à toutes les cards la
+  // hauteur de la plus grande → hauteurs normalisées. À NE PAS activer dans
+  // le feed vertical, où chaque card doit se dimensionner sur son contenu.
+  fillHeight?: boolean;
 } & (
-  | { commentsMode?: "preview" }
+  // 'preview' (défaut) : 2 derniers commentaires + lien. 'none' : section
+  // commentaires masquée (utilisé dans le carousel profil pour limiter la
+  // hauteur des cards) — les stats et le bouton "Commenter" restent.
+  | { commentsMode?: "preview" | "none" }
   | {
       commentsMode: "full";
       replyTo: ReplyTarget | null;
@@ -106,6 +115,8 @@ type FeedItemFrameProps = {
 
 export function FeedItemFrame(props: FeedItemFrameProps) {
   const { entry, body } = props;
+  // flex:1 propagé sur toute la chaîne (root → chrome → body) quand on étire.
+  const fill = props.fillHeight ? 1 : undefined;
   const router = useRouter();
   const themeInk = usePreferences((s) => s.colorSecondary);
   const themePaper = useThemeColors().paperWarm;
@@ -120,6 +131,7 @@ export function FeedItemFrame(props: FeedItemFrameProps) {
   );
 
   const isFull = props.commentsMode === "full";
+  const showComments = props.commentsMode !== "none";
   const replyTo = isFull ? props.replyTo : null;
   const scrollIntoView = isFull ? props.scrollIntoView : undefined;
 
@@ -173,8 +185,9 @@ export function FeedItemFrame(props: FeedItemFrameProps) {
       <View style={{ height: 1, backgroundColor: divider }} />
       {/* Le slot body n'a pas de padding intrinsèque : chaque verb décide
         (texte court → padding 14 ; SheetCard plein → 0, sa propre frame
-        assure le confort visuel). */}
-      <View>{body}</View>
+        assure le confort visuel). En mode fillHeight, le body absorbe
+        l'espace vertical excédentaire (flex:1) pour normaliser la hauteur. */}
+      <View style={{ flex: fill }}>{body}</View>
       <View style={{ height: 1, backgroundColor: divider }} />
       <EngagementStatsRow entry={entry} target={target} />
       <View style={{ height: 1, backgroundColor: divider }} />
@@ -185,15 +198,19 @@ export function FeedItemFrame(props: FeedItemFrameProps) {
         hideRepostButton={props.hideRepostButton}
         isFullMode={isFull}
       />
-      <View style={{ height: 1, backgroundColor: divider }} />
-      <CommentsSection
-        target={target}
-        entryId={entry.id}
-        mode={isFull ? "full" : "preview"}
-        onReply={onReplyToComment}
-        activeCommentId={replyTo?.commentId ?? null}
-        scrollIntoView={scrollIntoView}
-      />
+      {showComments ? (
+        <>
+          <View style={{ height: 1, backgroundColor: divider }} />
+          <CommentsSection
+            target={target}
+            entryId={entry.id}
+            mode={isFull ? "full" : "preview"}
+            onReply={onReplyToComment}
+            activeCommentId={replyTo?.commentId ?? null}
+            scrollIntoView={scrollIntoView}
+          />
+        </>
+      ) : null}
     </>
   );
 
@@ -205,6 +222,7 @@ export function FeedItemFrame(props: FeedItemFrameProps) {
     return (
       <View
         style={{
+          flex: fill,
           borderRadius: 16,
           shadowColor: "#000",
           shadowOffset: { width: 0, height: 4 },
@@ -218,13 +236,19 @@ export function FeedItemFrame(props: FeedItemFrameProps) {
           tint={tint}
           experimentalBlurMethod="dimezisBlurView"
           style={{
+            flex: fill,
             borderRadius: 16,
             borderWidth: 1,
             borderColor: hexWithAlpha(themeInk, 0.12),
             overflow: "hidden",
           }}
         >
-          <View style={{ backgroundColor: hexWithAlpha(themePaper, 0.55) }}>
+          <View
+            style={{
+              flex: fill,
+              backgroundColor: hexWithAlpha(themePaper, 0.55),
+            }}
+          >
             {inner}
           </View>
         </BlurView>
@@ -235,6 +259,7 @@ export function FeedItemFrame(props: FeedItemFrameProps) {
   return (
     <View
       style={{
+        flex: fill,
         borderRadius: 16,
         backgroundColor: themePaper,
         shadowColor: "#000",
@@ -246,6 +271,7 @@ export function FeedItemFrame(props: FeedItemFrameProps) {
     >
       <View
         style={{
+          flex: fill,
           backgroundColor: themePaper,
           borderRadius: 16,
           borderWidth: 1,
