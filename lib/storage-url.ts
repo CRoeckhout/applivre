@@ -11,6 +11,8 @@ import { supabaseUrl } from '@/lib/supabase';
 // On ne touche QUE les URLs storage Supabase (path `/storage/v1/object/`) : les
 // URLs externes (images.isbndb.com, books.google.com…) passent telles quelles.
 // En prod, l'URL stockée et `supabaseUrl` ont la même origine → no-op.
+export function resolveStorageUrl(url: string): string;
+export function resolveStorageUrl(url: string | null | undefined): string | null;
 export function resolveStorageUrl(url: string | null | undefined): string | null {
   if (!url) return url ?? null;
   const marker = '/storage/v1/object/';

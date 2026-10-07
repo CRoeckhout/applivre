@@ -24,6 +24,7 @@ import {
   View,
 } from 'react-native';
 import { CardProgressBar } from './card-progress-bar';
+import { resolveStorageUrl } from '@/lib/storage-url';
 
 // Template custom de la carte « Fiche à la une » : la preview de la fiche
 // telle qu'elle apparaît dans la liste des fiches (SheetCard headerOnly :
@@ -169,7 +170,7 @@ export function FeaturedSheetCard({
           >
             {owner?.avatar_url ? (
               <Image
-                source={{ uri: owner.avatar_url }}
+                source={{ uri: resolveStorageUrl(owner.avatar_url) }}
                 style={{ width: 14, height: 14, borderRadius: 7 }}
                 transition={150}
               />
@@ -202,7 +203,7 @@ export function FeaturedSheetCard({
         <View className="flex-row items-center gap-2">
           {owner?.avatar_url ? (
             <Image
-              source={{ uri: owner.avatar_url }}
+              source={{ uri: resolveStorageUrl(owner.avatar_url) }}
               style={{ width: 18, height: 18, borderRadius: 9 }}
               transition={150}
             />

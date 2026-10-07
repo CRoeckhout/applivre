@@ -21,6 +21,7 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useMemo } from "react";
 import { Pressable, Text, View } from "react-native";
+import { resolveStorageUrl } from "@/lib/storage-url";
 
 export type PublicSheetListItemRow = {
   sheet_id: string;
@@ -168,7 +169,7 @@ function FooterBanner({
       >
         {profile?.avatar_url ? (
           <Image
-            source={{ uri: profile.avatar_url }}
+            source={{ uri: resolveStorageUrl(profile.avatar_url) }}
             style={{ width: "100%", height: "100%" }}
             contentFit="cover"
           />

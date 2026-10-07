@@ -10,6 +10,7 @@ import { useEffect, useRef } from 'react';
 import { Animated, Pressable, Text, View } from 'react-native';
 import { ReviewVoteButtons } from './review-vote-buttons';
 import { StarRatingDisplay } from './star-rating';
+import { resolveStorageUrl } from '@/lib/storage-url';
 
 type Props = {
   review: Reviews.BookReview;
@@ -70,7 +71,7 @@ export function ReviewCard({
         >
           {author.avatar_url ? (
             <Image
-              source={{ uri: author.avatar_url }}
+              source={{ uri: resolveStorageUrl(author.avatar_url) }}
               style={{ width: '100%', height: '100%' }}
               transition={150}
             />

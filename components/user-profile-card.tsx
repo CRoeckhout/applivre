@@ -12,6 +12,7 @@ import { Image } from "expo-image";
 import { useState } from "react";
 import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
 import { BadgeStrip } from "./badges/badge-strip";
+import { resolveStorageUrl } from "@/lib/storage-url";
 
 const AVATAR_SIZE = 80;
 
@@ -71,7 +72,7 @@ export function UserProfileCard() {
         <AvatarFrame size={AVATAR_SIZE} frameId={avatarFrameId}>
           {avatarUrl ? (
             <Image
-              source={{ uri: avatarUrl }}
+              source={{ uri: resolveStorageUrl(avatarUrl) }}
               style={{ width: "100%", height: "100%" }}
               contentFit="cover"
               transition={180}

@@ -18,6 +18,7 @@ import { Discover, Follows } from "@grimolia/social";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { Pressable, Text, View } from "react-native";
+import { resolveStorageUrl } from "@/lib/storage-url";
 
 const AVATAR_SIZE = 48;
 
@@ -77,7 +78,7 @@ export function DiscoverUserRow({ user }: { user: Discover.DiscoveredUser }) {
         <AvatarFrame size={AVATAR_SIZE} frameId={ownerAvatarFrameId}>
           {user.avatar_url ? (
             <Image
-              source={{ uri: user.avatar_url }}
+              source={{ uri: resolveStorageUrl(user.avatar_url) }}
               style={{ width: "100%", height: "100%" }}
               contentFit="cover"
             />

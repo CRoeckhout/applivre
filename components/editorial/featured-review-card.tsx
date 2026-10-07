@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter, type Href } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
+import { resolveStorageUrl } from '@/lib/storage-url';
 
 // Template custom de la carte « Avis à la une » : on référence l'avis par
 // post.reviewId et on le charge (note + texte + auteur). Affiche la note
@@ -71,7 +72,7 @@ export function FeaturedReviewCard({ post }: { post: EditorialPost }) {
           <View className="flex-row items-center gap-2">
             {author?.avatar_url ? (
               <Image
-                source={{ uri: author.avatar_url }}
+                source={{ uri: resolveStorageUrl(author.avatar_url) }}
                 style={{ width: 18, height: 18, borderRadius: 9 }}
                 transition={150}
               />

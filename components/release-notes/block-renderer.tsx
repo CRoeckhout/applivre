@@ -3,6 +3,7 @@ import type { ReleaseNoteBlock } from '@/types/release-note';
 import { Image, type ImageLoadEventData } from 'expo-image';
 import { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
+import { resolveStorageUrl } from '@/lib/storage-url';
 
 // Rendu natif des blocs d'une release note. Chaque type a son composant ;
 // le dispatcher choisit le bon en fonction de `block.type`. Le `body`
@@ -170,7 +171,7 @@ function ImageBlock({ url, alt }: { url: string; alt?: string }) {
 
   return (
     <Image
-      source={{ uri: url }}
+      source={{ uri: resolveStorageUrl(url) }}
       style={{
         width: '100%',
         aspectRatio: aspectRatio ?? 16 / 9,

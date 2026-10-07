@@ -13,6 +13,7 @@ import { Image } from "expo-image";
 import type { RefObject } from "react";
 import { useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
+import { resolveStorageUrl } from "@/lib/storage-url";
 
 const AVATAR_SIZE = 28;
 
@@ -122,7 +123,7 @@ export function CommentInputRow({
         >
           {profile?.avatar_url ? (
             <Image
-              source={{ uri: profile.avatar_url }}
+              source={{ uri: resolveStorageUrl(profile.avatar_url) }}
               style={{ width: "100%", height: "100%" }}
               contentFit="cover"
             />

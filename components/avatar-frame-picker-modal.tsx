@@ -8,6 +8,7 @@ import { Image } from 'expo-image';
 import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { resolveStorageUrl } from '@/lib/storage-url';
 
 type Props = {
   open: boolean;
@@ -156,7 +157,7 @@ function FrameTile({
         <AvatarFrame size={AVATAR_PREVIEW_SIZE} frameId={def.id}>
           {avatarUrl ? (
             <Image
-              source={{ uri: avatarUrl }}
+              source={{ uri: resolveStorageUrl(avatarUrl) }}
               style={{ width: '100%', height: '100%' }}
               contentFit="cover"
             />

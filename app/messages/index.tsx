@@ -22,6 +22,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { resolveStorageUrl } from "@/lib/storage-url";
 
 const AVATAR_SIZE = 40;
 
@@ -162,7 +163,7 @@ function ThreadRow({
       >
         {thread.other.avatar_url ? (
           <Image
-            source={{ uri: thread.other.avatar_url }}
+            source={{ uri: resolveStorageUrl(thread.other.avatar_url) }}
             style={{ width: "100%", height: "100%" }}
             contentFit="cover"
           />

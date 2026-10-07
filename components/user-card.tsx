@@ -33,6 +33,7 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import type { ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
+import { resolveStorageUrl } from "@/lib/storage-url";
 
 type Size = "sm" | "md" | "lg";
 
@@ -416,7 +417,7 @@ function UserCardRich({
             <AvatarFrame size={RICH_AVATAR_SIZE} frameId={ownerAvatarFrameId}>
               {profile?.avatar_url ? (
                 <Image
-                  source={{ uri: profile.avatar_url }}
+                  source={{ uri: resolveStorageUrl(profile.avatar_url) }}
                   style={{ width: "100%", height: "100%" }}
                   contentFit="cover"
                 />
@@ -605,7 +606,7 @@ function SimpleAvatar({
     >
       {avatarUrl ? (
         <Image
-          source={{ uri: avatarUrl }}
+          source={{ uri: resolveStorageUrl(avatarUrl) }}
           style={{ width: "100%", height: "100%" }}
           contentFit="cover"
         />

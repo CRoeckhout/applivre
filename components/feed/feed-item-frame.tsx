@@ -55,6 +55,7 @@ import { useRouter } from "expo-router";
 import type { ReactNode, RefObject } from "react";
 import { useMemo, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
+import { resolveStorageUrl } from "@/lib/storage-url";
 
 const HEADER_AVATAR_SIZE = 44;
 // Ensemble (badges + chip premium). La chip premium prend un slot, donc on
@@ -344,7 +345,7 @@ export function FeedItemHeader({ entry }: { entry: Feed.FeedEntry }) {
         <AvatarFrame size={HEADER_AVATAR_SIZE} frameId={ownerAvatarFrameId}>
           {profile.avatar_url ? (
             <Image
-              source={{ uri: profile.avatar_url }}
+              source={{ uri: resolveStorageUrl(profile.avatar_url) }}
               style={{ width: "100%", height: "100%" }}
               contentFit="cover"
             />

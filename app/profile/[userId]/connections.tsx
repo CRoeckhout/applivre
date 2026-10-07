@@ -32,6 +32,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { resolveStorageUrl } from "@/lib/storage-url";
 
 const AVATAR_SIZE = 48;
 
@@ -341,7 +342,7 @@ function ConnectionRow({
         <AvatarFrame size={AVATAR_SIZE} frameId={ownerAvatarFrameId}>
           {profile?.avatar_url ? (
             <Image
-              source={{ uri: profile.avatar_url }}
+              source={{ uri: resolveStorageUrl(profile.avatar_url) }}
               style={{ width: "100%", height: "100%" }}
               contentFit="cover"
             />

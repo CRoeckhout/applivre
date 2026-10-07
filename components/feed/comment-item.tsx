@@ -21,6 +21,7 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Alert, Pressable, Text, TextInput, View } from "react-native";
+import { resolveStorageUrl } from "@/lib/storage-url";
 
 const AVATAR_SIZE_ROOT = 30;
 const AVATAR_SIZE_REPLY = 24;
@@ -286,7 +287,7 @@ export function CommentItem({
         >
           {comment.actor.avatar_url ? (
             <Image
-              source={{ uri: comment.actor.avatar_url }}
+              source={{ uri: resolveStorageUrl(comment.actor.avatar_url) }}
               style={{ width: "100%", height: "100%" }}
               contentFit="cover"
             />
