@@ -50,7 +50,7 @@ export function AppFondBackground() {
   return (
     <View
       pointerEvents="none"
-      style={[StyleSheet.absoluteFillObject, { backgroundColor: colorBg }]}
+      style={[StyleSheet.absoluteFill, { backgroundColor: colorBg }]}
     >
       <FondLayer
         bgColor={colorBg}

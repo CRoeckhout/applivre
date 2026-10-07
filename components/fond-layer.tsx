@@ -76,7 +76,7 @@ export function FondLayer({ bgColor, fondId, colorOverrides, opacity }: Props) {
     <View
       pointerEvents="none"
       style={[
-        StyleSheet.absoluteFillObject,
+        StyleSheet.absoluteFill,
         // Fallback bgColor uniquement si pas d'image — sinon l'image est la
         // surface de référence et bgColor doit être ignorée (cf. politique).
         hasImage ? null : { backgroundColor: bgColor },

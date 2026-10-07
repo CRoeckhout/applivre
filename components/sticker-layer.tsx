@@ -125,7 +125,7 @@ export function StickerLayer({
     <View
       onLayout={onLayout}
       pointerEvents="box-none"
-      style={[StyleSheet.absoluteFillObject, { overflow: 'visible' }]}>
+      style={[StyleSheet.absoluteFill, { overflow: 'visible' }]}>
       {/* Overlay de désélection : actif uniquement quand un sticker est
           sélectionné. Il couvre la zone du layer SOUS les stickers (les
           stickers, montés après, sont au-dessus dans le z natif RN). Tap
@@ -133,7 +133,7 @@ export function StickerLayer({
       {hasSelection && (
         <Pressable
           onPress={() => onSelect(null)}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
         />
       )}
       {ready &&

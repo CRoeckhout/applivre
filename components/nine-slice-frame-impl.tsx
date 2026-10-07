@@ -517,7 +517,7 @@ export function NineSliceFrame({
           pointerEvents="none"
           style={
             innerBackgroundCover === 'full'
-              ? [StyleSheet.absoluteFillObject, { backgroundColor: innerBackgroundColor }]
+              ? [StyleSheet.absoluteFill, { backgroundColor: innerBackgroundColor }]
               : {
                   position: 'absolute',
                   top: bgi.top,
@@ -568,7 +568,7 @@ export function NineSliceFrame({
           + padding ou par parent constraint). Une seule native view, tous les
           cells drawn dedans en GPU. */}
       <View
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         onLayout={onFrameLayout}
         pointerEvents="none">
         {sourceReady && frameSize && frameSize.w > 0 && frameSize.h > 0 && (
