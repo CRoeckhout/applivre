@@ -1,4 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import { AccessDenied } from "./components/access-denied";
+import { LoginForm } from "./components/login";
+import { Sidebar } from "./components/sidebar";
+import { useAdminAuth } from "./lib/use-admin-auth";
+import { useHashRoute } from "./lib/use-hash-route";
+import { usePendingCounts } from "./lib/use-pending-counts";
+import { useSidebarCollapsed } from "./lib/use-sidebar-collapsed";
+import { useTheme } from "./lib/use-theme";
 import { AvatarFramesSection } from "./sections/avatar-frames-section";
 import { BadgesSection } from "./sections/badges-section";
 import { BingoPillsSection } from "./sections/bingo-pills-section";
@@ -8,330 +15,18 @@ import { EditorialSection } from "./sections/editorial-section";
 import { FondsSection } from "./sections/fonds-section";
 import { MusiquesSection } from "./sections/musiques-section";
 import { ReleaseNotesSection } from "./sections/release-notes-section";
-import { TemplateGenresSection } from "./sections/template-genres-section";
 import { ReportsSection } from "./sections/reports-section";
 import { StickersSection } from "./sections/stickers-section";
 import { SubscriptionsSection } from "./sections/subscriptions-section";
+import { TemplateGenresSection } from "./sections/template-genres-section";
 import { UsersSection } from "./sections/users-section";
-import { getUnreadReportsCount } from "./lib/admin-queries";
-import { LoginForm } from "./components/login";
-import {
-  MOBILE_ASIDE_OVERLAY_STYLE,
-  MobileAsideBackdrop,
-} from "./components/collapsible-aside";
-import { useIsMobile } from "./lib/use-collapsible-aside";
-import { supabase } from "./lib/supabase";
-
-type AuthState =
-  | { kind: "loading" }
-  | { kind: "logged_out" }
-  | { kind: "not_admin" }
-  | { kind: "admin" };
-
-type Tab =
-  | "users"
-  | "reports"
-  | "badges"
-  | "borders"
-  | "fonds"
-  | "stickers"
-  | "avatar-frames"
-  | "books"
-  | "pills"
-  | "musiques"
-  | "subscriptions"
-  | "editorial"
-  | "release-notes"
-  | "template-genres";
-type Theme = "light" | "dark";
-
-const TABS: Tab[] = [
-  "users",
-  "reports",
-  "badges",
-  "borders",
-  "fonds",
-  "stickers",
-  "avatar-frames",
-  "books",
-  "pills",
-  "musiques",
-  "subscriptions",
-  "editorial",
-  "release-notes",
-  "template-genres",
-];
-const TAB_LABELS: Record<Tab, string> = {
-  users: "Utilisateurs",
-  reports: "Signalements",
-  badges: "Badges",
-  borders: "Cadres",
-  fonds: "Fonds",
-  stickers: "Stickers",
-  "avatar-frames": "Cadres photo",
-  books: "Livres",
-  pills: "Défis bingo",
-  musiques: "Musiques",
-  subscriptions: "Abonnements",
-  editorial: "Fil d'actualité",
-  "release-notes": "Quoi de neuf",
-  "template-genres": "Genres templates",
-};
-const TAB_ICONS: Record<Tab, React.JSX.Element> = {
-  users: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  ),
-  reports: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 22V4" />
-      <path d="M4 4h13l-2 5 2 5H4" />
-    </svg>
-  ),
-  badges: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="9" r="6" />
-      <path d="m9 14-2 7 5-3 5 3-2-7" />
-    </svg>
-  ),
-  borders: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2" />
-      <rect x="7" y="7" width="10" height="10" rx="1" />
-    </svg>
-  ),
-  fonds: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2" />
-      <circle cx="9" cy="9" r="2" />
-      <path d="m21 15-5-5L5 21" />
-    </svg>
-  ),
-  stickers: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3 14 9l6 .5-4.5 4 1.5 6L12 16l-5 3.5 1.5-6L4 9.5 10 9z" />
-    </svg>
-  ),
-  "avatar-frames": (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9" />
-      <circle cx="12" cy="10" r="3" />
-      <path d="M6.5 18a6 6 0 0 1 11 0" />
-    </svg>
-  ),
-  books: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v18H6.5A2.5 2.5 0 0 0 4 22.5z" />
-      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-    </svg>
-  ),
-  pills: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2" />
-      <path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
-    </svg>
-  ),
-  musiques: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 18V5l12-2v13" />
-      <circle cx="6" cy="18" r="3" />
-      <circle cx="18" cy="16" r="3" />
-    </svg>
-  ),
-  subscriptions: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2 4 6v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V6z" />
-      <path d="m9 12 2 2 4-4" />
-    </svg>
-  ),
-  editorial: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 22a2 2 0 0 1-2-2V5a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v15a2 2 0 0 0 2 2zm0 0h14a2 2 0 0 0 2-2V8a1 1 0 0 0-1-1h-2" />
-      <path d="M8 7h8M8 11h8M8 15h5" />
-    </svg>
-  ),
-  "release-notes": (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  ),
-  "template-genres": (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 7h16M4 12h16M4 17h10" />
-      <circle cx="19" cy="17" r="2" />
-    </svg>
-  ),
-};
-const DEFAULT_TAB: Tab = "users";
-const THEME_KEY = "admin-theme";
-const SIDEBAR_COLLAPSED_KEY = "admin-sidebar-collapsed";
-
-function readInitialTheme(): Theme {
-  const saved = localStorage.getItem(THEME_KEY);
-  if (saved === "light" || saved === "dark") return saved;
-  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
-function readInitialSidebarCollapsed(): boolean {
-  const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
-  if (saved === "1") return true;
-  if (saved === "0") return false;
-  return window.matchMedia?.("(max-width: 768px)").matches ?? false;
-}
-
-function applyTheme(theme: Theme) {
-  document.documentElement.setAttribute("data-theme", theme);
-}
-
-type Route = { tab: Tab; itemId: string | null };
-
-function readRouteFromHash(): Route {
-  // Format : `#/<tab>` ou `#/<tab>/<itemId>`. ItemId encodé URL.
-  const raw = window.location.hash.replace(/^#\/?/, "");
-  const [tabRaw, ...rest] = raw.split("/");
-  const tab = (TABS as string[]).includes(tabRaw) ? (tabRaw as Tab) : DEFAULT_TAB;
-  const idRaw = rest.join("/");
-  const itemId = idRaw.length > 0 ? safeDecode(idRaw) : null;
-  return { tab, itemId };
-}
-
-function safeDecode(s: string): string {
-  try {
-    return decodeURIComponent(s);
-  } catch {
-    return s;
-  }
-}
-
-function buildHash(tab: Tab, itemId: string | null): string {
-  return itemId ? `#/${tab}/${encodeURIComponent(itemId)}` : `#/${tab}`;
-}
 
 export function App() {
-  const [auth, setAuth] = useState<AuthState>({ kind: "loading" });
-  const [route, setRoute] = useState<Route>(() => readRouteFromHash());
-  const [theme, setTheme] = useState<Theme>(() => {
-    const initial = readInitialTheme();
-    applyTheme(initial);
-    return initial;
-  });
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() =>
-    readInitialSidebarCollapsed(),
-  );
-  const isMobile = useIsMobile();
-  const prevIsMobile = useRef(isMobile);
-  useEffect(() => {
-    if (prevIsMobile.current && !isMobile) {
-      setSidebarCollapsed(false);
-      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "0");
-    }
-    prevIsMobile.current = isMobile;
-  }, [isMobile]);
-  // Compteur de pills "proposed" pour le badge sur le tab. Initial fetch +
-  // updates pushed depuis BingoPillsSection via callback.
-  const [proposedPillsCount, setProposedPillsCount] = useState(0);
-  // Compteur de signalements "pending" (= jamais vus par admin). Idem :
-  // fetch initial + updates pushed depuis ReportsSection.
-  const [pendingReportsCount, setPendingReportsCount] = useState(0);
-
-  useEffect(() => {
-    if (auth.kind !== "admin") return;
-    let cancelled = false;
-    void (async () => {
-      const { count } = await supabase
-        .from("bingo_pills")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "proposed");
-      if (!cancelled && typeof count === "number")
-        setProposedPillsCount(count);
-    })();
-    void (async () => {
-      try {
-        const n = await getUnreadReportsCount();
-        if (!cancelled) setPendingReportsCount(n);
-      } catch {
-        // Pas critique : à la prochaine navigation reports la valeur sera
-        // re-pushée par la section elle-même.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [auth.kind]);
-
-  function toggleTheme() {
-    const next: Theme = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-    applyTheme(next);
-    localStorage.setItem(THEME_KEY, next);
-  }
-
-  function toggleSidebar() {
-    const next = !sidebarCollapsed;
-    setSidebarCollapsed(next);
-    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0");
-  }
-
-  useEffect(() => {
-    void resolveAuth();
-    const sub = supabase.auth.onAuthStateChange(() => {
-      void resolveAuth();
-    });
-    return () => sub.data.subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    const onHash = () => setRoute(readRouteFromHash());
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
-  }, []);
-
-  function selectTab(next: Tab) {
-    if (route.tab === next) return;
-    const nextRoute: Route = { tab: next, itemId: null };
-    setRoute(nextRoute);
-    const hash = buildHash(nextRoute.tab, nextRoute.itemId);
-    if (window.location.hash !== hash) {
-      window.history.replaceState(null, "", hash);
-    }
-    // Sur mobile, on referme la sidebar overlay après navigation pour
-    // dégager le body.
-    if (isMobile && !sidebarCollapsed) {
-      setSidebarCollapsed(true);
-      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "1");
-    }
-  }
-
-  function selectItem(itemId: string | null) {
-    if (route.itemId === itemId) return;
-    const nextRoute: Route = { tab: route.tab, itemId };
-    setRoute(nextRoute);
-    const hash = buildHash(nextRoute.tab, nextRoute.itemId);
-    if (window.location.hash !== hash) {
-      window.history.replaceState(null, "", hash);
-    }
-  }
-
-  async function resolveAuth() {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) {
-      setAuth({ kind: "logged_out" });
-      return;
-    }
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", session.user.id)
-      .maybeSingle();
-    setAuth({ kind: profile?.is_admin ? "admin" : "not_admin" });
-  }
+  const [auth, resolveAuth] = useAdminAuth();
+  const { route, selectTab, selectItem } = useHashRoute();
+  const [theme, toggleTheme] = useTheme();
+  const sidebar = useSidebarCollapsed();
+  const counts = usePendingCounts(auth.kind === "admin");
 
   if (auth.kind === "loading") {
     return <div style={{ padding: 40 }}>Chargement…</div>;
@@ -340,145 +35,29 @@ export function App() {
     return <LoginForm onLoggedIn={() => void resolveAuth()} />;
   }
   if (auth.kind === "not_admin") {
-    return (
-      <div
-        style={{
-          maxWidth: 480,
-          margin: "80px auto",
-          padding: 24,
-          background: "var(--surface)",
-          borderRadius: 12,
-          border: "1px solid var(--line)",
-        }}
-      >
-        <h1>Accès refusé</h1>
-        <p>
-          Ce compte n'a pas <code>profiles.is_admin = true</code>.
-        </p>
-        <button className="btn" onClick={() => supabase.auth.signOut()}>
-          Se déconnecter
-        </button>
-      </div>
-    );
+    return <AccessDenied />;
   }
-
-  const sidebarOverlay = isMobile && !sidebarCollapsed;
 
   return (
     <div style={{ display: "flex", height: "100vh" }}>
-      {sidebarOverlay && (
-        <div
-          aria-hidden
-          style={{
-            width: 64,
-            flexShrink: 0,
-            borderRight: "1px solid var(--line)",
-            background: "var(--surface)",
-          }}
-        />
-      )}
-      {sidebarOverlay && <MobileAsideBackdrop onClose={toggleSidebar} />}
-      <aside
-        style={{
-          width: sidebarCollapsed ? 64 : 220,
-          flexShrink: 0,
-          borderRight: "1px solid var(--line)",
-          background: "var(--surface)",
-          display: "flex",
-          flexDirection: "column",
-          transition: "width 180ms ease",
-          ...(sidebarOverlay ? MOBILE_ASIDE_OVERLAY_STYLE : null),
+      <Sidebar
+        collapsed={sidebar.collapsed}
+        overlay={sidebar.overlay}
+        activeTab={route.tab}
+        badges={{
+          pills: counts.proposedPills,
+          reports: counts.pendingReports,
         }}
-      >
-        <div
-          style={{
-            padding: sidebarCollapsed ? "12px 8px" : "12px 12px",
-            borderBottom: "1px solid var(--line)",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            justifyContent: sidebarCollapsed ? "center" : "flex-start",
-            minHeight: 52,
-          }}
-        >
-          <button
-            onClick={toggleSidebar}
-            title={sidebarCollapsed ? "Déplier le menu" : "Replier le menu"}
-            aria-label={sidebarCollapsed ? "Déplier le menu" : "Replier le menu"}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 32,
-              height: 32,
-              padding: 0,
-              borderRadius: 8,
-              border: "1px solid var(--line)",
-              background: "transparent",
-              color: "var(--ink-muted)",
-              cursor: "pointer",
-              flexShrink: 0,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "var(--surface-2)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-            }}
-          >
-            <ChevronIcon direction={sidebarCollapsed ? "right" : "left"} />
-          </button>
-          {!sidebarCollapsed && (
-            <span style={{ fontWeight: 700, fontSize: 15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              Grimolia — admin
-            </span>
-          )}
-        </div>
-        <nav style={{ display: "flex", flexDirection: "column", gap: 2, padding: sidebarCollapsed ? 8 : 12, flex: 1, minHeight: 0, overflowY: "auto" }}>
-          {TABS.map((tab) => {
-            const badge =
-              tab === "pills" && proposedPillsCount > 0
-                ? proposedPillsCount
-                : tab === "reports" && pendingReportsCount > 0
-                  ? pendingReportsCount
-                  : null;
-            return (
-              <SidebarItem
-                key={tab}
-                label={TAB_LABELS[tab]}
-                icon={TAB_ICONS[tab]}
-                active={route.tab === tab}
-                collapsed={sidebarCollapsed}
-                badge={badge}
-                onClick={() => selectTab(tab)}
-              />
-            );
-          })}
-        </nav>
-        <div
-          style={{
-            padding: sidebarCollapsed ? 8 : 12,
-            borderTop: "1px solid var(--line)",
-            display: "flex",
-            flexDirection: "column",
-            gap: 6,
-          }}
-        >
-          <SidebarAction
-            label={theme === "dark" ? "Mode clair" : "Mode sombre"}
-            icon={theme === "dark" ? <SunIcon /> : <MoonIcon />}
-            collapsed={sidebarCollapsed}
-            onClick={toggleTheme}
-          />
-          <SidebarAction
-            label="Se déconnecter"
-            icon={<LogoutIcon />}
-            collapsed={sidebarCollapsed}
-            onClick={() => supabase.auth.signOut()}
-          />
-          <VersionBadge collapsed={sidebarCollapsed} />
-        </div>
-      </aside>
+        theme={theme}
+        onToggle={sidebar.toggle}
+        onSelectTab={(tab) => {
+          selectTab(tab);
+          // Sur mobile, on referme la sidebar overlay après navigation pour
+          // dégager le body.
+          sidebar.closeOverlay();
+        }}
+        onToggleTheme={toggleTheme}
+      />
 
       <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden" }}>
         {route.tab === "users" && (
@@ -488,7 +67,7 @@ export function App() {
           <ReportsSection
             itemId={route.itemId}
             onItemChange={selectItem}
-            onPendingCountChange={setPendingReportsCount}
+            onPendingCountChange={counts.setPendingReports}
           />
         )}
         {route.tab === "badges" && (
@@ -504,7 +83,10 @@ export function App() {
           <StickersSection itemId={route.itemId} onItemChange={selectItem} />
         )}
         {route.tab === "avatar-frames" && (
-          <AvatarFramesSection itemId={route.itemId} onItemChange={selectItem} />
+          <AvatarFramesSection
+            itemId={route.itemId}
+            onItemChange={selectItem}
+          />
         )}
         {route.tab === "books" && (
           <BooksSection itemId={route.itemId} onItemChange={selectItem} />
@@ -513,325 +95,34 @@ export function App() {
           <BingoPillsSection
             itemId={route.itemId}
             onItemChange={selectItem}
-            onProposedCountChange={setProposedPillsCount}
+            onProposedCountChange={counts.setProposedPills}
           />
         )}
         {route.tab === "musiques" && (
           <MusiquesSection itemId={route.itemId} onItemChange={selectItem} />
         )}
         {route.tab === "subscriptions" && (
-          <SubscriptionsSection itemId={route.itemId} onItemChange={selectItem} />
+          <SubscriptionsSection
+            itemId={route.itemId}
+            onItemChange={selectItem}
+          />
         )}
         {route.tab === "editorial" && (
           <EditorialSection itemId={route.itemId} onItemChange={selectItem} />
         )}
         {route.tab === "release-notes" && (
-          <ReleaseNotesSection itemId={route.itemId} onItemChange={selectItem} />
+          <ReleaseNotesSection
+            itemId={route.itemId}
+            onItemChange={selectItem}
+          />
         )}
         {route.tab === "template-genres" && (
-          <TemplateGenresSection itemId={route.itemId} onItemChange={selectItem} />
+          <TemplateGenresSection
+            itemId={route.itemId}
+            onItemChange={selectItem}
+          />
         )}
       </div>
     </div>
-  );
-}
-
-function SidebarItem({
-  label,
-  icon,
-  active,
-  collapsed,
-  badge,
-  onClick,
-}: {
-  label: string;
-  icon: React.JSX.Element;
-  active: boolean;
-  collapsed: boolean;
-  badge?: number | null;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      title={collapsed ? label : undefined}
-      aria-label={collapsed ? label : undefined}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        textAlign: "left",
-        padding: collapsed ? "8px 0" : "8px 12px",
-        justifyContent: collapsed ? "center" : "flex-start",
-        borderRadius: 8,
-        border: "1px solid transparent",
-        borderColor: active ? "var(--accent)" : "transparent",
-        background: active ? "var(--accent)" : "transparent",
-        color: active ? "white" : "var(--ink)",
-        fontWeight: 600,
-        fontSize: 13,
-        cursor: "pointer",
-        width: "100%",
-        position: "relative",
-      }}
-      onMouseEnter={(e) => {
-        if (!active) e.currentTarget.style.background = "var(--surface-2)";
-      }}
-      onMouseLeave={(e) => {
-        if (!active) e.currentTarget.style.background = "transparent";
-      }}
-    >
-      <span style={{ display: "inline-flex", flexShrink: 0, color: active ? "white" : "var(--ink-muted)" }}>{icon}</span>
-      {!collapsed && <span style={{ flex: 1 }}>{label}</span>}
-      {badge != null && badge > 0 ? (
-        collapsed ? (
-          <span
-            style={{
-              position: "absolute",
-              top: 2,
-              right: 2,
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              minWidth: 16,
-              height: 16,
-              padding: "0 4px",
-              borderRadius: 999,
-              background: "#ef4444",
-              color: "white",
-              fontSize: 10,
-              fontWeight: 700,
-            }}
-          >
-            {badge}
-          </span>
-        ) : (
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              minWidth: 20,
-              height: 20,
-              padding: "0 6px",
-              borderRadius: 999,
-              background: active ? "white" : "#ef4444",
-              color: active ? "var(--accent)" : "white",
-              fontSize: 11,
-              fontWeight: 700,
-              flexShrink: 0,
-            }}
-          >
-            {badge}
-          </span>
-        )
-      ) : null}
-    </button>
-  );
-}
-
-function SidebarAction({
-  label,
-  icon,
-  collapsed,
-  onClick,
-}: {
-  label: string;
-  icon: React.JSX.Element;
-  collapsed: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      title={collapsed ? label : undefined}
-      aria-label={collapsed ? label : undefined}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        textAlign: "left",
-        padding: collapsed ? "8px 0" : "8px 12px",
-        justifyContent: collapsed ? "center" : "flex-start",
-        borderRadius: 8,
-        border: "1px solid transparent",
-        background: "transparent",
-        color: "var(--ink)",
-        fontWeight: 500,
-        fontSize: 13,
-        cursor: "pointer",
-        width: "100%",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = "var(--surface-2)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = "transparent";
-      }}
-    >
-      <span style={{ display: "inline-flex", flexShrink: 0, color: "var(--ink-muted)" }}>{icon}</span>
-      {!collapsed && <span>{label}</span>}
-    </button>
-  );
-}
-
-function ChevronIcon({ direction }: { direction: "left" | "right" }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      {direction === "left" ? <polyline points="15 18 9 12 15 6" /> : <polyline points="9 18 15 12 9 6" />}
-    </svg>
-  );
-}
-
-function SunIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
-    </svg>
-  );
-}
-
-function MoonIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-    </svg>
-  );
-}
-
-function InfoIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 8h.01M11 12h1v4h1" />
-    </svg>
-  );
-}
-
-// Badge version backoffice : déclencheur sobre (icône "i") dans le pied de
-// sidebar. Tooltip révélé au hover (desktop) OU au click — le click pin
-// l'état pour le tactile, où le hover CSS ne s'applique pas. Cliquer ailleurs
-// referme. Pas de lib externe — un peu de state + CSS suffit.
-function VersionBadge({ collapsed }: { collapsed: boolean }) {
-  const [pinned, setPinned] = useState(false);
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!pinned) return;
-    function onDocClick(e: MouseEvent) {
-      if (!wrapRef.current) return;
-      if (!wrapRef.current.contains(e.target as Node)) setPinned(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [pinned]);
-
-  return (
-    <>
-      <style>{`
-        .version-badge-wrap { position: relative; }
-        .version-badge-tooltip {
-          position: absolute;
-          bottom: calc(100% + 6px);
-          left: 12px;
-          background: var(--ink);
-          color: var(--surface);
-          padding: 6px 10px;
-          border-radius: 6px;
-          font-size: 11px;
-          font-weight: 500;
-          white-space: nowrap;
-          pointer-events: none;
-          opacity: 0;
-          transform: translateY(2px);
-          transition: opacity 140ms ease, transform 140ms ease;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
-          z-index: 10;
-        }
-        .version-badge-tooltip.centered {
-          left: 50%;
-          transform: translate(-50%, 2px);
-        }
-        .version-badge-tooltip::after {
-          content: "";
-          position: absolute;
-          top: 100%;
-          left: 12px;
-          width: 8px;
-          height: 8px;
-          background: var(--ink);
-          transform: translateY(-4px) rotate(45deg);
-        }
-        .version-badge-tooltip.centered::after {
-          left: 50%;
-          margin-left: -4px;
-        }
-        .version-badge-wrap:hover .version-badge-tooltip,
-        .version-badge-tooltip.pinned {
-          opacity: 1;
-          transform: translateY(0);
-        }
-        .version-badge-wrap:hover .version-badge-tooltip.centered,
-        .version-badge-tooltip.centered.pinned {
-          transform: translate(-50%, 0);
-        }
-      `}</style>
-      <div ref={wrapRef} className="version-badge-wrap">
-        <button
-          onClick={() => setPinned((p) => !p)}
-          aria-label={`Version backoffice : v${__ADMIN_VERSION__}`}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            textAlign: "left",
-            padding: collapsed ? "6px 0" : "6px 12px",
-            justifyContent: collapsed ? "center" : "flex-start",
-            borderRadius: 8,
-            border: "none",
-            background: "transparent",
-            color: "var(--ink-muted)",
-            fontSize: 11,
-            fontWeight: 500,
-            cursor: "pointer",
-            width: "100%",
-            opacity: 0.7,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = "1";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = "0.7";
-          }}
-        >
-          <span style={{ display: "inline-flex", flexShrink: 0 }}>
-            <InfoIcon />
-          </span>
-          {!collapsed && <span>Backoffice</span>}
-        </button>
-        <div
-          className={[
-            "version-badge-tooltip",
-            collapsed ? "centered" : "",
-            pinned ? "pinned" : "",
-          ]
-            .filter(Boolean)
-            .join(" ")}
-        >
-          Backoffice v{__ADMIN_VERSION__}
-        </div>
-      </div>
-    </>
-  );
-}
-
-function LogoutIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <path d="m16 17 5-5-5-5" />
-      <path d="M21 12H9" />
-    </svg>
   );
 }
