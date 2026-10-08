@@ -1,8 +1,9 @@
 import { usePaperScreenClass } from '@/components/app-fond-background';
 import { BookCover } from '@/components/book-cover';
+import { BookNotFoundDialog } from '@/components/book-not-found-dialog';
 import { SearchMode } from '@/components/search-mode';
 import { APP_NAME } from '@/constants/app';
-import { fetchBook } from '@/lib/books';
+import { resolveBook } from '@/lib/books';
 import { useScanBatch } from '@/store/scan-batch';
 import { MaterialIcons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -69,6 +70,12 @@ function NativeScanner() {
   const [torch, setTorch] = useState(false);
   // ISBN en cours de résolution → placeholders dans la liste latérale.
   const [resolving, setResolving] = useState<string[]>([]);
+  // ISBN introuvables partout, en attente de décision (annuler / soumettre).
+  // Le dialog affiche le premier ; le scan est suspendu tant qu'il est ouvert.
+  const [notFound, setNotFound] = useState<string[]>([]);
+  // ISBN déjà signalés introuvables dans cette session : la caméra voit
+  // encore le code-barres après « Annuler », on ne rouvre pas le dialog.
+  const dismissedRef = useRef<Set<string>>(new Set());
 
   const onBarcode = useCallback(
     ({ data }: { data: string }) => {
@@ -88,6 +95,7 @@ function NativeScanner() {
       if (isbn.length !== 10 && isbn.length !== 13) return;
       // Déjà empilé ou en cours de résolution → on ignore.
       if (useScanBatch.getState().items.some((b) => b.isbn === isbn)) return;
+      if (dismissedRef.current.has(isbn)) return;
       let already = false;
       setResolving((prev) => {
         if (prev.includes(isbn)) {
@@ -97,13 +105,27 @@ function NativeScanner() {
         return [...prev, isbn];
       });
       if (already) return;
-      void fetchBook(isbn)
-        .then((book) => {
-          if (book) add(book);
+      void resolveBook(isbn)
+        .then((result) => {
+          if (result.status === 'found') add(result.book);
+          else if (result.status === 'not_found') {
+            dismissedRef.current.add(isbn);
+            setNotFound((prev) => (prev.includes(isbn) ? prev : [...prev, isbn]));
+          }
         })
         .finally(() => setResolving((prev) => prev.filter((i) => i !== isbn)));
     },
     [add],
+  );
+
+  const dialogIsbn = notFound[0] ?? null;
+  const closeDialog = useCallback(() => setNotFound((prev) => prev.slice(1)), []);
+  const onSubmitNotFound = useCallback(
+    (isbn: string) => {
+      closeDialog();
+      router.push({ pathname: '/book-submit', params: { isbn } });
+    },
+    [closeDialog, router],
   );
 
   const onValidate = useCallback(() => {
@@ -148,10 +170,15 @@ function NativeScanner() {
       <CameraView
         style={{ flex: 1 }}
         facing="back"
+        // L'objectif principal ne fait pas le point à moins de ~20 cm : un
+        // léger zoom (~×1,5-2, échelle expo exponentielle) pousse à scanner
+        // de plus loin, dans sa zone de netteté.
+        zoom={0.1}
         enableTorch={torch}
         barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e'] }}
-        onBarcodeScanned={onBarcode}
+        onBarcodeScanned={dialogIsbn ? undefined : onBarcode}
       />
+      <BookNotFoundDialog isbn={dialogIsbn} onCancel={closeDialog} onSubmit={onSubmitNotFound} />
       <Animated.View
         entering={FadeIn.duration(400)}
         pointerEvents="none"

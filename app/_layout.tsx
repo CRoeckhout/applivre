@@ -383,6 +383,10 @@ function AuthGate() {
           options={{ title: "Saisie manuelle", headerBackTitle: "Retour" }}
         />
         <Stack.Screen
+          name="book-submit"
+          options={{ title: "Soumettre un livre", headerBackTitle: "Retour" }}
+        />
+        <Stack.Screen
           name="sheet/new"
           options={{ title: "Nouvelle fiche", headerBackTitle: "Retour" }}
         />

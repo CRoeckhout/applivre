@@ -4,6 +4,12 @@ import { ReleaseNotesModal } from "@/components/release-notes-modal";
 import { UsernameEditorModal } from "@/components/username-editor-modal";
 import { signOut, useAuth } from "@/hooks/use-auth";
 import { useReleaseNotes } from "@/hooks/use-release-notes";
+import {
+  useMySubmissions,
+  type BookSubmissionStatus,
+  type MyBookSubmission,
+} from "@/lib/book-submissions";
+import { resolveStorageUrl } from "@/lib/storage-url";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { useBookshelf } from "@/store/bookshelf";
 import { useLoans } from "@/store/loans";
@@ -32,6 +38,7 @@ export default function ProfileScreen() {
   // row "Quoi de neuf" — pas de prefetch silencieux à chaque visite du
   // profil.
   const releaseNotes = useReleaseNotes(showReleaseNotes, { forceAll: true });
+  const submissions = useMySubmissions(!!session);
 
   const { lent, borrowed } = useMemo(() => {
     const byId = new Map(books.map((b) => [b.id, b]));
@@ -118,6 +125,15 @@ export default function ProfileScreen() {
           ))}
         </Section>
 
+        <Section
+          title="Livres que j'ai soumis à Grimolia"
+          empty="Tu n'as soumis aucun livre."
+        >
+          {(submissions.data ?? []).map((s) => (
+            <SubmissionRow key={s.id} submission={s} />
+          ))}
+        </Section>
+
         <ReleaseNotesModal
           open={showReleaseNotes}
           onClose={() => setShowReleaseNotes(false)}
@@ -193,6 +209,67 @@ function LoanRow({ entry }: { entry: EnrichedLoan }) {
             : `depuis ${days} jour${days > 1 ? "s" : ""}`}
         </Text>
       </View>
+    </Pressable>
+  );
+}
+
+const SUBMISSION_STATUS_LABELS: Record<BookSubmissionStatus, string> = {
+  pending: "En attente de validation",
+  approved: "Ajouté au catalogue",
+  rejected: "Refusé",
+};
+
+// En attente → éditable ; approuvé → fiche livre ; refusé → lecture seule
+// (motif affiché, pas de nouvelle soumission possible).
+function SubmissionRow({ submission }: { submission: MyBookSubmission }) {
+  const router = useRouter();
+  const theme = useThemeColors();
+  const { status, removedFromCatalog } = submission;
+
+  const onPress =
+    status === "pending"
+      ? () => router.push({ pathname: "/book-submit", params: { id: submission.id } })
+      : status === "approved" && !removedFromCatalog
+        ? () => router.push(`/book/${submission.bookIsbn}`)
+        : undefined;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      className="mb-2 flex-row items-center gap-3 rounded-2xl bg-paper-warm p-3 active:bg-paper-shade"
+    >
+      <BookCover
+        isbn={submission.bookIsbn}
+        coverUrl={resolveStorageUrl(submission.coverUrl) ?? undefined}
+        style={{ width: 44, height: 66, borderRadius: 6 }}
+      />
+      <View className="flex-1">
+        <Text numberOfLines={1} className="font-display text-base text-ink">
+          {submission.title}
+        </Text>
+        <Text
+          className={`text-sm ${
+            status === "rejected"
+              ? "text-red-600"
+              : status === "approved" && !removedFromCatalog
+                ? "text-accent-deep"
+                : "text-ink-soft"
+          }`}
+        >
+          {removedFromCatalog ? "Retiré du catalogue" : SUBMISSION_STATUS_LABELS[status]}
+        </Text>
+        {status === "rejected" && submission.decisionReason ? (
+          <Text className="text-xs text-ink-muted">{submission.decisionReason}</Text>
+        ) : (
+          <Text className="text-xs text-ink-muted">
+            Soumis le {new Date(submission.createdAt).toLocaleDateString("fr-FR")}
+          </Text>
+        )}
+      </View>
+      {status === "pending" ? (
+        <MaterialIcons name="edit" size={18} color={theme.inkMuted} />
+      ) : null}
     </Pressable>
   );
 }

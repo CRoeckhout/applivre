@@ -10,13 +10,21 @@ export type SearchResult = {
   pages?: number;
 };
 
+export type ResolveBookResult =
+  | { status: 'found'; book: Book }
+  | { status: 'not_found' }
+  | { status: 'error' };
+
 /**
  * Résolution ISBN via edge function `resolve-book`.
  * Google Books / OpenLibrary / BNF sont interrogés côté serveur, la clé
  * Google reste en secret serveur, et le résultat est caché dans la
  * table `books`. Le client reçoit directement le Book canonique.
+ *
+ * Distingue « introuvable partout » (404 `not_found`) d'une erreur réseau /
+ * serveur, pour que le scanner ne propose la soumission que dans le 1er cas.
  */
-export async function fetchBook(isbn: string): Promise<Book | null> {
+export async function resolveBook(isbn: string): Promise<ResolveBookResult> {
   const clean = isbn.replace(/[^0-9X]/gi, '');
   if (__DEV__) console.log('[fetchBook] invoke resolve-book', clean);
   const { data, error } = await supabase.functions.invoke<{
@@ -28,11 +36,17 @@ export async function fetchBook(isbn: string): Promise<Book | null> {
   });
   if (error) {
     if (__DEV__) console.warn('[fetchBook] edge error', error);
-    return null;
+    const status = (error as { context?: Response }).context?.status;
+    return status === 404 ? { status: 'not_found' } : { status: 'error' };
   }
-  if (!data?.book) return null;
+  if (!data?.book) return { status: 'not_found' };
   if (__DEV__) console.log('[fetchBook] result', data.source, data.book);
-  return data.book;
+  return { status: 'found', book: data.book };
+}
+
+export async function fetchBook(isbn: string): Promise<Book | null> {
+  const result = await resolveBook(isbn);
+  return result.status === 'found' ? result.book : null;
 }
 
 /**

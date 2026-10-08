@@ -394,15 +394,26 @@ export function getUnreadReportsCount(): Promise<number> {
   return callRpc<number>("admin_unread_reports_count", {});
 }
 
-// Compteur pour le badge de la sidebar. SELECT direct (head + count) : la
-// policy admin de bingo_pills suffit.
-export async function getProposedPillsCount(): Promise<number> {
+// Compteurs pour les badges de la sidebar. SELECT directs (head + count) :
+// les policies admin de bingo_pills / book_submissions suffisent.
+async function countRows(
+  table: "bingo_pills" | "book_submissions",
+  status: string,
+): Promise<number> {
   const { count, error } = await supabase
-    .from("bingo_pills")
+    .from(table)
     .select("id", { count: "exact", head: true })
-    .eq("status", "proposed");
+    .eq("status", status);
   if (error) throw error;
   return count ?? 0;
+}
+
+export function getProposedPillsCount(): Promise<number> {
+  return countRows("bingo_pills", "proposed");
+}
+
+export function getPendingBookSubmissionsCount(): Promise<number> {
+  return countRows("book_submissions", "pending");
 }
 
 export function sendModerationMessage(

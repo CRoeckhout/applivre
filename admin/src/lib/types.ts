@@ -241,6 +241,40 @@ export type AiCleanedBook = {
 
 export const BOOK_SOURCES: BookSource[] = ['isbndb', 'openlibrary', 'googlebooks', 'bnf', 'manual'];
 
+// ═══════════════ Book submissions (livres introuvables soumis) ═══════════════
+
+export type BookSubmissionStatus = 'pending' | 'approved' | 'rejected';
+
+export const BOOK_SUBMISSION_STATUSES: BookSubmissionStatus[] = ['pending', 'approved', 'rejected'];
+
+export const BOOK_SUBMISSION_STATUS_LABELS: Record<BookSubmissionStatus, string> = {
+  pending: 'En attente',
+  approved: 'Approuvé',
+  rejected: 'Refusé',
+};
+
+export type BookSubmissionRow = {
+  id: string;
+  user_id: string;
+  // Clé `books.isbn` utilisée par la biblio de l'user (ISBN réel ou manual-…).
+  book_isbn: string;
+  isbn: string | null;
+  title: string;
+  pages: number;
+  authors: string[];
+  categories: string[];
+  published_at: string | null;
+  cover_url: string | null;
+  status: BookSubmissionStatus;
+  decision_reason: string | null;
+  decided_at: string | null;
+  decided_by: string | null;
+  // Soft delete admin (cf. migration 0078) : row gardée en base, masquée du backoffice.
+  archived_at: string | null;
+  archived_by: string | null;
+  created_at: string;
+};
+
 // ═══════════════ Bingo pills (user-owned challenges) ═══════════════
 
 export type BingoPillStatus = 'private' | 'proposed' | 'public' | 'disabled';

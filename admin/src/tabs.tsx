@@ -1,6 +1,7 @@
 import type React from "react";
 import AvatarFramesIcon from "./assets/icons/avatar-frames.svg?react";
 import BadgesIcon from "./assets/icons/badges.svg?react";
+import BookSubmissionsIcon from "./assets/icons/book-submissions.svg?react";
 import BooksIcon from "./assets/icons/books.svg?react";
 import BordersIcon from "./assets/icons/borders.svg?react";
 import EditorialIcon from "./assets/icons/editorial.svg?react";
@@ -18,19 +19,20 @@ import UsersIcon from "./assets/icons/users.svg?react";
 // (`#/<tab>/<itemId>`).
 export const TABS = [
   "users",
-  "reports",
+  "books",
+  "book-submissions",
   "badges",
   "borders",
   "fonds",
   "stickers",
   "avatar-frames",
-  "books",
   "pills",
   "musiques",
   "subscriptions",
   "editorial",
   "release-notes",
   "template-genres",
+  "reports",
 ] as const;
 
 export type Tab = (typeof TABS)[number];
@@ -43,19 +45,20 @@ export function isTab(value: string): value is Tab {
 
 export const TAB_LABELS: Record<Tab, string> = {
   users: "Utilisateurs",
-  reports: "Signalements",
+  books: "Livres",
+  "book-submissions": "Livres soumis",
   badges: "Badges",
   borders: "Cadres",
   fonds: "Fonds",
   stickers: "Stickers",
   "avatar-frames": "Cadres photo",
-  books: "Livres",
   pills: "Défis bingo",
   musiques: "Musiques",
   subscriptions: "Abonnements",
   editorial: "Fil d'actualité",
   "release-notes": "Quoi de neuf",
   "template-genres": "Genres templates",
+  reports: "Signalements",
 };
 
 export const TAB_ICONS: Record<Tab, React.JSX.Element> = {
@@ -67,6 +70,7 @@ export const TAB_ICONS: Record<Tab, React.JSX.Element> = {
   stickers: <StickersIcon />,
   "avatar-frames": <AvatarFramesIcon />,
   books: <BooksIcon />,
+  "book-submissions": <BookSubmissionsIcon />,
   pills: <PillsIcon />,
   musiques: <MusiquesIcon />,
   subscriptions: <SubscriptionsIcon />,

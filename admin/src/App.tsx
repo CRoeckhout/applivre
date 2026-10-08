@@ -9,6 +9,7 @@ import { useTheme } from "./lib/use-theme";
 import { AvatarFramesSection } from "./sections/avatar-frames-section";
 import { BadgesSection } from "./sections/badges-section";
 import { BingoPillsSection } from "./sections/bingo-pills-section";
+import { BookSubmissionsSection } from "./sections/book-submissions-section";
 import { BooksSection } from "./sections/books-section";
 import { BordersSection } from "./sections/borders-section";
 import { EditorialSection } from "./sections/editorial-section";
@@ -47,6 +48,7 @@ export function App() {
         badges={{
           pills: counts.proposedPills,
           reports: counts.pendingReports,
+          "book-submissions": counts.pendingBookSubmissions,
         }}
         theme={theme}
         onToggle={sidebar.toggle}
@@ -90,6 +92,13 @@ export function App() {
         )}
         {route.tab === "books" && (
           <BooksSection itemId={route.itemId} onItemChange={selectItem} />
+        )}
+        {route.tab === "book-submissions" && (
+          <BookSubmissionsSection
+            itemId={route.itemId}
+            onItemChange={selectItem}
+            onPendingCountChange={counts.setPendingBookSubmissions}
+          />
         )}
         {route.tab === "pills" && (
           <BingoPillsSection

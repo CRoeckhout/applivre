@@ -6,7 +6,7 @@ import {
   syncUpsertUserBook,
 } from '@/lib/sync/writers';
 import { useBingos } from '@/store/bingo';
-import type { ReadingStatus, UserBook } from '@/types/book';
+import type { Book, ReadingStatus, UserBook } from '@/types/book';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
@@ -22,6 +22,9 @@ type BookshelfState = {
   ) => void;
   toggleFavorite: (id: string) => void;
   setGenres: (id: string, genres: string[]) => void;
+  // Met à jour les métadonnées catalogue d'un livre de la biblio (ex. édition
+  // d'une soumission `pending`) et repousse la row `books`.
+  updateBookInfo: (isbn: string, patch: Partial<Omit<Book, 'isbn'>>) => void;
   hasBook: (isbn: string) => boolean;
   reset: () => void;
 };
@@ -124,6 +127,17 @@ export const useBookshelf = create<BookshelfState>()(
         }));
         const userId = getSyncUserId();
         if (userId && updated) void syncUpsertUserBook(updated, userId);
+      },
+      updateBookInfo: (isbn, patch) => {
+        let updatedBook: Book | undefined;
+        set((state) => ({
+          books: state.books.map((b) => {
+            if (b.book.isbn !== isbn) return b;
+            updatedBook = { ...b.book, ...patch, isbn };
+            return { ...b, book: updatedBook };
+          }),
+        }));
+        if (getSyncUserId() && updatedBook) void syncUpsertBook(updatedBook);
       },
       hasBook: (isbn) => get().books.some((b) => b.book.isbn === isbn),
       reset: () => set({ books: [] }),
