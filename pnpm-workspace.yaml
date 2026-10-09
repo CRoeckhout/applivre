@@ -1,3 +1,12 @@
+# Scripts d'install autorisés. Skia : `install-libs.js` copie les binaires
+# natifs prébuildés, sans lui le build iOS/Android casse.
+# `allowBuilds` = pnpm 11 (packageManager) ; `onlyBuiltDependencies` pour pnpm 10.
+allowBuilds:
+  '@shopify/react-native-skia': true
+  unrs-resolver: true
+onlyBuiltDependencies:
+  - '@shopify/react-native-skia'
+  - unrs-resolver
 nodeLinker: hoisted
 packages:
   - "packages/*"
